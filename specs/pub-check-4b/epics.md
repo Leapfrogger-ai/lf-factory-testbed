@@ -13,20 +13,11 @@ Prerequisites: None
 Acceptance criteria:
 - Given a clone, when I run the tests, then they pass.
 
-### Story 1.2 (v1): Cards
+### Story 1.2 (v2): Cards and lanes
 
-As a writer, I want cards.
+As a writer, I want cards in lanes.
 
 Prerequisites: Story 1.1
 
 Acceptance criteria:
-- Given a board, when I add a card, then it shows.
-
-### Story 1.3 (v1): Export
-
-As a writer, I want an export.
-
-Prerequisites: None
-
-Acceptance criteria:
-- Given a board, when I export, then I get a file.
+- Given a board, when I add a card to a lane, then it shows in that lane.
