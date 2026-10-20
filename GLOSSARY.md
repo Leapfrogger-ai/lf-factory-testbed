@@ -11,3 +11,7 @@ _Avoid_: Delete, discard, archive
 **Complete**:
 Marking a to-do as done. It stays in the list but no longer appears in `pending()`.
 _Avoid_: Finish, close, check off
+
+**Pending**:
+A to-do that is not yet complete.
+_Avoid_: Open, outstanding, todo (as a state)

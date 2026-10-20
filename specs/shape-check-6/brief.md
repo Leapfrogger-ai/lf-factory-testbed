@@ -45,10 +45,10 @@ Add `TodoList.remove(todo_id)` to the testbed's to-do library so that a develope
 | Feature | Acceptance Criteria |
 |---------|---------------------|
 | `TodoList.remove(todo_id)` | Deletes the to-do and returns the removed `Todo`, matching `complete()`. |
-| Unknown id | `remove()` on an id that isn't in the list raises `KeyError`, matching `complete()`. |
+| Unknown id | `remove()` on an id that isn't in the list raises `KeyError`, matching `complete()`. Removing the same id twice raises `KeyError` too. |
 | Done to-dos | A to-do that is already done can be removed too, not only pending ones. |
-| No id reuse | After a removal, `add()` keeps counting up from `_next_id`. A removed id is never handed out again. |
-| Tests | Each criterion above has a test in `tests/test_todo.py`. |
+| No id reuse | After a removal, `add()` keeps counting up from `_next_id`. A removed id is never handed out again. Test: add 1 and 2, remove 2, add → the new id is 3. |
+| Tests | Each criterion above has a test in `tests/test_todo.py`. Tests observe removal only through the existing API: after `remove(id)`, `complete(id)` and `remove(id)` raise `KeyError`, and a removed pending to-do is gone from `pending()`. No new read accessor. |
 
 ### 4.2 Won't Have
 
@@ -88,3 +88,13 @@ Add `TodoList.remove(todo_id)` to the testbed's to-do library so that a develope
 ## 7. Open Questions
 
 None.
+
+---
+
+## Settled in grilling
+
+- Tests observe removal only through the existing API (`KeyError` from `complete()` and `remove()`, absence from `pending()`). No `get()` or `all()` accessor, so §5's "one method" constraint holds. Uses glossary terms **Remove**, **Complete**, **Pending**.
+- Removing the same id twice raises `KeyError`, as a case of the unknown-id rule.
+- The no-id-reuse test removes the newest to-do: add 1 and 2, remove 2, add → id 3.
+- **Pending** was added to `GLOSSARY.md` so that **Remove** and **Complete** rest on a defined term.
+- No ADR: none of these decisions is hard to reverse.
