@@ -1,0 +1,4 @@
+[commands]
+test = "uv run pytest"
+build = ""
+setup = "uv sync --locked"
