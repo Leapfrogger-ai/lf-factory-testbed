@@ -2,15 +2,11 @@
 
 Decision: not_ready
 Security signoff: yes
-Reopen stage: standards
+Reopen stage: epics
 Maturity: poc
 
 ## Findings
 
-1. CRITICAL: specs/cloud-check-7a/epics.md does not exist, so there are no stories to check or publish. That blocks implementation (reopen epics after the standards fix).
-2. HIGH: CODING_STANDARDS.md links its Platform findings and test-strategy to specs/shape-check-7/..., but the spec lives under specs/cloud-check-7a/. The links are dead, so the Platform rules aren't tied to an existing finding. Fix the paths (stage standards, the earliest to reopen).
-3. MEDIUM: the documents name the initiative 'shape-check-7' while the folder is cloud-check-7a. This is harmless, but it is the cause of finding 2.
-4. NOT CHECKED: PRD.md, ux-spec.md, database-schema.md, api-specification.md and the brownfield claims (ci.yml, pyproject.toml). Bash was denied and I only read the files above. The brief, architecture, test-strategy, research and standards are consistent with each other, with no TBD placeholders.
-5. OK: the Platform Capabilities rows (dict.pop, insertion order) link a research finding that cites docs.python.org, and each row has a rule in the standards. The test strategy has seams, real vs mocked, exact commands, and worktree isolation. The architecture's Secrets table (None) meets the poc 'secrets' gate, so security_signoff is true.
+Critical: specs/cloud-check-7a/epics.md is missing (direct read failed; a second check also found it absent), so no story, its format, the brownfield claims or FR001-FR008 coverage can be validated. Bash was denied, so I could not list the folder. Not verified: GLOSSARY.md, docs/adr/, and the contents of .github/workflows/ci.yml and .factory.toml (both exist). ux-spec.md, database-schema.md and api-specification.md exist as 'Not applicable' stubs, which is acceptable for an in-memory library. Passed: brief.md and PRD.md are consistent (FR001-FR008, NFR001-NFR004, poc). Passed: test-strategy.md is present and complete. Passed: Platform Capabilities rows link research/python-dict-pop.md, which cites docs.python.org, and each row has a rule in CODING_STANDARDS.md. Passed: the Secrets table is present, so security_signoff is true for the secrets gate. Next: re-run once epics.md exists. It needs a story for remove() and its tests. Because Mechanical rules exist, it needs a guardrails story or a brownfield claim that CI already blocks on each rule.
 
 Written by the factory's readiness check (ADR 0017), from its structured output.
