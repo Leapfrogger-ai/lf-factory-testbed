@@ -4,10 +4,10 @@ Judgment rules for reviewers. Each is one sentence a reviewer can answer yes or 
 
 ## Platform
 
-Use what the stack provides; each rule comes from a "Platform Capabilities" row in `specs/shape-check-7/architecture.md`.
+Use what the stack provides; each rule comes from a "Platform Capabilities" row in `specs/cloud-check-7a/architecture.md`.
 
-- Use Python 3.12 `dict`'s `pop(key[, default])`, called without a default, for removing an entry by key; don't hand-roll a membership check, a `raise KeyError`, a `del` and a separate lookup — [finding](specs/shape-check-7/research/python-dict-pop.md).
-- Use Python 3.12 `dict`'s preserved insertion order for keeping the to-dos in the order they were added; don't hand-roll re-sorting by id or a separate order list — [finding](specs/shape-check-7/research/python-dict-pop.md).
+- Use Python 3.12 `dict`'s `pop(key[, default])`, called without a default, for removing an entry by key; don't hand-roll a membership check, a `raise KeyError`, a `del` and a separate lookup — [finding](specs/cloud-check-7a/research/python-dict-pop.md).
+- Use Python 3.12 `dict`'s preserved insertion order for keeping the to-dos in the order they were added; don't hand-roll re-sorting by id or a separate order list — [finding](specs/cloud-check-7a/research/python-dict-pop.md).
 
 ## Structure
 
@@ -28,7 +28,7 @@ Use what the stack provides; each rule comes from a "Platform Capabilities" row 
 
 ## Tests
 
-- Tests verify behaviour through public interfaces, at the seams `specs/shape-check-7/test-strategy.md` names: they import only from `testbed` and never read a `_`-prefixed attribute or call a private method — tests that reach inside break on every refactor.
+- Tests verify behaviour through public interfaces, at the seams `specs/cloud-check-7a/test-strategy.md` names: they import only from `testbed` and never read a `_`-prefixed attribute or call a private method — tests that reach inside break on every refactor.
 - Mock only at system boundaries; never the project's own modules. The library has no boundaries today, so a test that uses `unittest.mock`, `monkeypatch` or similar is a defect — mocks of our own code test the mock.
 - An expected value comes from an independent source (a literal from the PRD or a worked example), never recomputed the way the code does — otherwise the test can't fail.
 - One test, then its implementation — tests written in bulk check imagined behaviour.
