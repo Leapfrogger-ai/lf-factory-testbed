@@ -14,7 +14,7 @@ This is a brownfield change to the `testbed` library: `TodoList` gains one metho
 
 ## Project Context
 
-**Project**: Remove a to-do (shape-check-7)
+**Project**: Remove a to-do (cloud-check-7a)
 **Scale**: 1 epic, 1 story
 **Key characteristics**:
 - An in-memory Python library with no UI, no I/O, no network and no persistence.
@@ -220,5 +220,5 @@ None. No decision in this initiative is hard to reverse (as the brief records), 
 
 ---
 
-*Architecture document generated for Remove a to-do (shape-check-7)*
+*Architecture document generated for Remove a to-do (cloud-check-7a)*
 *Date: 2026-10-20*

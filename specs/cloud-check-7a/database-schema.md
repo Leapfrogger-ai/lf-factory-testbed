@@ -1,1 +1,1 @@
-Not applicable: shape-check-7 adds one method (TodoList.remove) to an in-memory Python library with no database or persisted state; the in-memory data model (TodoList._items, _next_id) is unchanged and documented in architecture.md.
+Not applicable: cloud-check-7a adds one method (TodoList.remove) to an in-memory Python library with no database or persisted state; the in-memory data model (TodoList._items, _next_id) is unchanged and documented in architecture.md.

@@ -1,1 +1,1 @@
-Not applicable: shape-check-7 adds one method (TodoList.remove) to an in-memory Python library with no HTTP or network API; its Python contract (signature, return value, KeyError) is specified in architecture.md under API Contracts.
+Not applicable: cloud-check-7a adds one method (TodoList.remove) to an in-memory Python library with no HTTP or network API; its Python contract (signature, return value, KeyError) is specified in architecture.md under API Contracts.
