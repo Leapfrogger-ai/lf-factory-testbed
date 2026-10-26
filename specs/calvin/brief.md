@@ -1,7 +1,7 @@
 # Product Requirements Brief: calvin
 
 **Maturity**: poc
-**Version**: 1.0
+**Version**: 1.1
 **Date**: 2026-10-26
 **Author**: rodolfo@leapfrogger.ai
 **Status**: In Review
@@ -88,12 +88,13 @@ The PoC is judged against the success test: **within 30 days of a "we should" mo
 
 | Feature | User Story | Acceptance Criteria |
 |---------|------------|---------------------|
-| Plan suggestion | As a creator, I want calvin to suggest a concrete plan from my city, area and time window, so that I have something specific to offer. | Given a city, area and time window, calvin returns a format, venue, date and time, and minimum count. The format defaults to low-stakes (coffee, drinks, walk) and never to hosting. The creator can edit any field before publishing. |
-| Shareable plan link | As a creator, I want a link I can paste into my existing chat, so that I don't need the group to adopt a new tool. | Publishing a plan yields an unguessable public link and a private manage link for the creator. The public page renders well on a phone. |
-| Commit without an account | As an invitee, I want to say yes with only a name and an email, so that committing takes seconds. | Committing on the page records the name and email. The page shows the current count against the minimum. |
-| Minimum-yes threshold | As a creator, I want the plan to go ahead only if enough people commit, so that I'm never alone in an empty room. | Each plan has a minimum and a commit deadline. The minimum defaults to 3, counting the creator, and the deadline defaults to 48h before the gathering. The creator can edit both. Reaching the minimum before the deadline marks the plan confirmed. |
-| Confirmation and reminder emails | As a committer, I want to be told when the plan is on and reminded before it, so that I actually show up. | When a plan is confirmed, every committer gets a confirmation email. Every committer gets two reminder emails: one 24h before the gathering and one on the morning of it. |
-| Quiet call-off | As a committer, I want a plan that misses its minimum to be dropped without fuss, so that nobody is embarrassed. | If the deadline passes below the minimum, the plan is called off and every committer gets a short "not this time" email. The creator can start a new plan from it with a new date. |
+| Plan suggestion | As a creator, I want calvin to suggest a concrete plan from my city, area and time window, so that I have something specific to offer. | Given a city, area and time window, calvin returns a format, venue, date and time, and minimum count. The format defaults to low-stakes (coffee, drinks, walk) and never to hosting. calvin returns one suggestion, and a "suggest another" button replaces it. The creator can edit any field before publishing. |
+| Shareable plan link | As a creator, I want a link I can paste into my existing chat, so that I don't need the group to adopt a new tool. | Publishing asks the creator for a name and an email address, and records the creator as the plan's first committer. Publishing yields an unguessable public link, and a private manage link that is also emailed to the creator. The public page renders well on a phone. A published plan's fields can't be edited. |
+| Commit without an account | As an invitee, I want to say yes with only a name and an email, so that committing takes seconds. | Committing on the page records the name and email, with no email verification. Committing again with the same email updates the name and doesn't add to the count. The page shows the current count against the minimum and committers' first names, and never their emails. Commits stay open until the gathering starts, unless the plan is called off. A called-off plan's page says "not this time" and takes no more commits. Every committer's emails carry a link to withdraw. Withdrawing lowers the count, and a confirmed plan stays confirmed. The creator can't withdraw. |
+| Minimum-yes threshold | As a creator, I want the plan to go ahead only if enough people commit, so that I'm never alone in an empty room. | Each plan has a minimum and a commit deadline. The minimum defaults to 3, counting the creator, and must be at least 2, with no upper limit. The deadline defaults to the earlier of 48h before the gathering or halfway between publishing and the gathering. The creator can edit both before publishing, and publishing is refused if the deadline isn't in the future. Reaching the minimum before the deadline marks the plan confirmed straight away. All times are in the local time zone of the plan's city. |
+| Confirmation and reminder emails | As a committer, I want to be told when the plan is on and reminded before it, so that I actually show up. | When a plan is confirmed, every committer gets a confirmation email. Anyone who commits after that gets it straight away. Every committer gets two reminder emails: one 24h before the gathering and one at 08:00 on the morning of it. The morning reminder is skipped if the gathering starts before 10:00 or if the 24h reminder went out less than 6h earlier. A reminder whose time has already passed is skipped. |
+| Quiet call-off | As a committer, I want a plan that won't happen to be dropped without fuss, so that nobody is embarrassed. | A plan is called off when its deadline passes below the minimum, or when the creator calls it off through the manage link (also allowed once the plan is confirmed). Either way, every committer gets the same short "not this time" email. From the manage link, the creator can start a new plan that copies the fields and takes a new date. It gets a new link, starts with no commits other than the creator's, and doesn't email the old committers. |
+| "Did it happen?" check-in | As the operator, I want to know whether a confirmed gathering took place, so that I can measure the success test. | The day after a confirmed plan's gathering, at 10:00 local time, the creator gets an email asking "Did it happen?" and "Were you there?", each answered with one click. The answers are recorded. The manual follow-up interview stays the source of truth. |
 
 ### 5.2 Should Have (after the PoC)
 - **Recurrence.** After a gathering, offer to create the next one, so that the gathering keeps happening.
@@ -169,3 +170,22 @@ The PoC is judged against the success test: **within 30 days of a "we should" mo
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-10-26 | rodolfo@leapfrogger.ai | Initial draft from the operator's problem framing and elicitation |
+| 1.1 | 2026-10-26 | rodolfo@leapfrogger.ai | Grilling: plan lifecycle edge cases settled, "did it happen?" check-in added |
+
+---
+
+## Settled in grilling
+
+- The creator is the plan's first committer, giving a name and email at publish. The manage link is emailed to them. The creator is the person who said "we should". Glossary: **Commit**, **Manage link**, **Minimum**.
+- Committers can withdraw at any time through a link in their emails. A confirmed plan stays confirmed. The creator can't withdraw. Glossary: **Withdraw**, **Confirmed**.
+- Commits stay open until the gathering, including after the deadline once a plan is confirmed. Late committers get the confirmation email straight away. There's no cap on numbers. A called-off plan takes no more commits.
+- The commit deadline defaults to the earlier of 48h before the gathering or halfway between publishing and the gathering. It must be in the future at publish. Reminders whose time has passed are skipped. Glossary: **Commit deadline**.
+- A published plan's fields are frozen. The manage link can call a plan off, even a confirmed one, or start a new plan from it. Glossary: **Manage link**, **Called off** (widened to cover a call-off by the creator).
+- A new plan started from an old one copies its fields, takes a new date and gets a new link. It starts clean and doesn't email the old committers.
+- The public page shows the count against the minimum and committers' first names, never their emails.
+- Emails aren't verified. A repeat commit with the same email updates the name and doesn't add to the count.
+- The suggestion step returns one suggestion, with a "suggest another" button.
+- All times are in the local time of the plan's city. The morning-of reminder goes at 08:00, and is skipped if the gathering starts before 10:00 or if the 24h reminder went out less than 6h earlier.
+- The minimum is at least 2, with no upper limit.
+- The success test is measured with a "did it happen?" email to creators of confirmed plans, sent the day after at 10:00. The manual interview stays the source of truth.
+- No ADRs: none of these decisions is hard enough to reverse to need one.
