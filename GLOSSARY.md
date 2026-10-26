@@ -25,7 +25,7 @@ The creator's private link to their plan. Through it they can call the plan off 
 _Avoid_: Admin link, edit link
 
 **Commit**:
-A person's yes to a plan, given with a name and an email address. A person who commits is a **committer**. The creator is always the plan's first committer.
+A person's yes to a plan, given with a name and an email address. A person who commits is a **committer**. The creator is always the plan's first committer. In UI copy the commit button says "I'm in".
 _Avoid_: RSVP, sign-up, attend
 
 **Withdraw**:
@@ -37,14 +37,14 @@ The number of commits a plan needs by its commit deadline to go ahead. It counts
 _Avoid_: Quorum, threshold (in UI copy)
 
 **Commit deadline**:
-The moment by which a plan must reach its minimum, or be called off.
+The moment by which a plan must reach its minimum, or be called off. In UI copy: "Decide by".
 _Avoid_: Cutoff, RSVP date
 
 **Confirmed**:
-The state of a plan that reached its minimum before the commit deadline. Its gathering is on. Once a plan is confirmed, it stays confirmed unless the creator calls it off.
+The state of a plan that reached its minimum before the commit deadline. Its gathering is on. Once a plan is confirmed, it stays confirmed unless the creator calls it off. In UI copy: "It's on".
 
 **Called off**:
-The state of a plan that won't happen, either because its commit deadline passed below its minimum or because the creator called it off. Committers are told quietly, and nobody is blamed.
+The state of a plan that won't happen, either because its commit deadline passed below its minimum or because the creator called it off. Committers are told quietly, and nobody is blamed. In UI copy: "Not this time".
 _Avoid_: Cancelled, failed
 
 **Gathering**:
