@@ -50,3 +50,10 @@ _Avoid_: Cancelled, failed
 **Gathering**:
 The real-world meetup that happens when a plan is confirmed.
 _Avoid_: Event, meetup
+
+**Shared**:
+A plan counts as shared once someone other than the creator has committed to it. calvin never sees the chat, so this is how the share rate is measured.
+
+**Check-in**:
+The "Did it happen?" and "Were you there?" email sent to the creator of a confirmed plan at 10:00 the day after its gathering. Its answers are recorded, but the follow-up interview stays the source of truth.
+_Avoid_: Survey, feedback
