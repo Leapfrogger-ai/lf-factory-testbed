@@ -259,7 +259,7 @@ Publishes a plan from the create page (R1) or from a plan's new-plan page (R9).
 If both `suggestionId` and `fromManageToken` arrive, `fromManageToken` wins and `suggestion_id` is null. R9's form never sends both.
 
 **Deadline resolution** (FR007). It runs after the gathering instant is parsed, with `now` passed in (plan rules are pure):
-1. **Default** = `min(gathering − 48h, now + (gathering − now) / 2)`, rounded down to the whole minute.
+1. **Default** = `min(gathering − 48h, now + (gathering − now) / 2)`, or `now + (gathering − now) / 2` if that minimum isn't after `now` (a gathering less than 48h away), rounded down to the whole minute. The floor at halfway was decided in the epics stage.
 2. If both deadline fields are empty → use the default.
 3. If `suggestionId` is valid, the submitted deadline equals the suggestion's `commit_deadline_at`, and the submitted gathering differs from the suggestion's `gathering_at` → use the default. The creator changed **When** and left **Decide by** alone, so the server recomputes it the way the UX does (UX §6.1).
 4. Otherwise use the submitted deadline.

@@ -38,7 +38,7 @@ All times are in the local time zone of the plan's city.
 | FR004 | If the suggestion fails or times out, the creator sees a short error and an empty form for format, venue, and date and time, which they can fill in and publish as normal. | Must |
 | FR005 | Before publishing, the creator can edit every field: format, venue, date and time, minimum and commit deadline. | Must |
 | FR006 | The minimum defaults to 3, counts the creator, and must be at least 2, with no upper limit. | Must |
-| FR007 | The commit deadline defaults to the earlier of 48h before the gathering or halfway between publishing and the gathering. Publishing is refused if the deadline isn't in the future, or isn't before the gathering. | Must |
+| FR007 | The commit deadline defaults to the earlier of 48h before the gathering or halfway between publishing and the gathering, unless that's already past, in which case it's halfway (epics stage). Publishing is refused if the deadline isn't in the future, or isn't before the gathering. | Must |
 | FR008 | Publishing asks the creator for a name and an email address and records the creator as the plan's first committer. | Must |
 | FR009 | Publishing creates an unguessable public link and an unguessable private manage link. The manage link is shown to the creator and emailed to them. | Must |
 | FR010 | A published plan's fields can't be edited. | Must |
