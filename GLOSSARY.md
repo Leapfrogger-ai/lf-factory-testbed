@@ -40,6 +40,10 @@ _Avoid_: Cancel, un-RSVP
 The number of commits a plan needs by its commit deadline to go ahead. It counts the creator.
 _Avoid_: Quorum, threshold (in UI copy)
 
+**Count**:
+A plan's number of active commits: commits that haven't been withdrawn. It's compared against the minimum, and it includes the creator.
+_Avoid_: Attendees, RSVPs, headcount
+
 **Commit deadline**:
 The moment by which a plan must reach its minimum, or be called off. In UI copy: "Decide by".
 _Avoid_: Cutoff, RSVP date
