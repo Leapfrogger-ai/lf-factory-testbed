@@ -141,6 +141,7 @@ setup = "(docker start calvin-test-pg >/dev/null 2>&1 || docker run -d --name ca
 |-------|----------------|---------|
 | Tests | yes | `npx vitest run` |
 | Type check | yes | `npx tsc --noEmit` |
+| Secret scan | yes | `gitleaks git --redact --exit-code 1` (the gitleaks CLI, not gitleaks-action) |
 | Lint | no (no linter at poc) | — |
 
-One GitHub Actions job, `ci` in `.github/workflows/ci.yml`, runs on every pull request to `main`. It runs on `ubuntu-latest` (x86_64; the time-skipping server doesn't run on ARM) with Node 26 and a `postgres:17` service mapped to `54329:5432` with `POSTGRES_PASSWORD=calvin`. Its steps are `npm ci`, `npx tsc --noEmit` and `npx vitest run`, with `FACTORY_DB_NAME=calvin_test`. No secrets are set in CI. It must finish within 5 minutes. The `standards` stage turns this into the guardrails story.
+One GitHub Actions job, `ci` in `.github/workflows/ci.yml`, runs on every pull request to `main`. It runs on `ubuntu-latest` (x86_64; the time-skipping server doesn't run on ARM) with Node 26 and a `postgres:17` service mapped to `54329:5432` with `POSTGRES_PASSWORD=calvin`. It checks out with full history (`fetch-depth: 0`) so gitleaks can scan the PR's commits. Its steps are `gitleaks git --redact --exit-code 1`, `npm ci`, `npx tsc --noEmit` and `npx vitest run`, with `FACTORY_DB_NAME=calvin_test`. No secrets are set in CI. It must finish within 5 minutes. The `standards` stage turns this into the guardrails story.
