@@ -20,6 +20,10 @@ _Avoid_: Organizer, host, owner
 A concrete, low-stakes proposal suggested by calvin: format, venue, date and time, a minimum, and a commit deadline. It's reached by a link.
 _Avoid_: Event, invite, proposal
 
+**Suggestion**:
+The plan fields calvin proposes from a city, a rough area and a rough time window, before the creator edits and publishes them. It isn't a plan until it's published. If a suggestion fails, the creator gets an empty form to fill in.
+_Avoid_: Recommendation, draft
+
 **Manage link**:
 The creator's private link to their plan. Through it they can call the plan off or start a new plan from it. It can't change a published plan.
 _Avoid_: Admin link, edit link
