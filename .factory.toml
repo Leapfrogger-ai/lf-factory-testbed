@@ -1,2 +1,7 @@
 [github]
 project = "Leapfrogger-ai/1"
+
+[commands]
+test = "npx vitest run"
+build = "npx tsc --noEmit"
+setup = "(docker start calvin-test-pg >/dev/null 2>&1 || docker run -d --name calvin-test-pg --restart unless-stopped -e POSTGRES_PASSWORD=calvin -p 127.0.0.1:54329:5432 postgres:17 >/dev/null 2>&1 || true) && timeout 60 sh -c 'until docker exec calvin-test-pg pg_isready -h 127.0.0.1 -U postgres -q; do sleep 1; done' && if [ -f package-lock.json ]; then npm ci; fi"
