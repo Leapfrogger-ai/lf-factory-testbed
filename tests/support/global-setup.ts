@@ -38,7 +38,11 @@ export default async function setup(project: TestProject): Promise<() => Promise
 
     await migrate(url.href);
   } catch (error) {
-    await server.stop();
+    try {
+      await server.stop();
+    } catch {
+      // keep the original error; a failed stop must not mask it
+    }
     throw error;
   }
   return () => server.stop();

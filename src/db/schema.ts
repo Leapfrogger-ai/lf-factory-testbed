@@ -44,9 +44,9 @@ export const suggestions = pgTable('suggestions', {
 
 export const plans = pgTable('plans', {
   id: uuid().primaryKey().defaultRandom(),
-  publicToken: text().notNull().unique(),
-  manageToken: text().notNull().unique(),
-  checkInToken: text().notNull().unique(),
+  publicToken: text().notNull().unique('plans_public_token_key'),
+  manageToken: text().notNull().unique('plans_manage_token_key'),
+  checkInToken: text().notNull().unique('plans_check_in_token_key'),
   suggestionId: uuid().references(() => suggestions.id, { onDelete: 'set null' }),
   suggestionEdited: boolean(),
   fromPlanId: uuid().references((): AnyPgColumn => plans.id, { onDelete: 'set null' }),
@@ -92,7 +92,7 @@ export const commits = pgTable('commits', {
   email: text().notNull(),
   emailNormalized: text().notNull(),
   isCreator: boolean().notNull().default(false),
-  withdrawToken: text().notNull().unique(),
+  withdrawToken: text().notNull().unique('commits_withdraw_token_key'),
   withdrawnAt: instant('withdrawn_at'),
   createdAt: instant('created_at').notNull().defaultNow(),
   updatedAt: instant('updated_at').notNull().defaultNow().$onUpdate(() => new Date()),

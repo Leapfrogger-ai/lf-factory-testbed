@@ -1,5 +1,5 @@
 {
-  "id": "f77fb9a3-c2a0-48dd-b8e8-bb1467344772",
+  "id": "bf097df7-40df-4945-b841-c0568cb6df2f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -173,8 +173,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "commits_withdrawToken_unique": {
-          "name": "commits_withdrawToken_unique",
+        "commits_withdraw_token_key": {
+          "name": "commits_withdraw_token_key",
           "nullsNotDistinct": false,
           "columns": [
             "withdraw_token"
@@ -622,22 +622,22 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "plans_publicToken_unique": {
-          "name": "plans_publicToken_unique",
+        "plans_public_token_key": {
+          "name": "plans_public_token_key",
           "nullsNotDistinct": false,
           "columns": [
             "public_token"
           ]
         },
-        "plans_manageToken_unique": {
-          "name": "plans_manageToken_unique",
+        "plans_manage_token_key": {
+          "name": "plans_manage_token_key",
           "nullsNotDistinct": false,
           "columns": [
             "manage_token"
           ]
         },
-        "plans_checkInToken_unique": {
-          "name": "plans_checkInToken_unique",
+        "plans_check_in_token_key": {
+          "name": "plans_check_in_token_key",
           "nullsNotDistinct": false,
           "columns": [
             "check_in_token"
