@@ -4,6 +4,7 @@ import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
 import { log } from '../log.ts';
 import { responseHeaders } from './headers.ts';
+import { publicRoutes } from './routes/public.ts';
 import { requestLogger } from './request-logger.ts';
 import { createRoutes } from './routes/create.ts';
 import { manageRoutes } from './routes/manage.ts';
@@ -39,6 +40,7 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
   app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: (path) => path.replace(/^\/static/, '') }));
   app.route('/', createRoutes(deps));
   app.route('/', manageRoutes(deps, config));
+  app.route('/', publicRoutes(deps, config));
   app.onError((err, c) => {
     log.error('unexpected error', { errorName: err.name });
     return c.html(layout('Something went wrong', systemErrorPage(), { noindex: true }), 500);
