@@ -2,6 +2,8 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
+import { log } from '../log.ts';
+import { requestLogger } from './request-logger.ts';
 import { createRoutes } from './routes/create.ts';
 import { manageRoutes } from './routes/manage.ts';
 import { layout } from './views/layout.ts';
@@ -26,6 +28,7 @@ export type AppConfig = { baseUrl: string };
 
 export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();
+  app.use('*', requestLogger());
   app.get('/healthz', (c) => c.text('ok'));
   app.use('/static/*', async (c, next) => {
     await next();
@@ -35,7 +38,7 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
   app.route('/', createRoutes(deps));
   app.route('/', manageRoutes(deps, config));
   app.onError((err, c) => {
-    console.error('unexpected error', err.name);
+    log.error('unexpected error', { errorName: err.name });
     return c.html(layout('Something went wrong', systemErrorPage()), 500);
   });
   app.notFound((c) => c.html(layout('Plan not found', notFoundPage()), 404));
