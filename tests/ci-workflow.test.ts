@@ -26,13 +26,26 @@ describe('CI workflow', () => {
     expect(workflow).toContain('FACTORY_DB_NAME: calvin_test');
   });
 
-  it('runs npm ci, typecheck, then tests in that order', () => {
-    const steps = ['npm ci', 'npx tsc --noEmit', 'npx vitest run'];
+  it('runs gitleaks, npm ci, typecheck, then tests in that order', () => {
+    const steps = [
+      'gitleaks git --redact --exit-code 1',
+      'npm ci',
+      'npx tsc --noEmit',
+      'npx vitest run',
+    ];
     const positions = steps.map((step) => workflow.indexOf(step));
     for (const position of positions) {
       expect(position).toBeGreaterThanOrEqual(0);
     }
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  it('fails the job after 5 minutes', () => {
+    expect(workflow).toContain('timeout-minutes: 5');
+  });
+
+  it('uses the gitleaks CLI, not gitleaks-action', () => {
+    expect(workflow).not.toContain('gitleaks-action');
   });
 
   it('uses no services and no secrets', () => {
