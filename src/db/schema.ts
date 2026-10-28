@@ -134,7 +134,7 @@ export const events = pgTable('events', {
   planId: uuid().notNull().references(() => plans.id, { onDelete: 'cascade' }),
   commitId: uuid().references(() => commits.id, { onDelete: 'cascade' }),
   type: text({ enum: ['plan.published', 'commit.added', 'commit.withdrawn', 'plan.confirmed', 'plan.called_off', 'email.sent', 'check_in.answered'] }).notNull(),
-  data: jsonb().$type<EventData['data']>().notNull().default({}),
+  data: jsonb().$type<EventData['data']>().notNull().default(sql`'{}'::jsonb`),
   createdAt: instant('created_at').notNull().defaultNow(),
 }, (t) => [
   index('idx_events_plan_id_created_at').on(t.planId, t.createdAt),

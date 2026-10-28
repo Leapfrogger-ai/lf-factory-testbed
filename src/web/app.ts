@@ -1,10 +1,14 @@
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type * as schema from '../db/schema.ts';
+import type { Db } from '../db/client.ts';
+import type { Schedule } from '../domain/plan-rules.ts';
+import { createRoutes } from './routes/create.ts';
+import { manageRoutes } from './routes/manage.ts';
 import { layout } from './views/layout.ts';
 import { notFoundPage } from './views/not-found-page.ts';
+import { systemErrorPage } from './views/system-error-page.ts';
 
-export type Db = NodePgDatabase<typeof schema>;
+export type { Db };
 
 // Placeholders that later stories narrow.
 export type AppDeps = {
@@ -13,14 +17,27 @@ export type AppDeps = {
   suggestPlanCall: (request: unknown) => Promise<unknown>;
   sendEmail: (payload: unknown, idempotencyKey: string) => Promise<{ id: string }>;
   planWorkflows: {
-    start(planId: string, schedule: unknown): Promise<void>;
+    start(planId: string, schedule: Schedule): Promise<void>;
     signal(planId: string, signal: string, arg?: unknown): Promise<void>;
   };
 };
 
-export function createApp(_deps: AppDeps): Hono {
+export type AppConfig = { baseUrl: string };
+
+export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
+  app.use('/static/*', async (c, next) => {
+    await next();
+    if (c.res.status === 200) c.res.headers.set('Cache-Control', 'public, max-age=86400');
+  });
+  app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: (path) => path.replace(/^\/static/, '') }));
+  app.route('/', createRoutes(deps));
+  app.route('/', manageRoutes(deps, config));
+  app.onError((err, c) => {
+    console.error('unexpected error', err.name);
+    return c.html(layout('Something went wrong', systemErrorPage()), 500);
+  });
   app.notFound((c) => c.html(layout('Plan not found', notFoundPage()), 404));
   return app;
 }

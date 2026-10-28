@@ -1,0 +1,152 @@
+:root {
+  --bg: #FBF7F2;
+  --surface: #FFFFFF;
+  --text: #2B2420;
+  --text-2: #5E534B;
+  --muted: #766A61;
+  --border: #D9CFC4;
+  --border-strong: #918275;
+  --accent: #B4502B;
+  --accent-hover: #97411F;
+  --accent-tint: #F6E4DA;
+  --on: #2F6B47;
+  --on-tint: #E6F0E8;
+  --error: #A8321E;
+  --on-accent: #FFFFFF;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1E1A17;
+    --surface: #2A2420;
+    --text: #F3ECE4;
+    --text-2: #CFC4BA;
+    --muted: #A99D93;
+    --border: #40372F;
+    --border-strong: #7A6E64;
+    --accent: #E58A62;
+    --accent-hover: #EFA584;
+    --accent-tint: #3A2A22;
+    --on: #8FC7A3;
+    --on-tint: #22332A;
+    --error: #F08B76;
+    --on-accent: #1E1A17;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: var(--s4);
+}
+
+a {
+  color: var(--accent);
+}
+
+.brand {
+  margin: 0 0 var(--s4);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+h1 {
+  margin: 0 0 var(--s4);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+h2 {
+  margin: var(--s5) 0 var(--s3);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.field {
+  margin-bottom: var(--s4);
+}
+
+.row {
+  display: flex;
+  gap: var(--s3);
+}
+
+.row .field {
+  flex: 1;
+  min-width: 0;
+}
+
+label {
+  display: block;
+  margin-bottom: var(--s1);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s2) var(--s3);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+input[aria-invalid="true"],
+select[aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+.error {
+  margin: var(--s1) 0 0;
+  color: var(--error);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}

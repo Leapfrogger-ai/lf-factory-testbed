@@ -24,7 +24,7 @@ function buildDeps(): AppDeps {
 
 describe('GET /healthz', () => {
   it('answers 200 ok as plain text', async () => {
-    const app = createApp(buildDeps());
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
     const res = await app.request('/healthz');
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/^text\/plain/);
@@ -48,7 +48,7 @@ function decodeEntities(html: string): string {
 
 describe('not-found page', () => {
   it('answers GET /nope with a 404 HTML page that points back to the start', async () => {
-    const app = createApp(buildDeps());
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
     const res = await app.request('/nope');
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toMatch(/^text\/html/);
@@ -60,27 +60,27 @@ describe('not-found page', () => {
 
 describe('routing edge cases', () => {
   it('answers any method on an unknown path with the same 404 page', async () => {
-    const app = createApp(buildDeps());
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
     const res = await app.request('/nope', { method: 'POST' });
     expect(res.status).toBe(404);
     expect(decodeEntities(await res.text())).toContain(NOT_FOUND_COPY);
   });
 
   it('answers HEAD /healthz with 200', async () => {
-    const app = createApp(buildDeps());
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
     const res = await app.request('/healthz', { method: 'HEAD' });
     expect(res.status).toBe(200);
   });
 
   it('ignores the query string on /healthz', async () => {
-    const app = createApp(buildDeps());
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
     const res = await app.request('/healthz?x=1');
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('ok');
   });
 
   it('answers a trailing-slash path and a malformed percent escape with 404, not 500', async () => {
-    const app = createApp(buildDeps());
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
     for (const path of ['/nope/', '/%E0%A4%A']) {
       const res = await app.request(path);
       expect(res.status, path).toBe(404);
