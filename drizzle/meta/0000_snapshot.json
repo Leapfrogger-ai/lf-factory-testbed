@@ -1,0 +1,910 @@
+{
+  "id": "bf097df7-40df-4945-b841-c0568cb6df2f",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.check_in_answers": {
+      "name": "check_in_answers",
+      "schema": "",
+      "columns": {
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "question": {
+          "name": "question",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "answer": {
+          "name": "answer",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "answered_at": {
+          "name": "answered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "check_in_answers_plan_id_plans_id_fk": {
+          "name": "check_in_answers_plan_id_plans_id_fk",
+          "tableFrom": "check_in_answers",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "check_in_answers_plan_id_question_pk": {
+          "name": "check_in_answers_plan_id_question_pk",
+          "columns": [
+            "plan_id",
+            "question"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "check_in_answers_question_check": {
+          "name": "check_in_answers_question_check",
+          "value": "\"check_in_answers\".\"question\" IN ('happened', 'attended')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.commits": {
+      "name": "commits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_normalized": {
+          "name": "email_normalized",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_creator": {
+          "name": "is_creator",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "withdraw_token": {
+          "name": "withdraw_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "commits_one_creator_per_plan": {
+          "name": "commits_one_creator_per_plan",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"commits\".\"is_creator\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "commits_plan_id_plans_id_fk": {
+          "name": "commits_plan_id_plans_id_fk",
+          "tableFrom": "commits",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "commits_withdraw_token_key": {
+          "name": "commits_withdraw_token_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "withdraw_token"
+          ]
+        },
+        "commits_plan_id_email_normalized_key": {
+          "name": "commits_plan_id_email_normalized_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "plan_id",
+            "email_normalized"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "commits_name_check": {
+          "name": "commits_name_check",
+          "value": "char_length(\"commits\".\"name\") BETWEEN 1 AND 80"
+        },
+        "commits_email_check": {
+          "name": "commits_email_check",
+          "value": "char_length(\"commits\".\"email\") BETWEEN 3 AND 254"
+        },
+        "commits_email_normalized_check": {
+          "name": "commits_email_normalized_check",
+          "value": "\"commits\".\"email_normalized\" = lower(\"commits\".\"email\")"
+        },
+        "commits_withdraw_token_check": {
+          "name": "commits_withdraw_token_check",
+          "value": "\"commits\".\"withdraw_token\" ~ '^[A-Za-z0-9_-]{43}$'"
+        },
+        "commits_creator_never_withdrawn_check": {
+          "name": "commits_creator_never_withdrawn_check",
+          "value": "NOT (\"commits\".\"is_creator\" AND \"commits\".\"withdrawn_at\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.email_sends": {
+      "name": "email_sends",
+      "schema": "",
+      "columns": {
+        "commit_id": {
+          "name": "commit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resend_id": {
+          "name": "resend_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "email_sends_commit_id_commits_id_fk": {
+          "name": "email_sends_commit_id_commits_id_fk",
+          "tableFrom": "email_sends",
+          "tableTo": "commits",
+          "columnsFrom": [
+            "commit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "email_sends_commit_id_kind_pk": {
+          "name": "email_sends_commit_id_kind_pk",
+          "columns": [
+            "commit_id",
+            "kind"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "email_sends_kind_check": {
+          "name": "email_sends_kind_check",
+          "value": "\"email_sends\".\"kind\" IN ('manage_link', 'confirmed', 'reminder_24h', 'reminder_morning', 'not_this_time', 'check_in')"
+        },
+        "email_sends_sent_check": {
+          "name": "email_sends_sent_check",
+          "value": "(\"email_sends\".\"sent_at\" IS NULL) = (\"email_sends\".\"resend_id\" IS NULL)"
+        },
+        "email_sends_resend_id_check": {
+          "name": "email_sends_resend_id_check",
+          "value": "char_length(\"email_sends\".\"resend_id\") BETWEEN 1 AND 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.events": {
+      "name": "events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "events_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commit_id": {
+          "name": "commit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_events_plan_id_created_at": {
+          "name": "idx_events_plan_id_created_at",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_events_commit_id": {
+          "name": "idx_events_commit_id",
+          "columns": [
+            {
+              "expression": "commit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "events_plan_id_plans_id_fk": {
+          "name": "events_plan_id_plans_id_fk",
+          "tableFrom": "events",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "events_commit_id_commits_id_fk": {
+          "name": "events_commit_id_commits_id_fk",
+          "tableFrom": "events",
+          "tableTo": "commits",
+          "columnsFrom": [
+            "commit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "events_type_check": {
+          "name": "events_type_check",
+          "value": "\"events\".\"type\" IN ('plan.published', 'commit.added', 'commit.withdrawn', 'plan.confirmed', 'plan.called_off', 'email.sent', 'check_in.answered')"
+        },
+        "events_commit_id_check": {
+          "name": "events_commit_id_check",
+          "value": "(\"events\".\"type\" IN ('commit.added', 'commit.withdrawn', 'email.sent')) = (\"events\".\"commit_id\" IS NOT NULL)"
+        },
+        "events_data_object_check": {
+          "name": "events_data_object_check",
+          "value": "jsonb_typeof(\"events\".\"data\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.plans": {
+      "name": "plans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_token": {
+          "name": "public_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "manage_token": {
+          "name": "manage_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "check_in_token": {
+          "name": "check_in_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "suggestion_id": {
+          "name": "suggestion_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggestion_edited": {
+          "name": "suggestion_edited",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "from_plan_id": {
+          "name": "from_plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "area": {
+          "name": "area",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "time_window": {
+          "name": "time_window",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "format": {
+          "name": "format",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "venue": {
+          "name": "venue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gathering_at": {
+          "name": "gathering_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commit_deadline_at": {
+          "name": "commit_deadline_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minimum": {
+          "name": "minimum",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "called_off_at": {
+          "name": "called_off_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "called_off_reason": {
+          "name": "called_off_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_plans_suggestion_id": {
+          "name": "idx_plans_suggestion_id",
+          "columns": [
+            {
+              "expression": "suggestion_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_plans_from_plan_id": {
+          "name": "idx_plans_from_plan_id",
+          "columns": [
+            {
+              "expression": "from_plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plans_suggestion_id_suggestions_id_fk": {
+          "name": "plans_suggestion_id_suggestions_id_fk",
+          "tableFrom": "plans",
+          "tableTo": "suggestions",
+          "columnsFrom": [
+            "suggestion_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "plans_from_plan_id_plans_id_fk": {
+          "name": "plans_from_plan_id_plans_id_fk",
+          "tableFrom": "plans",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "from_plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "plans_public_token_key": {
+          "name": "plans_public_token_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_token"
+          ]
+        },
+        "plans_manage_token_key": {
+          "name": "plans_manage_token_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "manage_token"
+          ]
+        },
+        "plans_check_in_token_key": {
+          "name": "plans_check_in_token_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "check_in_token"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "plans_public_token_check": {
+          "name": "plans_public_token_check",
+          "value": "\"plans\".\"public_token\" ~ '^[A-Za-z0-9_-]{43}$'"
+        },
+        "plans_manage_token_check": {
+          "name": "plans_manage_token_check",
+          "value": "\"plans\".\"manage_token\" ~ '^[A-Za-z0-9_-]{43}$'"
+        },
+        "plans_check_in_token_check": {
+          "name": "plans_check_in_token_check",
+          "value": "\"plans\".\"check_in_token\" ~ '^[A-Za-z0-9_-]{43}$'"
+        },
+        "plans_city_check": {
+          "name": "plans_city_check",
+          "value": "char_length(\"plans\".\"city\") BETWEEN 1 AND 60"
+        },
+        "plans_area_check": {
+          "name": "plans_area_check",
+          "value": "char_length(\"plans\".\"area\") BETWEEN 1 AND 200"
+        },
+        "plans_time_window_check": {
+          "name": "plans_time_window_check",
+          "value": "char_length(\"plans\".\"time_window\") BETWEEN 1 AND 200"
+        },
+        "plans_format_check": {
+          "name": "plans_format_check",
+          "value": "char_length(\"plans\".\"format\") BETWEEN 1 AND 40"
+        },
+        "plans_venue_check": {
+          "name": "plans_venue_check",
+          "value": "char_length(\"plans\".\"venue\") BETWEEN 1 AND 120"
+        },
+        "plans_minimum_check": {
+          "name": "plans_minimum_check",
+          "value": "\"plans\".\"minimum\" >= 2"
+        },
+        "plans_deadline_before_gathering_check": {
+          "name": "plans_deadline_before_gathering_check",
+          "value": "\"plans\".\"commit_deadline_at\" < \"plans\".\"gathering_at\""
+        },
+        "plans_state_check": {
+          "name": "plans_state_check",
+          "value": "\"plans\".\"state\" IN ('open', 'confirmed', 'called_off')"
+        },
+        "plans_called_off_reason_check": {
+          "name": "plans_called_off_reason_check",
+          "value": "\"plans\".\"called_off_reason\" IN ('deadline', 'creator')"
+        },
+        "plans_state_timestamps_check": {
+          "name": "plans_state_timestamps_check",
+          "value": "\n       (\"plans\".\"state\" = 'open'       AND \"plans\".\"confirmed_at\" IS NULL     AND \"plans\".\"called_off_at\" IS NULL     AND \"plans\".\"called_off_reason\" IS NULL)\n    OR (\"plans\".\"state\" = 'confirmed'  AND \"plans\".\"confirmed_at\" IS NOT NULL AND \"plans\".\"called_off_at\" IS NULL     AND \"plans\".\"called_off_reason\" IS NULL)\n    OR (\"plans\".\"state\" = 'called_off' AND \"plans\".\"called_off_at\" IS NOT NULL AND \"plans\".\"called_off_reason\" IS NOT NULL\n        AND (\"plans\".\"called_off_reason\" = 'creator' OR \"plans\".\"confirmed_at\" IS NULL))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.suggestions": {
+      "name": "suggestions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "previous_suggestion_id": {
+          "name": "previous_suggestion_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "area": {
+          "name": "area",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "time_window": {
+          "name": "time_window",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "failure_reason": {
+          "name": "failure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "format": {
+          "name": "format",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "venue": {
+          "name": "venue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "venue_address": {
+          "name": "venue_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "venue_url": {
+          "name": "venue_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gathering_at": {
+          "name": "gathering_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "minimum": {
+          "name": "minimum",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commit_deadline_at": {
+          "name": "commit_deadline_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latency_ms": {
+          "name": "latency_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_suggestions_previous_suggestion_id": {
+          "name": "idx_suggestions_previous_suggestion_id",
+          "columns": [
+            {
+              "expression": "previous_suggestion_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "suggestions_previous_suggestion_id_suggestions_id_fk": {
+          "name": "suggestions_previous_suggestion_id_suggestions_id_fk",
+          "tableFrom": "suggestions",
+          "tableTo": "suggestions",
+          "columnsFrom": [
+            "previous_suggestion_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "suggestions_city_check": {
+          "name": "suggestions_city_check",
+          "value": "char_length(\"suggestions\".\"city\") BETWEEN 1 AND 60"
+        },
+        "suggestions_area_check": {
+          "name": "suggestions_area_check",
+          "value": "char_length(\"suggestions\".\"area\") BETWEEN 1 AND 200"
+        },
+        "suggestions_time_window_check": {
+          "name": "suggestions_time_window_check",
+          "value": "char_length(\"suggestions\".\"time_window\") BETWEEN 1 AND 200"
+        },
+        "suggestions_outcome_check": {
+          "name": "suggestions_outcome_check",
+          "value": "\"suggestions\".\"outcome\" IN ('ok', 'failed')"
+        },
+        "suggestions_failure_reason_present_check": {
+          "name": "suggestions_failure_reason_present_check",
+          "value": "(\"suggestions\".\"outcome\" = 'failed') = (\"suggestions\".\"failure_reason\" IS NOT NULL)"
+        },
+        "suggestions_failure_reason_check": {
+          "name": "suggestions_failure_reason_check",
+          "value": "\"suggestions\".\"failure_reason\" IN ('timeout', 'api_error', 'no_proposal', 'pause_turn', 'refusal', 'max_tokens', 'invalid_proposal')"
+        },
+        "suggestions_ok_fields_check": {
+          "name": "suggestions_ok_fields_check",
+          "value": "\"suggestions\".\"outcome\" = 'failed' OR (\"suggestions\".\"format\" IS NOT NULL AND \"suggestions\".\"venue\" IS NOT NULL AND \"suggestions\".\"gathering_at\" IS NOT NULL AND \"suggestions\".\"minimum\" IS NOT NULL AND \"suggestions\".\"commit_deadline_at\" IS NOT NULL)"
+        },
+        "suggestions_format_check": {
+          "name": "suggestions_format_check",
+          "value": "char_length(\"suggestions\".\"format\") BETWEEN 1 AND 40"
+        },
+        "suggestions_venue_check": {
+          "name": "suggestions_venue_check",
+          "value": "char_length(\"suggestions\".\"venue\") BETWEEN 1 AND 120"
+        },
+        "suggestions_venue_address_check": {
+          "name": "suggestions_venue_address_check",
+          "value": "char_length(\"suggestions\".\"venue_address\") BETWEEN 1 AND 200"
+        },
+        "suggestions_venue_url_check": {
+          "name": "suggestions_venue_url_check",
+          "value": "char_length(\"suggestions\".\"venue_url\") BETWEEN 1 AND 2048"
+        },
+        "suggestions_minimum_check": {
+          "name": "suggestions_minimum_check",
+          "value": "\"suggestions\".\"minimum\" >= 2"
+        },
+        "suggestions_latency_ms_check": {
+          "name": "suggestions_latency_ms_check",
+          "value": "\"suggestions\".\"latency_ms\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
