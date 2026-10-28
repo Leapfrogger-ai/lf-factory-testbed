@@ -38,7 +38,8 @@ npm install hono@^4.13.14 @hono/node-server@^2.1.5 @hono/zod-validator@^0.9.1 zo
   drizzle-orm@0.45.4 pg@^8.23.1 @anthropic-ai/sdk@^1.3.0 resend@^6.34.1 \
   @temporalio/client@1.24.0 @temporalio/worker@1.24.0 @temporalio/workflow@1.24.0 \
   @temporalio/activity@1.24.0 @temporalio/envconfig@1.24.0
-npm install -D typescript @types/node @types/pg drizzle-kit@0.31.11 vitest@^5.0.5 @temporalio/testing@1.24.0
+npm install -D typescript @types/node @types/pg drizzle-kit@0.31.11 vitest@^5.0.5 @temporalio/testing@1.24.0 \
+  embedded-postgres@17.10.0-beta.17
 ```
 
 **This establishes**:
@@ -152,7 +153,7 @@ Unit tests sit next to their source as `*.test.ts`. `tests/` holds the workflow 
 #### Node.js 26
 - **Purpose**: runtime for both the web server and the Temporal worker.
 - **Configuration**: run `.ts` directly (`node src/main.ts`), with no transpiler. JS `Temporal` and full ICU are built in, so `America/Los_Angeles` needs no extra package.
-- **Risk**: `@temporalio/worker` 1.24.0 declares `node >= 20.3.0` but doesn't list Node 26 explicitly. The first story starts a worker on Node 26. If that fails, fall back to Node 24 (Maintenance LTS) plus `temporal-polyfill` 1.0.x for JS `Temporal`.
+- **Risk**: `@temporalio/worker` 1.24.0 declares `node >= 20.3.0` but doesn't list Node 26 explicitly. The first story that starts the worker (Story 1.3) checks it on Node 26. Node 26 is the only Node on the factory's worker, so there's no fallback to Node 24: if the worker can't run on Node 26, that story halts for the operator.
 - **Resources**: [research/node-hono-drizzle.md](research/node-hono-drizzle.md)
 
 #### Hono 4

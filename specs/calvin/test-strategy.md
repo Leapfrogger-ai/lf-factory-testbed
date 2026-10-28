@@ -59,7 +59,7 @@ Where tests sit: unit tests next to their source as `*.test.ts`. Integration tes
 
 | Dependency | Unit | Integration | Why |
 |------------|------|-------------|-----|
-| Postgres | not used | real: the worktree's database on the shared test container | The commit race, upserts, unique ledger keys and CHECK constraints are the behaviour; a fake can't show them |
+| Postgres | not used | real: Postgres 17, started for the test run by `embedded-postgres` | The commit race, upserts, unique ledger keys and CHECK constraints are the behaviour; a fake can't show them |
 | Anthropic API | faked `suggestPlanCall`, returning recorded responses | faked `suggestPlanCall` (Routes) | External, paid, slow and non-deterministic. Real latency is measured by hand in the first suggestion story, outside `test` |
 | Resend | faked `sendEmail` that records calls | faked `sendEmail` that records calls and can be told to fail once, or fail non-retryably | External, and test sends use the 100/day quota |
 | Temporal (Routes) | — | faked `planWorkflows` that records `start` and `signal` calls, and can be told to fail | External service; the route only has to call it correctly and handle failures (ADR 0002) |
@@ -95,16 +95,18 @@ Rules for reviewers:
 |----------|-----------|
 | App port (manual dev runs only; tests use `app.request()`) | `FACTORY_PORT_BASE + 0` (default 8080) |
 | Temporal time-skipping test server | `FACTORY_PORT_BASE + 1` (default: a free port chosen by the SDK) |
-| Postgres server | shared container `calvin-test-pg`, `127.0.0.1:54329`, user `postgres`, password `calvin`, outside the port block |
+| Postgres server | the test run's own, started by `embedded-postgres` on `127.0.0.1:${FACTORY_PORT_BASE + 2}` (default 20002), user `postgres`, password `calvin`, data in the worktree's `.factory/pgdata` |
 | Test database | `FACTORY_DB_NAME` on that server (default `calvin_test`) |
 
-`TEST_DATABASE_URL` is `postgres://postgres:calvin@127.0.0.1:54329/${FACTORY_DB_NAME:-calvin_test}`. It's built in `vitest.config.ts`, never read from `.env`, so a test can't reach a Neon database.
+`TEST_DATABASE_URL` is `postgres://postgres:calvin@127.0.0.1:${FACTORY_PORT_BASE + 2}/${FACTORY_DB_NAME:-calvin_test}`, with the port base defaulting to 20000. It's built in `vitest.config.ts`, never read from `.env`, so a test can't reach a Neon database.
 
-**Creating it:** `setup` starts the shared container if it isn't running, then installs dependencies. Vitest's `globalSetup` (`tests/support/global-setup.ts`) creates the worktree's database if it's missing and applies every migration in `drizzle/` with `src/db/migrate.ts`. This runs before every test run, so a story that adds a migration doesn't need `setup` again.
+**Why not Docker:** the factory runs a story's commands in a sandbox with its own network, so a Postgres on the host's `127.0.0.1` (a Docker container) can't be reached from a story's tests, and the sandbox may not reach the Docker socket. A Postgres started inside the test run can. This was checked in the factory's sandbox on 2026-10-27: `embedded-postgres@17.10.0-beta.17` started Postgres 17.10, and two connections saw each other's row lock.
+
+**Creating it:** `setup` installs dependencies. Vitest's `globalSetup` (`tests/support/global-setup.ts`) starts Postgres with `embedded-postgres` (`persistent: false`, data in `.factory/pgdata`, and `postgresFlags: ['-c', 'unix_socket_directories=']` so it listens on TCP only: the sandbox's `/tmp` is read-only, and a socket path in the worktree would be too long). It then creates the worktree's database and applies every migration in `drizzle/` with `src/db/migrate.ts`, and its teardown stops the server. This runs on every test run, so a story that adds a migration doesn't need `setup` again. `embedded-postgres` is a dev dependency pinned exactly to `17.10.0-beta.17`; its postinstall script isn't needed, so npm's skipping it is fine. If the global setup fails, Vitest 5 can report "No test files found": read the error printed after it.
 
 **Within a run:** `fileParallelism: false` makes test files run one after another. The time-skipping server's clock is global, so workflow tests must run serially anyway (research/temporal-typescript-sdk.md). Each integration file resets the database before each test.
 
-**Dropping it:** nothing drops it automatically at poc. Each database is a few MB. To clear them all, run `docker rm -f calvin-test-pg`. The next `setup` starts a fresh container, and the next test run recreates its database.
+**Dropping it:** the teardown stops the server and `persistent: false` removes its data, so every test run starts from an empty database. Several worktrees can run tests at once: each has its own server on its own port.
 
 **First run needs network:** `createTimeSkipping()` downloads the Temporal test server binary on its first use and caches it. A worktree that can't reach Temporal's download host fails the workflow tests on the first run only.
 
@@ -116,13 +118,13 @@ Rules for reviewers:
 |---------|---------------|
 | test | `npx vitest run` |
 | build | `npx tsc --noEmit` |
-| setup | `(docker start calvin-test-pg >/dev/null 2>&1 \|\| docker run -d --name calvin-test-pg --restart unless-stopped -e POSTGRES_PASSWORD=calvin -p 127.0.0.1:54329:5432 postgres:17 >/dev/null 2>&1 \|\| true) && timeout 60 sh -c 'until docker exec calvin-test-pg pg_isready -h 127.0.0.1 -U postgres -q; do sleep 1; done' && if [ -f package-lock.json ]; then npm ci; fi` |
+| setup | `if [ -f package-lock.json ]; then npm ci; fi` |
 
 - `test` runs every unit and integration test once and exits non-zero on any failure. It needs `setup` to have run.
 - `build` is the type check, since Node runs `.ts` directly.
-- `setup` is safe to run more than once and when several worktrees run it at the same time. It skips `npm ci` until the first story has created `package-lock.json`. `pg_isready -h 127.0.0.1` checks over TCP, so it doesn't report ready while the image's init server is still running. If Postgres isn't ready within 60 seconds, `setup` fails instead of hanging.
+- `setup` is safe to run more than once and when several worktrees run it at the same time. It skips `npm ci` until the first story has created `package-lock.json`.
 
-The first story must add to `vitest.config.ts`: `globalSetup: ['tests/support/global-setup.ts']`, `fileParallelism: false`, `env.TEST_DATABASE_URL` as above, and `testTimeout: 30_000` (workflow tests start a worker).
+The first story must add to `vitest.config.ts`: `globalSetup: ['tests/support/global-setup.ts']`, `fileParallelism: false`, `env.TEST_DATABASE_URL` as above, and `testTimeout: 30_000` (workflow tests start a worker). It also adds `.factory/` to `.gitignore`.
 
 The same three, written to `.factory.toml` at the repo root (the factory reads them from there):
 
@@ -130,7 +132,7 @@ The same three, written to `.factory.toml` at the repo root (the factory reads t
 [commands]
 test = "npx vitest run"
 build = "npx tsc --noEmit"
-setup = "(docker start calvin-test-pg >/dev/null 2>&1 || docker run -d --name calvin-test-pg --restart unless-stopped -e POSTGRES_PASSWORD=calvin -p 127.0.0.1:54329:5432 postgres:17 >/dev/null 2>&1 || true) && timeout 60 sh -c 'until docker exec calvin-test-pg pg_isready -h 127.0.0.1 -U postgres -q; do sleep 1; done' && if [ -f package-lock.json ]; then npm ci; fi"
+setup = "if [ -f package-lock.json ]; then npm ci; fi"
 ```
 
 ---
@@ -144,4 +146,4 @@ setup = "(docker start calvin-test-pg >/dev/null 2>&1 || docker run -d --name ca
 | Secret scan | yes | `gitleaks git --redact --exit-code 1` (the gitleaks CLI, not gitleaks-action) |
 | Lint | no (no linter at poc) | — |
 
-One GitHub Actions job, `ci` in `.github/workflows/ci.yml`, runs on every pull request to `main`. It runs on `ubuntu-latest` (x86_64; the time-skipping server doesn't run on ARM) with Node 26 and a `postgres:17` service mapped to `54329:5432` with `POSTGRES_PASSWORD=calvin`. It checks out with full history (`fetch-depth: 0`) so gitleaks can scan the PR's commits. Its steps are `gitleaks git --redact --exit-code 1`, `npm ci`, `npx tsc --noEmit` and `npx vitest run`, with `FACTORY_DB_NAME=calvin_test`. No secrets are set in CI. It must finish within 5 minutes. The `standards` stage turns this into the guardrails story.
+One GitHub Actions job, `ci` in `.github/workflows/ci.yml`, runs on every pull request to `main`. It runs on `ubuntu-latest` (x86_64; the time-skipping server doesn't run on ARM) with Node 26 and no Postgres service: the tests start their own, as they do in a worktree. It checks out with full history (`fetch-depth: 0`) so gitleaks can scan the PR's commits. Its steps are `gitleaks git --redact --exit-code 1`, `npm ci`, `npx tsc --noEmit` and `npx vitest run`, with `FACTORY_DB_NAME=calvin_test`. No secrets are set in CI. It must finish within 5 minutes. The `standards` stage turns this into the guardrails story.
