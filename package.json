@@ -1,0 +1,16 @@
+{
+  "name": "story-80",
+  "version": "1.0.0",
+  "description": "The factory's testbed. Reset before each run.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
