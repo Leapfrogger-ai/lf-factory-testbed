@@ -87,3 +87,30 @@ describe('routing edge cases', () => {
     }
   });
 });
+
+describe('static files', () => {
+  it('serves /static/app.css with a one-day public cache', async () => {
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
+    const res = await app.request('/static/app.css');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('public, max-age=86400');
+    expect(res.headers.get('content-type')).toMatch(/text\/css/);
+  });
+
+  it('serves /static/og.png as a PNG with the same cache header', async () => {
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
+    const res = await app.request('/static/og.png');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/png');
+    expect(res.headers.get('cache-control')).toBe('public, max-age=86400');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Array.from(bytes.slice(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  });
+
+  it('answers an unknown static file with 404 and no public cache header', async () => {
+    const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
+    const res = await app.request('/static/nope.css');
+    expect(res.status).toBe(404);
+    expect(res.headers.get('cache-control') ?? '').not.toContain('public');
+  });
+});
