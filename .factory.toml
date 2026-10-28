@@ -1,2 +1,7 @@
 [github]
 project = "Leapfrogger-ai/1"
+
+[commands]
+test = "npx vitest run"
+build = "npx tsc --noEmit"
+setup = "if [ -f package-lock.json ]; then npm ci; fi"
