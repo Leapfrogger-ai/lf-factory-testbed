@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type * as schema from '../db/schema.ts';
+import type { Db } from '../db/client.ts';
+import type { Schedule } from '../domain/plan-rules.ts';
 import { layout } from './views/layout.ts';
 import { notFoundPage } from './views/not-found-page.ts';
 
-export type Db = NodePgDatabase<typeof schema>;
+export type { Db };
 
 // Placeholders that later stories narrow.
 export type AppDeps = {
@@ -13,7 +13,7 @@ export type AppDeps = {
   suggestPlanCall: (request: unknown) => Promise<unknown>;
   sendEmail: (payload: unknown, idempotencyKey: string) => Promise<{ id: string }>;
   planWorkflows: {
-    start(planId: string, schedule: unknown): Promise<void>;
+    start(planId: string, schedule: Schedule): Promise<void>;
     signal(planId: string, signal: string, arg?: unknown): Promise<void>;
   };
 };
