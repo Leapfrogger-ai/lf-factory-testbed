@@ -114,6 +114,15 @@ describe('POST /plans validation', () => {
     await rejected({ deadlineDate: '2026-11-12' }, 'Pick both a date and a time, or leave both empty.');
   });
 
+  it('shows a schema error and a timing error together', async () => {
+    const body = await rejected(
+      { email: 'nope', date: '2026-11-01' },
+      'The gathering needs to be in the future.',
+    );
+
+    expect(body).toContain('That email doesn&#39;t look right.');
+  });
+
   it('escapes entered values when re-rendering', async () => {
     const body = await rejected({ name: '<script>x</script> & Co', email: 'nope' }, "That email doesn&#39;t look right.");
 

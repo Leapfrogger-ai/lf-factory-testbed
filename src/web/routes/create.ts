@@ -1,10 +1,10 @@
 import { zValidator } from '@hono/zod-validator';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { defaultDeadline } from '../../domain/plan-rules.ts';
 import { publish } from '../../domain/plans.ts';
 import { localToInstant } from '../../domain/time.ts';
 import type { AppDeps } from '../app.ts';
-import { publishFormSchema, type PublishForm } from '../forms.ts';
+import { publishFormSchema } from '../forms.ts';
 import { createPage, type FieldErrors, type FormValues } from '../views/create-page.ts';
 import { layout } from '../views/layout.ts';
 
@@ -40,21 +40,24 @@ function schemaErrors(issues: readonly Issue[]): FieldErrors {
   return errors;
 }
 
-function timingErrors(deps: Pick<AppDeps, 'now'>, form: PublishForm): FieldErrors {
+type TimingInput = { date?: string; time?: string; deadlineDate?: string; deadlineTime?: string };
+
+function timingErrors(deps: Pick<AppDeps, 'now'>, input: TimingInput): FieldErrors {
   const errors: FieldErrors = {};
+  if (input.date === undefined || input.time === undefined) return errors;
   const now = deps.now();
-  const gatheringAt = localToInstant(form.date, form.time);
+  const gatheringAt = localToInstant(input.date, input.time);
   const gatheringOk = Temporal.Instant.compare(gatheringAt, now) > 0;
   if (!gatheringOk) errors.date = 'The gathering needs to be in the future.';
 
-  if (form.deadlineDate !== undefined && form.deadlineTime !== undefined) {
-    const deadlineAt = localToInstant(form.deadlineDate, form.deadlineTime);
+  if (input.deadlineDate !== undefined && input.deadlineTime !== undefined) {
+    const deadlineAt = localToInstant(input.deadlineDate, input.deadlineTime);
     if (Temporal.Instant.compare(deadlineAt, now) <= 0) {
       errors.deadlineDate = 'The decide-by time needs to be in the future.';
     } else if (Temporal.Instant.compare(deadlineAt, gatheringAt) >= 0) {
       errors.deadlineDate = 'The decide-by time needs to be before the gathering.';
     }
-  } else if (gatheringOk) {
+  } else if (gatheringOk && input.deadlineDate === undefined && input.deadlineTime === undefined) {
     const deadlineAt = defaultDeadline(now, gatheringAt);
     if (Temporal.Instant.compare(deadlineAt, now) <= 0) {
       errors.date = 'The gathering needs to be in the future.';
@@ -63,26 +66,38 @@ function timingErrors(deps: Pick<AppDeps, 'now'>, form: PublishForm): FieldError
   return errors;
 }
 
+/** The timing inputs that parsed on their own, so their checks can join the schema errors. */
+function timingInput(values: Record<string, unknown>, invalid: ReadonlySet<string>): TimingInput {
+  const pick = (field: string): string | undefined => {
+    const value = values[field];
+    if (invalid.has(field) || typeof value !== 'string' || value.trim() === '') return undefined;
+    return value.trim();
+  };
+  return { date: pick('date'), time: pick('time'), deadlineDate: pick('deadlineDate'), deadlineTime: pick('deadlineTime') };
+}
+
+async function rerender(c: Context, errors: FieldErrors) {
+  const entered = await c.req.parseBody();
+  const values: FormValues = {};
+  for (const [key, value] of Object.entries(entered)) if (typeof value === 'string') values[key] = value;
+  return c.html(layout('Suggest a plan', createPage(values, errors)), 422);
+}
+
 export function createRoutes(deps: AppDeps): Hono {
   const routes = new Hono();
   routes.post(
     '/plans',
     zValidator('form', publishFormSchema, async (result, c) => {
       if (result.success) return undefined;
-      const entered = await c.req.parseBody();
-      const values: FormValues = {};
-      for (const [key, value] of Object.entries(entered)) if (typeof value === 'string') values[key] = value;
-      return c.html(layout('Suggest a plan', createPage(values, schemaErrors(result.error.issues))), 422);
+      const errors = schemaErrors(result.error.issues);
+      const raw = await c.req.parseBody();
+      const timing = timingErrors(deps, timingInput(raw, new Set(Object.keys(errors))));
+      return rerender(c, { ...timing, ...errors });
     }),
     async (c) => {
       const form = c.req.valid('form');
       const errors = timingErrors(deps, form);
-      if (Object.keys(errors).length > 0) {
-        const entered = await c.req.parseBody();
-        const values: FormValues = {};
-        for (const [key, value] of Object.entries(entered)) if (typeof value === 'string') values[key] = value;
-        return c.html(layout('Suggest a plan', createPage(values, errors)), 422);
-      }
+      if (Object.keys(errors).length > 0) return rerender(c, errors);
       const { manageToken } = await publish(deps, form);
       return c.redirect(`/m/${manageToken}/published`, 303);
     },
