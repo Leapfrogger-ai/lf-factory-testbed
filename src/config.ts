@@ -1,0 +1,17 @@
+export const CITIES: readonly string[] = [
+  'San Francisco',
+  'Oakland',
+  'Berkeley',
+  'Alameda',
+  'Emeryville',
+  'Daly City',
+  'San Mateo',
+  'Redwood City',
+  'Palo Alto',
+  'Mountain View',
+  'Sunnyvale',
+  'Santa Clara',
+  'San Jose',
+  'Fremont',
+  'Walnut Creek',
+];
