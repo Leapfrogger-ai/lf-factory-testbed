@@ -7,6 +7,39 @@ export function localToInstant(date: string, time: string): Temporal.Instant {
     .toInstant();
 }
 
+const display = new Intl.DateTimeFormat('en-US', {
+  timeZone: PLAN_TIME_ZONE,
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
+
+function displayParts(instant: Temporal.Instant) {
+  const parts: Record<string, string> = {};
+  for (const { type, value } of display.formatToParts(new Date(instant.epochMilliseconds))) {
+    parts[type] = value.replace(/[  ]/g, ' ');
+  }
+  return {
+    day: `${parts.weekday} ${parts.day} ${parts.month}`,
+    clock: `${parts.hour}:${parts.minute} ${parts.dayPeriod}`,
+  };
+}
+
+/** UX §8.8 event time, e.g. `Sat 14 Nov · 10:00 AM`, in PLAN_TIME_ZONE. */
+export function formatWhen(instant: Temporal.Instant): string {
+  const { day, clock } = displayParts(instant);
+  return `${day} · ${clock}`;
+}
+
+/** UX §8.8 commit deadline, e.g. `Wed 11 Nov, 10:00 PM`, in PLAN_TIME_ZONE. */
+export function formatDeadline(instant: Temporal.Instant): string {
+  const { day, clock } = displayParts(instant);
+  return `${day}, ${clock}`;
+}
+
 /** The wall-clock hour (0-23) of the instant in PLAN_TIME_ZONE. */
 export function localHour(instant: Temporal.Instant): number {
   return instant.toZonedDateTimeISO(PLAN_TIME_ZONE).hour;
