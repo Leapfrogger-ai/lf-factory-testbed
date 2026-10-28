@@ -163,11 +163,6 @@ select[aria-invalid="true"] {
   line-height: 1.3;
 }
 
-.pill-on {
-  background: var(--on-tint);
-  color: var(--on);
-}
-
 .eyebrow {
   margin: 0 0 var(--s1);
   color: var(--muted);

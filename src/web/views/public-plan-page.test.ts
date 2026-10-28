@@ -72,11 +72,12 @@ describe('publicPlanPage', () => {
     expect(body).not.toContain('-1');
   });
 
-  it("renders It's on with the seats for an on plan", () => {
+  it("has no confirmed-plan copy or pill-on class for the 'on' state", () => {
     const body = render(plan({ state: 'confirmed', names: ['A', 'B', 'C'] }), 'on');
 
-    expect(body).toContain('It&#39;s on');
-    expect(body).not.toContain('you?');
+    expect(body).not.toContain('It&#39;s on');
+    expect(body).not.toContain("It's on");
+    expect(body).not.toContain('pill-on');
   });
 
   it('renders not-this-time without a list, a count or committer names', () => {
@@ -101,10 +102,9 @@ describe('publicPlanOg', () => {
     });
   });
 
-  it('appends It\'s on for an on plan and shows Not this time alone for a called-off one', () => {
-    expect(publicPlanOg(plan(), 'on', 'https://calvin.test')?.description).toBe(
-      "Sat 14 Nov · 10:00 AM · Oakland. Goes ahead if 3 are in. It's on.",
+  it('uses the normal description for a not-this-time plan', () => {
+    expect(publicPlanOg(plan(), 'not_this_time', 'https://calvin.test')?.description).toBe(
+      'Sat 14 Nov · 10:00 AM · Oakland. Goes ahead if 3 are in.',
     );
-    expect(publicPlanOg(plan(), 'not_this_time', 'https://calvin.test')?.description).toBe('Not this time');
   });
 });

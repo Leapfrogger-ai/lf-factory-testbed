@@ -19,7 +19,6 @@ function capitalise(text: string): string {
 }
 
 function pillText(plan: PublicPlan, state: DisplayState): string {
-  if (state === 'on') return "It's on";
   if (state === 'not_this_time') return 'Not this time';
   return `Needs ${Math.max(plan.minimum - plan.names.length, 0)} more`;
 }
@@ -40,7 +39,6 @@ function seats(plan: PublicPlan): HtmlEscapedString {
 }
 
 export function publicPlanPage({ plan, state }: { plan: PublicPlan; state: DisplayState }): HtmlEscapedString {
-  const pillClass = state === 'on' ? 'pill pill-on' : 'pill';
   const body =
     state === 'not_this_time'
       ? html`<p>This one isn't going ahead. No harm done. Maybe next time.</p>
@@ -50,7 +48,7 @@ export function publicPlanPage({ plan, state }: { plan: PublicPlan; state: Displ
             Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)}.
           </p>`;
   return html`<main>
-    <p class="${pillClass}">${pillText(plan, state)}</p>
+    <p class="pill">${pillText(plan, state)}</p>
     <p class="eyebrow">${capitalise(plan.format)}</p>
     <h1>${plan.venue}</h1>
     <p class="meta">${plan.city} · ${formatWhen(plan.gatheringAt)}</p>
@@ -58,10 +56,8 @@ export function publicPlanPage({ plan, state }: { plan: PublicPlan; state: Displ
   </main>` as HtmlEscapedString;
 }
 
-export function publicPlanOg(plan: PublicPlan, state: DisplayState, baseUrl: string): LayoutOptions['og'] {
-  const when = `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.`;
-  const description =
-    state === 'not_this_time' ? 'Not this time' : state === 'on' ? `${when} It's on.` : when;
+export function publicPlanOg(plan: PublicPlan, _state: DisplayState, baseUrl: string): LayoutOptions['og'] {
+  const description = `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.`;
   return {
     title: `${capitalise(plan.format)} at ${plan.venue}`,
     description,
