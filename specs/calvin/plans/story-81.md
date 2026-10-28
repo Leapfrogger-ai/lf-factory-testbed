@@ -41,7 +41,7 @@ Binding: CODING_STANDARDS.md, specs/calvin/test-strategy.md, specs/calvin/archit
 
 `.github/workflows/ci.yml` has checkout (`fetch-depth: 0`), setup-node 26, `npm ci`, `npx tsc --noEmit`, `npx vitest run`, env `FACTORY_DB_NAME: calvin_test`. `tests/ci-workflow.test.ts` asserts that structure. `tsconfig.json` has all five flags and `tests/project.test.ts` asserts them.
 
-## Task 1: gitleaks step and job timeout in the workflow
+### Task 1: gitleaks step and job timeout in the workflow
 
 **Covers:** AC4, AC5
 
@@ -58,7 +58,7 @@ Binding: CODING_STANDARDS.md, specs/calvin/test-strategy.md, specs/calvin/archit
 - [ ] **Step 4: Run** `npx vitest run tests/ci-workflow.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `git add .github/workflows/ci.yml tests/ci-workflow.test.ts`, message `ci: scan commits with the gitleaks CLI, cap the job at 5 minutes`.
 
-## Task 2: Type errors and enums fail `tsc`
+### Task 2: Type errors and enums fail `tsc`
 
 **Covers:** AC1, AC2
 
@@ -78,7 +78,7 @@ Binding: CODING_STANDARDS.md, specs/calvin/test-strategy.md, specs/calvin/archit
 - [ ] **Step 4: Run** the test again. Expected: PASS. Then `npx tsc --noEmit` must stay clean.
 - [ ] **Step 5: Commit** `git add tests/support/run-in-temp-project.ts tests/guardrails-types.test.ts`, message `test: tsc rejects type errors and enums`.
 
-## Task 3: A failing test fails `vitest run`
+### Task 3: A failing test fails `vitest run`
 
 **Covers:** AC3
 
@@ -93,7 +93,7 @@ Binding: CODING_STANDARDS.md, specs/calvin/test-strategy.md, specs/calvin/archit
 - [ ] **Step 3: Run** `npx vitest run`. Expected: all green (the temp project's failing test is not collected by the outer run).
 - [ ] **Step 4: Commit** `git add tests/guardrails-tests.test.ts`, message `test: vitest run fails on a failing test`.
 
-## Task 4: A committed secret fails gitleaks, redacted
+### Task 4: A committed secret fails gitleaks, redacted
 
 **Covers:** AC4
 
