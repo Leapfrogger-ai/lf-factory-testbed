@@ -14,27 +14,32 @@ export default async function setup(project: TestProject): Promise<() => Promise
   const server = new EmbeddedPostgres({
     databaseDir,
     port: Number(url.port),
-    user: url.username,
-    password: url.password,
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
     persistent: false,
     postgresFlags: ['-c', 'unix_socket_directories='],
   });
   await server.initialise();
   await server.start();
 
-  const adminUrl = new URL(url.href);
-  adminUrl.pathname = '/postgres';
-  const admin = new pg.Client({ connectionString: adminUrl.href });
-  await admin.connect();
   try {
-    const existing = await admin.query('select 1 from pg_database where datname = $1', [database]);
-    if (existing.rowCount === 0) {
-      await admin.query(`create database "${database.replaceAll('"', '""')}"`);
+    const adminUrl = new URL(url.href);
+    adminUrl.pathname = '/postgres';
+    const admin = new pg.Client({ connectionString: adminUrl.href });
+    await admin.connect();
+    try {
+      const existing = await admin.query('select 1 from pg_database where datname = $1', [database]);
+      if (existing.rowCount === 0) {
+        await admin.query(`create database "${database.replaceAll('"', '""')}"`);
+      }
+    } finally {
+      await admin.end();
     }
-  } finally {
-    await admin.end();
-  }
 
-  await migrate(url.href);
+    await migrate(url.href);
+  } catch (error) {
+    await server.stop();
+    throw error;
+  }
   return () => server.stop();
 }
