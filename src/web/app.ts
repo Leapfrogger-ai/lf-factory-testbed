@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
 import { log } from '../log.ts';
+import { responseHeaders } from './headers.ts';
 import { requestLogger } from './request-logger.ts';
 import { createRoutes } from './routes/create.ts';
 import { manageRoutes } from './routes/manage.ts';
@@ -29,6 +30,7 @@ export type AppConfig = { baseUrl: string };
 export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();
   app.use('*', requestLogger());
+  app.use('*', responseHeaders());
   app.get('/healthz', (c) => c.text('ok'));
   app.use('/static/*', async (c, next) => {
     await next();
@@ -39,8 +41,8 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
   app.route('/', manageRoutes(deps, config));
   app.onError((err, c) => {
     log.error('unexpected error', { errorName: err.name });
-    return c.html(layout('Something went wrong', systemErrorPage()), 500);
+    return c.html(layout('Something went wrong', systemErrorPage(), { noindex: true }), 500);
   });
-  app.notFound((c) => c.html(layout('Plan not found', notFoundPage()), 404));
+  app.notFound((c) => c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404));
   return app;
 }

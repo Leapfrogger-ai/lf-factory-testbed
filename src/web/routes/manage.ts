@@ -11,7 +11,7 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
   routes.get('/m/:token/published', async (c) => {
     const token = c.req.param('token');
     const plan = isToken(token) ? await loadPlan(deps.db, token) : null;
-    if (!plan) return c.html(layout('Plan not found', notFoundPage()), 404);
+    if (!plan) return c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
     const page = publishedPage({
       publicLink: `${config.baseUrl}/p/${plan.publicToken}`,
       manageLink: `/m/${plan.manageToken}`,
