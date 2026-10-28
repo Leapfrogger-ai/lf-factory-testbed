@@ -85,6 +85,7 @@ async function rerender(c: Context, errors: FieldErrors) {
 
 export function createRoutes(deps: AppDeps): Hono {
   const routes = new Hono();
+  routes.get('/', (c) => c.html(layout('Suggest a plan', createPage({}, {}))));
   routes.post(
     '/plans',
     zValidator('form', publishFormSchema, async (result, c) => {

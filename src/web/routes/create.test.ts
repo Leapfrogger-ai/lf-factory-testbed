@@ -130,3 +130,32 @@ describe('POST /plans validation', () => {
     expect(body).not.toContain('<script>x');
   });
 });
+
+describe('GET /', () => {
+  it('renders the create page linking the stylesheet (AC1)', async () => {
+    const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+
+    const res = await app.request('/');
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const body = await res.text();
+    expect(body).toContain('/static/app.css');
+    expect(body).toContain('Publish plan');
+  });
+});
+
+describe('GET /static/app.css', () => {
+  it('serves the stylesheet with light and dark tokens, cached for a day', async () => {
+    const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+
+    const res = await app.request('/static/app.css');
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('public, max-age=86400');
+    const css = await res.text();
+    expect(css).toContain('prefers-color-scheme: dark');
+    expect(css).toContain('#FBF7F2');
+    expect(css).toContain('#1E1A17');
+  });
+});

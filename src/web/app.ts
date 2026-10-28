@@ -1,3 +1,4 @@
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
@@ -26,6 +27,11 @@ export type AppConfig = { baseUrl: string };
 export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
+  app.use('/static/*', async (c, next) => {
+    await next();
+    if (c.res.status === 200) c.res.headers.set('Cache-Control', 'public, max-age=86400');
+  });
+  app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: (path) => path.replace(/^\/static/, '') }));
   app.route('/', createRoutes(deps));
   app.route('/', manageRoutes(deps, config));
   app.onError((err, c) => {

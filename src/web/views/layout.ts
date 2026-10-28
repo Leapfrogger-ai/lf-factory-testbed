@@ -15,6 +15,7 @@ export function layout(title: string, body: HtmlEscapedString, options: LayoutOp
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>${title}</title>
+        <link rel="stylesheet" href="/static/app.css" />
         ${head}
       </head>
       <body>
