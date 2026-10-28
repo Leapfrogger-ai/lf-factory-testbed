@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
 import { createRoutes } from './routes/create.ts';
+import { manageRoutes } from './routes/manage.ts';
 import { layout } from './views/layout.ts';
 import { notFoundPage } from './views/not-found-page.ts';
 import { systemErrorPage } from './views/system-error-page.ts';
@@ -22,10 +23,11 @@ export type AppDeps = {
 
 export type AppConfig = { baseUrl: string };
 
-export function createApp(deps: AppDeps, _config: AppConfig): Hono {
+export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
   app.route('/', createRoutes(deps));
+  app.route('/', manageRoutes(deps, config));
   app.onError((err, c) => {
     console.error('unexpected error', err.name);
     return c.html(layout('Something went wrong', systemErrorPage()), 500);
