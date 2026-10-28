@@ -16,9 +16,12 @@ jobs:
           fetch-depth: 0
       - name: Install gitleaks
         run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
             | sudo tar -xz -C /usr/local/bin gitleaks
-      - run: gitleaks git --redact --exit-code 1
+      - name: Scan commits for secrets
+        env:
+          GITLEAKS_VERBOSE: "true"
+        run: gitleaks git --redact --exit-code 1
       - uses: actions/setup-node@v4
         with:
           node-version: 26

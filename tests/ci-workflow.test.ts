@@ -48,6 +48,12 @@ describe('CI workflow', () => {
     expect(workflow).not.toContain('gitleaks-action');
   });
 
+  it('pins a gitleaks release that has the git command', () => {
+    expect(workflow).toContain('gitleaks_8.21.2_linux_x64.tar.gz');
+    expect(workflow).not.toContain('gitleaks_8.18');
+    expect(workflow).toContain('GITLEAKS_VERBOSE: "true"');
+  });
+
   it('uses no services and no secrets', () => {
     expect(workflow).not.toContain('services:');
     expect(workflow).not.toContain('secrets.');

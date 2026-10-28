@@ -11,7 +11,7 @@ const secret = ['ghp', '_', 'q8Zk3Vn1Rw7T', 'yL5mXc0BdE9u', 'Ha2JsPf4GoNi'].join
 const commitAndScan = [
   'sh',
   '-c',
-  'git init -q && git add . && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -qm x && gitleaks git --redact --exit-code 1',
+  'git init -q && git add . && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -qm x && gitleaks git --redact --exit-code 1 --verbose',
 ];
 
 describe.skipIf(!hasGitleaks)('gitleaks', () => {
@@ -25,7 +25,7 @@ describe.skipIf(!hasGitleaks)('gitleaks', () => {
       { 'config.ts': `export const token = '${secret}';\n` },
       commitAndScan,
     );
-    expect(result.status).toBe(1);
+    expect(result.status, result.output).toBe(1);
     expect(result.output).toContain('REDACTED');
     expect(result.output).not.toContain(secret);
   });

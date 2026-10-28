@@ -15,7 +15,7 @@ export function runInTempProject(
       writeFileSync(path, content);
     }
     const [program, ...args] = command;
-    const result = spawnSync(program!, args, { cwd: dir, encoding: 'utf8' });
+    const result = spawnSync(program!, args, { cwd: dir, encoding: 'utf8', timeout: 50_000 });
     return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
   } finally {
     rmSync(dir, { recursive: true, force: true });
