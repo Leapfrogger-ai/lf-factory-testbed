@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { publishPlan, testDeps } from '../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../tests/support/db.ts';
-import { countPlans, loadPlan } from './plans.ts';
+import { countPlans, loadPlan, loadPublicPlan } from './plans.ts';
+import { newToken } from './tokens.ts';
 
 const { db, pool } = testDb();
 
@@ -60,5 +61,31 @@ describe('publish', () => {
     await expect(publishPlan(deps)).rejects.toThrow('temporal down');
 
     expect(await countPlans(db)).toBe(0);
+  });
+});
+
+describe('loadPublicPlan', () => {
+  it('returns the plan facts and active committers without any email', async () => {
+    const { publicToken } = await publishPlan(testDeps(), { name: 'Ana Ruiz', email: 'ana@example.test' });
+
+    const plan = await loadPublicPlan(db, publicToken);
+
+    expect(plan).toMatchObject({
+      state: 'open',
+      format: 'coffee',
+      venue: 'Blue Bottle',
+      city: 'Oakland',
+      minimum: 3,
+      names: ['Ana Ruiz'],
+    });
+    expect(plan?.gatheringAt.toString()).toBe('2026-11-14T18:00:00Z');
+    expect(plan?.commitDeadlineAt.toString()).toBe('2026-11-12T06:00:00Z');
+    expect(JSON.stringify(plan)).not.toContain('example.test');
+  });
+
+  it('returns null for an unknown token', async () => {
+    await publishPlan(testDeps());
+
+    expect(await loadPublicPlan(db, newToken())).toBeNull();
   });
 });
