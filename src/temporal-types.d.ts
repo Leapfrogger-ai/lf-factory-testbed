@@ -43,7 +43,7 @@ declare namespace Temporal {
 declare const Temporal: {
   Instant: {
     from(item: string): Temporal.Instant;
-    fromEpochMilliseconds(ms: number): Temporal.Instant;
+    fromEpochNanoseconds(ns: bigint): Temporal.Instant;
   };
   PlainDateTime: {
     from(item: string): Temporal.PlainDateTime;

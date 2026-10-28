@@ -47,6 +47,26 @@ test('a deadline date without a deadline time is an issue on the deadline time',
   expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['deadlineTime']);
 });
 
+test('a deadline time without a deadline date is an issue on the deadline date', () => {
+  const result = publishFormSchema.safeParse({ ...valid, deadlineTime: '18:00' });
+  expect(result.success).toBe(false);
+  expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['deadlineDate']);
+});
+
+test('a whitespace-only text field is rejected', () => {
+  expect(publishFormSchema.safeParse({ ...valid, venue: '   ' }).success).toBe(false);
+});
+
+test('a time of 24:00 is rejected', () => {
+  expect(publishFormSchema.safeParse({ ...valid, time: '24:00' }).success).toBe(false);
+});
+
+test('a deadline date and time together parse', () => {
+  const form = publishFormSchema.parse({ ...valid, deadlineDate: '2026-11-12', deadlineTime: '18:00' });
+  expect(form.deadlineDate).toBe('2026-11-12');
+  expect(form.deadlineTime).toBe('18:00');
+});
+
 test('CITIES starts with San Francisco and has 15 cities', () => {
   expect(CITIES[0]).toBe('San Francisco');
   expect(CITIES.length).toBe(15);

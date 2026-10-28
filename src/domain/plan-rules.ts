@@ -19,9 +19,10 @@ export function computeSchedule(gatheringAt: Temporal.Instant, deadlineAt: Tempo
 }
 
 export function defaultDeadline(now: Temporal.Instant, gatheringAt: Temporal.Instant): Temporal.Instant {
-  const halfway = now.epochMilliseconds + (gatheringAt.epochMilliseconds - now.epochMilliseconds) / 2;
-  const fortyEightBefore = gatheringAt.epochMilliseconds - 48 * HOUR_MS;
-  const earliest = Math.min(fortyEightBefore, halfway);
-  const chosen = earliest > now.epochMilliseconds ? earliest : halfway;
-  return Temporal.Instant.fromEpochMilliseconds(chosen).round({ smallestUnit: 'minute', roundingMode: 'floor' });
+  const nowNs = now.epochNanoseconds;
+  const halfway = nowNs + (gatheringAt.epochNanoseconds - nowNs) / 2n;
+  const fortyEightBefore = gatheringAt.epochNanoseconds - BigInt(48 * HOUR_MS) * 1_000_000n;
+  const earliest = fortyEightBefore < halfway ? fortyEightBefore : halfway;
+  const chosen = earliest > nowNs ? earliest : halfway;
+  return Temporal.Instant.fromEpochNanoseconds(chosen).round({ smallestUnit: 'minute', roundingMode: 'floor' });
 }

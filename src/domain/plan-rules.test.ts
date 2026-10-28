@@ -19,6 +19,11 @@ test('default deadline is the halfway point when 48h before the gathering is alr
   expect(deadline.toString()).toBe('2026-11-14T06:00:00Z');
 });
 
+test('default deadline works when now has an odd number of milliseconds', () => {
+  const deadline = defaultDeadline(at('2026-11-13T18:00:00.001Z'), at('2026-11-14T18:00:00Z'));
+  expect(deadline.toString()).toBe('2026-11-14T06:00:00Z');
+});
+
 test('localToInstant reads the wall-clock in America/Los_Angeles', () => {
   expect(localToInstant('2026-11-13', '18:00').toString()).toBe('2026-11-14T02:00:00Z');
   expect(localToInstant('2026-11-14', '10:00').toString()).toBe('2026-11-14T18:00:00Z');
