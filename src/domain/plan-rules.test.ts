@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { computeSchedule, defaultDeadline } from './plan-rules.ts';
+import { computeSchedule, defaultDeadline, displayState } from './plan-rules.ts';
 import { localToInstant } from './time.ts';
 
 const at = (iso: string) => Temporal.Instant.from(iso);
@@ -62,4 +62,24 @@ test('computeSchedule on the spring-forward day keeps local reminder and check-i
 test('localToInstant returns an instant for a nonexistent and a repeated wall-clock time', () => {
   expect(() => localToInstant('2027-03-14', '02:30')).not.toThrow();
   expect(() => localToInstant('2026-11-01', '01:30')).not.toThrow();
+});
+
+test('displayState: an open plan one minute before the deadline needs more', () => {
+  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
+  expect(displayState({ state: 'open', commitDeadlineAt }, at('2026-11-12T05:59:00Z'))).toBe('needs_more');
+});
+
+test('displayState: an open plan at exactly the deadline is not this time', () => {
+  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
+  expect(displayState({ state: 'open', commitDeadlineAt }, at('2026-11-12T06:00:00Z'))).toBe('not_this_time');
+});
+
+test('displayState: a called off plan is not this time even before the deadline', () => {
+  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
+  expect(displayState({ state: 'called_off', commitDeadlineAt }, at('2026-11-11T06:00:00Z'))).toBe('not_this_time');
+});
+
+test('displayState: a confirmed plan is on', () => {
+  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
+  expect(displayState({ state: 'confirmed', commitDeadlineAt }, at('2026-11-11T06:00:00Z'))).toBe('on');
 });

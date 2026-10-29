@@ -9,6 +9,17 @@ export type Schedule = {
   checkInAt: string;
 };
 
+export type DisplayState = 'needs_more' | 'not_this_time' | 'on';
+
+export function displayState(
+  plan: { state: string; commitDeadlineAt: Temporal.Instant },
+  now: Temporal.Instant,
+): DisplayState {
+  if (plan.state === 'confirmed') return 'on';
+  if (plan.state === 'open' && Temporal.Instant.compare(now, plan.commitDeadlineAt) < 0) return 'needs_more';
+  return 'not_this_time';
+}
+
 export function computeSchedule(gatheringAt: Temporal.Instant, deadlineAt: Temporal.Instant): Schedule {
   return {
     deadlineAt: deadlineAt.toString(),

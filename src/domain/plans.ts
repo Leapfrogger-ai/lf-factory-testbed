@@ -1,4 +1,4 @@
-import { asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { commits, events, plans } from '../db/schema.ts';
 import type { AppDeps } from '../web/app.ts';
@@ -92,6 +92,47 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
     count: planCommits.filter((c) => c.withdrawnAt === null).length,
     commits: planCommits.map((c) => ({ isCreator: c.isCreator, withdrawToken: c.withdrawToken })),
     events: planEvents.map((e) => ({ type: e.type, data: e.data as Record<string, unknown> })),
+  };
+}
+
+export type PublicPlan = {
+  state: string;
+  format: string;
+  venue: string;
+  city: string;
+  gatheringAt: Temporal.Instant;
+  commitDeadlineAt: Temporal.Instant;
+  minimum: number;
+  names: string[];
+};
+
+export async function loadPublicPlan(db: Db, publicToken: string): Promise<PublicPlan | null> {
+  const rows = await db
+    .select({
+      state: plans.state,
+      format: plans.format,
+      venue: plans.venue,
+      city: plans.city,
+      gatheringAt: plans.gatheringAt,
+      commitDeadlineAt: plans.commitDeadlineAt,
+      minimum: plans.minimum,
+      name: commits.name,
+    })
+    .from(plans)
+    .leftJoin(commits, and(eq(commits.planId, plans.id), isNull(commits.withdrawnAt)))
+    .where(eq(plans.publicToken, publicToken))
+    .orderBy(asc(commits.createdAt));
+  const first = rows[0];
+  if (!first) return null;
+  return {
+    state: first.state,
+    format: first.format,
+    venue: first.venue,
+    city: first.city,
+    gatheringAt: first.gatheringAt.toTemporalInstant(),
+    commitDeadlineAt: first.commitDeadlineAt.toTemporalInstant(),
+    minimum: first.minimum,
+    names: rows.flatMap((r) => (r.name === null ? [] : [r.name])),
   };
 }
 
