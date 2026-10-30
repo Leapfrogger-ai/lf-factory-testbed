@@ -24,7 +24,7 @@ function displayParts(instant: Temporal.Instant) {
   }
   return {
     day: `${parts.weekday} ${parts.day} ${parts.month}`,
-    clock: `${Number(parts.hour) % 12}:${parts.minute} ${parts.dayPeriod}`,
+    clock: `${Number(parts.hour) % 12 || 12}:${parts.minute} ${parts.dayPeriod}`,
   };
 }
 

@@ -29,6 +29,14 @@ test('formatWhen is right across the 2027-03-14 spring-forward', () => {
   ]);
 });
 
+test('formatWhen shows noon as 12:00 PM', () => {
+  expect(when('2026-11-14T20:00:00Z')).toBe('Sat 14 Nov · 12:00 PM');
+});
+
+test('formatDeadline shows midnight as 12:00 AM', () => {
+  expect(formatDeadline(Temporal.Instant.from('2026-11-12T08:00:00Z'))).toBe('Thu 12 Nov, 12:00 AM');
+});
+
 test('no output contains a narrow or no-break space', () => {
   const outputs = [
     when('2026-11-14T18:00:00Z'),
