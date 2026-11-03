@@ -82,7 +82,8 @@ Enforced by tools, not reviewers. The guardrails story sets them up; CI blocks a
 | No secret committed | gitleaks CLI (the binary, not gitleaks-action, which needs a license key for organizations), default rules, `--redact` | `gitleaks git --redact --exit-code 1` over the PR's commits |
 | Formatting | None at poc | — |
 | Lint | None at poc (test-strategy.md) | — |
+| Source patterns | `tests/guardrails-source.test.ts`: no `console.*` outside `src/log.ts`, `src/main.ts` and `src/db/migrate.ts`; no `Date.now()` or `new Date()` outside `src/main.ts` and `src/db/schema.ts`; no `luxon` or `date-fns-tz`; no `vi.mock` | `npx vitest run` |
 
-The judgment rules a linter could check later (no `vi.mock` of project files, no `Date.now()` outside `main.ts`, workflow-safe imports, no `luxon`/`date-fns-tz`) stay reviewer checks until a linter is added.
+The judgment rules a linter could check later (workflow-safe imports) stay reviewer checks until a linter is added.
 
 The CI job: `ci` in `.github/workflows/ci.yml`, on every pull request to `main`; `ubuntu-latest`, Node 26, no Postgres service (the tests start their own with `embedded-postgres`, test-strategy.md), `FACTORY_DB_NAME=calvin_test`; steps: checkout with full history (`fetch-depth: 0`) for gitleaks, `gitleaks git --redact --exit-code 1`, `npm ci`, `npx tsc --noEmit`, `npx vitest run`. No secrets are set in CI.
