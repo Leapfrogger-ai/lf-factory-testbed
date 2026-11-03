@@ -135,22 +135,52 @@ describe('POST /plans validation', () => {
     expect((await loadPublicPlan(db, plan?.publicToken ?? ''))?.minimum).toBe(40);
   });
 
-  it('rejects a deadline after the gathering', async () => {
-    await rejected(
+  it('rejects a deadline after the gathering, under Decide by', async () => {
+    const body = await rejected(
       { deadlineDate: '2026-11-14', deadlineTime: '18:00' },
       'The decide-by time needs to be before the gathering.',
     );
+
+    expect(body).toMatch(/id="deadlineDate-error"[^>]*>[^<]*The decide-by time needs to be before the gathering\./);
   });
 
-  it('rejects a deadline in the past', async () => {
-    await rejected(
+  it('rejects a deadline in the past, under Decide by, keeping the values', async () => {
+    const body = await rejected(
       { deadlineDate: '2026-11-01', deadlineTime: '09:00' },
       'The decide-by time needs to be in the future.',
     );
+
+    expect(body).toMatch(/id="deadlineDate-error"[^>]*>[^<]*The decide-by time needs to be in the future\./);
+    expect(body).toContain('value="2026-11-01"');
+    expect(body).toContain('value="09:00"');
   });
 
-  it('rejects only one of the deadline date and time', async () => {
-    await rejected({ deadlineDate: '2026-11-12' }, 'Pick both a date and a time, or leave both empty.');
+  it('rejects a deadline exactly at the gathering, under Decide by', async () => {
+    const body = await rejected(
+      { deadlineDate: '2026-11-14', deadlineTime: '10:00' },
+      'The decide-by time needs to be before the gathering.',
+    );
+
+    expect(body).toMatch(/id="deadlineDate-error"[^>]*>[^<]*The decide-by time needs to be before the gathering\./);
+  });
+
+  it('shows a deadline error together with a field error', async () => {
+    const body = await rejected(
+      { venue: '', deadlineDate: '2026-11-01', deadlineTime: '09:00' },
+      'Add where it is.',
+      'The decide-by time needs to be in the future.',
+    );
+
+    expect(body).toMatch(/id="deadlineDate-error"[^>]*>[^<]*The decide-by time needs to be in the future\./);
+  });
+
+  it('rejects only one of the deadline date and time, under Decide by', async () => {
+    const onlyOne: Record<string, string>[] = [{ deadlineDate: '2026-11-12' }, { deadlineTime: '09:00' }];
+    for (const overrides of onlyOne) {
+      const body = await rejected(overrides, 'Pick both a date and a time, or leave both empty.');
+
+      expect(body).toMatch(/id="deadlineDate-error"[^>]*>[^<]*Pick both a date and a time, or leave both empty\./);
+    }
   });
 
   it('shows a schema error and a timing error together', async () => {
