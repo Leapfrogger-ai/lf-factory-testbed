@@ -5,8 +5,9 @@ import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fakeSuggest, fixedClock } from '../../../tests/support/fakes.ts';
 import { loadFixture } from '../../../tests/support/fixtures.ts';
 import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
-import { loadSuggestion } from '../../domain/suggestions.ts';
+import { countSuggestions, loadSuggestion } from '../../domain/suggestions.ts';
 import { createApp } from '../app.ts';
+import { SUGGEST_LIMIT_NOTICE } from '../views/create-page.ts';
 
 const { db, pool } = testDb();
 
@@ -312,11 +313,15 @@ describe('POST /plans validation', () => {
   });
 });
 
-async function postSuggest(deps: ReturnType<typeof testDeps>, fields: Record<string, string> = {}) {
-  const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+async function postSuggest(
+  deps: ReturnType<typeof testDeps>,
+  fields: Record<string, string> = {},
+  headers: Record<string, string> = {},
+  app = createApp(deps, { baseUrl: TEST_BASE_URL }),
+) {
   return app.request('/suggest', {
     method: 'POST',
-    headers: sameOrigin,
+    headers: { ...sameOrigin, ...headers },
     body: new URLSearchParams({ city: 'Oakland', area: 'Rockridge', timeWindow: 'next weekend, morning', ...fields }),
   });
 }
@@ -645,5 +650,92 @@ describe('GET /static/app.css', () => {
     expect(css).toContain('prefers-color-scheme: dark');
     expect(css).toContain('#FBF7F2');
     expect(css).toContain('#1E1A17');
+  });
+});
+
+describe('POST /suggest rate limit', () => {
+  const fromIp = (ip: string) => ({ 'Fly-Client-IP': ip });
+
+  it('answers 429 on the 11th suggestion from one IP (AC1)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) {
+      expect((await postSuggest(deps, {}, fromIp('203.0.113.7'), app)).status).toBe(303);
+    }
+
+    const res = await postSuggest(deps, {}, fromIp('203.0.113.7'), app);
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toMatch(/^\d+$/);
+    const body = await res.text();
+    expect(body).toContain(SUGGEST_LIMIT_NOTICE);
+    expect(body).toContain('action="/plans"');
+    expect(body).toContain('value="Oakland"');
+    expect(body).toContain('value="Rockridge"');
+    expect(body).toContain('value="next weekend, morning"');
+    expect(body).not.toContain('name="suggestionId"');
+    expect(deps.fakes.suggest.calls).toHaveLength(10);
+    expect(await countSuggestions(db)).toBe(10);
+  });
+
+  it('answers 429 on the 201st suggestion of a Los Angeles day (AC2)', async () => {
+    const deps = testDeps({ now: fixedClock('2026-11-09T18:00:00Z') });
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 200; i++) {
+      expect((await postSuggest(deps, {}, fromIp(`198.51.100.${i}`), app)).status).toBe(303);
+    }
+
+    const res = await postSuggest(deps, {}, fromIp('192.0.2.1'), app);
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toMatch(/^\d+$/);
+  });
+
+  it('does not limit another IP (AC5)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) await postSuggest(deps, {}, fromIp('203.0.113.7'), app);
+    expect((await postSuggest(deps, {}, fromIp('203.0.113.7'), app)).status).toBe(429);
+
+    const res = await postSuggest(deps, {}, fromIp('203.0.113.8'), app);
+
+    expect(res.status).toBe(303);
+  });
+
+  it('counts invalid suggestions (AC6)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) {
+      expect((await postSuggest(deps, { city: '' }, fromIp('203.0.113.7'), app)).status).toBe(422);
+    }
+
+    const res = await postSuggest(deps, {}, fromIp('203.0.113.7'), app);
+
+    expect(res.status).toBe(429);
+    expect(deps.fakes.suggest.calls).toHaveLength(0);
+  });
+
+  it('shares one key without Fly-Client-IP', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 5; i++) expect((await postSuggest(deps, {}, {}, app)).status).toBe(303);
+    for (let i = 0; i < 5; i++) expect((await postSuggest(deps, {}, { 'Fly-Client-IP': '' }, app)).status).toBe(303);
+
+    const res = await postSuggest(deps, {}, {}, app);
+
+    expect(res.status).toBe(429);
+  });
+
+  it('escapes what was entered on the 429 page', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) await postSuggest(deps, {}, fromIp('203.0.113.7'), app);
+
+    const res = await postSuggest(deps, { area: '<script>x</script>' }, fromIp('203.0.113.7'), app);
+
+    expect(res.status).toBe(429);
+    const body = await res.text();
+    expect(body).toContain('&lt;script&gt;x&lt;/script&gt;');
+    expect(body).not.toContain('<script>x');
   });
 });

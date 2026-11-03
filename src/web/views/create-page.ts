@@ -8,9 +8,12 @@ export type FormValues = Record<string, string>;
 export type FieldErrors = Record<string, string>;
 
 export type CreateState =
-  | { kind: 'inputs'; values: FormValues }
-  | { kind: 'card'; suggestion: Extract<Suggestion, { outcome: 'ok' }>; values: FormValues }
+  | { kind: 'inputs'; values: FormValues; notice?: string }
+  | { kind: 'card'; suggestion: Extract<Suggestion, { outcome: 'ok' }>; values: FormValues; notice?: string }
   | { kind: 'fallback'; values: FormValues; notice?: string; city: string; area: string; timeWindow: string };
+
+export const SUGGEST_LIMIT_NOTICE = 'Lots of suggestions just now. Fill in your own below, or try again in a few minutes.';
+export const PUBLISH_LIMIT_NOTICE = 'Lots of plans from here just now. Try again in a little while.';
 
 export const FALLBACK_NOTICE =
   "We couldn't come up with a suggestion just now. Fill in your own below, or try again.";
@@ -50,6 +53,7 @@ export function createPage(
     html`<main>
       <p class="brand">calvin</p>
       <h1>Suggest a plan</h1>
+      ${state.kind === 'inputs' && state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
       ${body}
     </main>` as HtmlEscapedString;
 
@@ -86,7 +90,7 @@ export function createPage(
   const contextErrors = CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
-  return main(html`${state.kind === 'fallback' && state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
+  return main(html`${state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
     ${hasContext ? html`<p class="summary">${context.city} · ${context.area} · ${context.timeWindow}</p>` : ''}
     ${contextErrors.length > 0
       ? html`<ul class="errors">
