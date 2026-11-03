@@ -2,13 +2,14 @@ import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import type { PublicPlan } from '../../domain/plans.ts';
 import { formatDeadline, formatWhen } from '../../domain/time.ts';
+import type { FieldErrors } from './create-page.ts';
 import type { LayoutOptions } from './layout.ts';
 
 type DisplayState = 'needs_more' | 'not_this_time' | 'on';
 
 const FIRST_NAME_MAX = 16;
 
-function firstName(fullName: string): string {
+export function firstName(fullName: string): string {
   const word = fullName.split(/\s+/).find((part) => part !== '') ?? '';
   return Array.from(word).slice(0, FIRST_NAME_MAX).join('');
 }
@@ -38,7 +39,56 @@ function seats(plan: PublicPlan): HtmlEscapedString {
   </ul>` as HtmlEscapedString;
 }
 
-export function publicPlanPage({ plan, state }: { plan: PublicPlan; state: DisplayState }): HtmlEscapedString {
+export type CommitFormState = { values: { name?: string; email?: string }; errors: FieldErrors };
+
+function commitForm(publicToken: string, form: CommitFormState | undefined): HtmlEscapedString {
+  const values = form?.values ?? {};
+  const errors = form?.errors ?? {};
+  const error = (field: string) =>
+    errors[field] === undefined ? '' : html`<p class="error" id="${field}-error">${errors[field]}</p>`;
+  const invalid = (field: string) =>
+    errors[field] === undefined ? '' : html`aria-describedby="${field}-error" aria-invalid="true"`;
+  return html`<form method="post" action="/p/${publicToken}/commit" class="commit-form">
+    <div class="field">
+      <label for="name">Your name</label>
+      <input id="name" type="text" name="name" value="${values.name ?? ''}" autocomplete="name" autocapitalize="words" ${invalid('name')} />
+      ${error('name')}
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" type="email" name="email" value="${values.email ?? ''}" inputmode="email" autocomplete="email" ${invalid('email')} />
+      ${error('email')}
+      <p class="help">Only used to tell you if it's on. Never shown to anyone.</p>
+    </div>
+    <button type="submit" class="btn btn-primary">I'm in</button>
+  </form>` as HtmlEscapedString;
+}
+
+export type PublicNotice = { code: string; n?: string };
+
+function noticeText(notice: PublicNotice): string | undefined {
+  const n = notice.n === undefined ? '' : Array.from(notice.n).slice(0, FIRST_NAME_MAX).join('');
+  if (notice.code === 'in') return n ? `You're in, ${n}. We'll email you if it's on.` : "You're in. We'll email you if it's on.";
+  if (notice.code === 'updated') return n ? `Updated: you're in as ${n}.` : "Updated: you're in.";
+  if (notice.code === 'closed') return "This one isn't taking commits any more.";
+  return undefined;
+}
+
+export function publicPlanPage({
+  plan,
+  state,
+  publicToken,
+  notice,
+  form,
+}: {
+  plan: PublicPlan;
+  state: DisplayState;
+  publicToken: string;
+  notice?: PublicNotice;
+  form?: CommitFormState;
+}): HtmlEscapedString {
+  const noticeCopy = notice === undefined ? undefined : noticeText(notice);
+  const replacesForm = notice?.code === 'in' || notice?.code === 'updated';
   const body =
     state === 'not_this_time'
       ? html`<p>This one isn't going ahead. No harm done. Maybe next time.</p>
@@ -53,6 +103,8 @@ export function publicPlanPage({ plan, state }: { plan: PublicPlan; state: Displ
     <h1>${plan.venue}</h1>
     <p class="meta">${plan.city} · ${formatWhen(plan.gatheringAt)}</p>
     ${body}
+    ${noticeCopy === undefined ? '' : html`<p class="notice" role="status">${noticeCopy}</p>`}
+    ${state === 'not_this_time' || replacesForm ? '' : commitForm(publicToken, form)}
   </main>` as HtmlEscapedString;
 }
 

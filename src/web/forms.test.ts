@@ -1,6 +1,6 @@
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { CITIES } from '../config.ts';
-import { publishFormSchema, suggestFormSchema } from './forms.ts';
+import { commitFormSchema, publishFormSchema, suggestFormSchema } from './forms.ts';
 
 const valid = {
   city: 'Oakland',
@@ -80,6 +80,34 @@ test('a suggest body is trimmed', () => {
 
 test('a suggest body with a city outside the list is rejected', () => {
   expect(suggestFormSchema.safeParse({ city: 'Gotham', area: 'Rockridge', timeWindow: 'soon' }).success).toBe(false);
+});
+
+describe('commitFormSchema', () => {
+  test('parses a padded mixed-case email into email and emailNormalized', () => {
+    expect(commitFormSchema.parse({ name: ' Mia Chen ', email: ' MIA@Example.test ' })).toEqual({
+      name: 'Mia Chen',
+      email: 'MIA@Example.test',
+      emailNormalized: 'mia@example.test',
+    });
+  });
+
+  test('rejects an empty name', () => {
+    const result = commitFormSchema.safeParse({ name: '  ', email: 'mia@example.test' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['name']]);
+  });
+
+  test('rejects the email "mia@"', () => {
+    const result = commitFormSchema.safeParse({ name: 'Mia', email: 'mia@' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['email']]);
+  });
+
+  test('rejects a name over 80 characters', () => {
+    const result = commitFormSchema.safeParse({ name: 'a'.repeat(81), email: 'mia@example.test' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['name']]);
+  });
 });
 
 test('CITIES starts with San Francisco and has 15 cities', () => {

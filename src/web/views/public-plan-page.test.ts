@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PublicPlan } from '../../domain/plans.ts';
+import { layout } from './layout.ts';
 import { publicPlanOg, publicPlanPage } from './public-plan-page.ts';
 
 const plan = (overrides: Partial<PublicPlan> = {}): PublicPlan => ({
@@ -14,8 +15,13 @@ const plan = (overrides: Partial<PublicPlan> = {}): PublicPlan => ({
   ...overrides,
 });
 
-const render = (p: PublicPlan, state: 'needs_more' | 'not_this_time' | 'on' = 'needs_more') =>
-  String(publicPlanPage({ plan: p, state }));
+type PageOptions = Omit<Parameters<typeof publicPlanPage>[0], 'plan' | 'state'>;
+
+const render = (
+  p: PublicPlan,
+  state: 'needs_more' | 'not_this_time' | 'on' = 'needs_more',
+  options: Partial<PageOptions> = {},
+) => String(publicPlanPage({ plan: p, state, publicToken: 'tok123', ...options }));
 
 describe('publicPlanPage', () => {
   it('renders the open plan with pill, venue, time, seats and deadline line', () => {
@@ -89,6 +95,124 @@ describe('publicPlanPage', () => {
     expect(body).not.toContain('<ul');
     expect(body).not.toContain('Ana');
     expect(body).not.toMatch(/\d of \d/);
+  });
+});
+
+describe('publicPlanPage commit form', () => {
+  it('shows the commit form with its attributes and help on an open plan', () => {
+    const body = render(plan());
+
+    expect(body).toContain('<form method="post" action="/p/tok123/commit"');
+    const nameInput = body.match(/<input[^>]*name="name"[^>]*>/s)?.[0] ?? '';
+    const emailInput = body.match(/<input[^>]*name="email"[^>]*>/s)?.[0] ?? '';
+    expect(nameInput).toContain('autocomplete="name"');
+    expect(nameInput).toContain('autocapitalize="words"');
+    expect(emailInput).toContain('type="email"');
+    expect(emailInput).toContain('inputmode="email"');
+    expect(body).toContain("Only used to tell you if it's on. Never shown to anyone.");
+    expect(body).toMatch(/<button[^>]*>\s*I(&#39;|')m in\s*<\/button>/);
+    expect(body).not.toContain('<script');
+    const wrapped = String(layout('Plan', publicPlanPage({ plan: plan(), state: 'needs_more', publicToken: 'tok123' })));
+    expect(wrapped.match(/<link rel="stylesheet"/g)).toHaveLength(1);
+  });
+
+  it('updated notice replaces the form', () => {
+    const body = render(plan(), 'needs_more', { notice: { code: 'updated', n: 'Mia' } });
+
+    expect(body).toMatch(/<p[^>]*role="status"[^>]*>\s*Updated: you(&#39;|')re in as Mia\.\s*<\/p>/);
+    expect(body).not.toContain('<form');
+  });
+
+  it('closed notice shows with no form on a not_this_time plan', () => {
+    const body = render(plan({ state: 'called_off' }), 'not_this_time', { notice: { code: 'closed' } });
+
+    expect(body).toMatch(/<p[^>]*role="status"[^>]*>\s*This one isn(&#39;|')t taking commits any more\.\s*<\/p>/);
+    expect(body).not.toContain('<form');
+  });
+
+  it('unknown notice code renders no notice and keeps the form', () => {
+    const body = render(plan(), 'needs_more', { notice: { code: 'bogus', n: 'Mia' } });
+
+    expect(body).not.toContain('role="status"');
+    expect(body).not.toContain('class="notice"');
+    expect(body).not.toContain('undefined');
+    expect(body).toContain('<form');
+  });
+
+  it('reads sanely with no n and caps n at 16 characters', () => {
+    const noName = (code: string) => render(plan(), 'needs_more', { notice: { code } });
+
+    expect(noName('in')).toMatch(/You(&#39;|')re in\. We(&#39;|')ll email you if it(&#39;|')s on\./);
+    expect(noName('updated')).toMatch(/Updated: you(&#39;|')re in\./);
+    expect(noName('in')).not.toContain('undefined');
+    expect(noName('updated')).not.toContain('undefined');
+
+    const long = render(plan(), 'needs_more', { notice: { code: 'in', n: 'Ab Cdefghijklmnopqrstu' } });
+    expect(long).toContain('You&#39;re in, Ab Cdefghijklmno. ');
+    expect(long).not.toContain('Ab Cdefghijklmnop');
+  });
+
+  it('escapes markup in n and in the kept name value', () => {
+    const inNotice = render(plan(), 'needs_more', { notice: { code: 'in', n: '<b>Mia</b>' } });
+    expect(inNotice).toContain('&lt;b&gt;Mia&lt;/b&gt;');
+    expect(inNotice).not.toContain('<b>');
+
+    const kept = render(plan(), 'needs_more', {
+      form: { values: { name: '<b>Mia</b>', email: '"><i>x' }, errors: {} },
+    });
+    expect(kept).toContain('value="&lt;b&gt;Mia&lt;/b&gt;"');
+    expect(kept).not.toContain('<b>');
+    expect(kept).not.toContain('<i>');
+  });
+
+  it('renders field errors under the fields and keeps the entered values', () => {
+    const body = render(plan(), 'needs_more', {
+      form: {
+        values: { name: 'Mia', email: 'nope' },
+        errors: { name: 'Add your name.', email: 'That email looks incomplete.' },
+      },
+    });
+
+    expect(body).toContain('<p class="error" id="name-error">Add your name.</p>');
+    expect(body).toContain('<p class="error" id="email-error">That email looks incomplete.</p>');
+    const nameInput = body.match(/<input[^>]*name="name"[^>]*>/s)?.[0] ?? '';
+    const emailInput = body.match(/<input[^>]*name="email"[^>]*>/s)?.[0] ?? '';
+    expect(nameInput).toContain('aria-describedby="name-error"');
+    expect(nameInput).toContain('aria-invalid="true"');
+    expect(nameInput).toContain('value="Mia"');
+    expect(emailInput).toContain('aria-describedby="email-error"');
+    expect(emailInput).toContain('aria-invalid="true"');
+    expect(emailInput).toContain('value="nope"');
+    expect(body.indexOf('id="name-error"')).toBeGreaterThan(body.indexOf('name="name"'));
+    expect(body.indexOf('id="email-error"')).toBeGreaterThan(body.indexOf('name="email"'));
+  });
+
+  it('the seat row after Ana and Mia shows Ana, Mia and one you?', () => {
+    const body = render(plan({ names: ['Ana Ruiz', 'Mia Chen'], minimum: 3 }));
+
+    expect(body).toContain('Needs 1 more');
+    const seatList = body.match(/<ul class="seats"[\s\S]*?<\/ul>/)?.[0] ?? '';
+    expect(seatList.match(/<li/g)).toHaveLength(3);
+    expect(seatList).toContain('Ana');
+    expect(seatList).toContain('Mia');
+    expect(seatList.match(/you\?/g)).toHaveLength(1);
+    expect(seatList).not.toContain('Ruiz');
+    expect(seatList).not.toContain('Chen');
+  });
+
+  it('closed notice keeps the form on a plan that still takes commits', () => {
+    const body = render(plan(), 'needs_more', { notice: { code: 'closed' } });
+
+    expect(body).toMatch(/This one isn(&#39;|')t taking commits any more\./);
+    expect(body).toContain('<form');
+  });
+
+  it('in notice replaces the form', () => {
+    const body = render(plan(), 'needs_more', { notice: { code: 'in', n: 'Mia' } });
+
+    expect(body).toMatch(/<p[^>]*role="status"[^>]*>\s*You(&#39;|')re in, Mia\. We(&#39;|')ll email you if it(&#39;|')s on\.\s*<\/p>/);
+    expect(body).not.toContain('<form');
+    expect(body).not.toContain('name="email"');
   });
 });
 

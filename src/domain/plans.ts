@@ -1,8 +1,8 @@
-import { and, asc, count, eq, isNull } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { commits, emailSends, events, plans } from '../db/schema.ts';
 import type { AppDeps } from '../web/app.ts';
-import type { PublishForm } from '../web/forms.ts';
+import type { CommitForm, PublishForm } from '../web/forms.ts';
 import { appendEvent } from './events.ts';
 import { computeSchedule, deadlineIsStale, defaultDeadline } from './plan-rules.ts';
 import type { Suggestion } from './suggestions.ts';
@@ -178,6 +178,56 @@ export async function loadPublicPlan(db: Db, publicToken: string): Promise<Publi
     minimum: first.minimum,
     names: rows.flatMap((r) => (r.name === null ? [] : [r.name])),
   };
+}
+
+export type CommitResult =
+  | { outcome: 'not_found' }
+  | { outcome: 'closed' }
+  | { outcome: 'committed'; change: 'new' | 'repeat'; commitId: string; name: string };
+
+export async function commit(
+  deps: Pick<AppDeps, 'db' | 'now'>,
+  publicToken: string,
+  form: CommitForm,
+): Promise<CommitResult> {
+  return deps.db.transaction(async (tx) => {
+    const [plan] = await tx.select().from(plans).where(eq(plans.publicToken, publicToken)).for('update');
+    if (!plan) return { outcome: 'not_found' };
+    const now = deps.now();
+    const pastDeadline = Temporal.Instant.compare(now, plan.commitDeadlineAt.toTemporalInstant()) >= 0;
+    const gatheringStarted = Temporal.Instant.compare(now, plan.gatheringAt.toTemporalInstant()) >= 0;
+    if (plan.state === 'called_off' || (plan.state === 'open' && pastDeadline) || gatheringStarted) {
+      return { outcome: 'closed' };
+    }
+    const [row] = await tx
+      .insert(commits)
+      .values({
+        planId: plan.id,
+        name: form.name,
+        email: form.email,
+        emailNormalized: form.emailNormalized,
+        withdrawToken: newToken(),
+      })
+      .onConflictDoUpdate({ target: [commits.planId, commits.emailNormalized], set: { name: form.name } })
+      .returning({
+        id: commits.id,
+        name: commits.name,
+        isCreator: commits.isCreator,
+        inserted: sql<boolean>`(xmax = 0)`,
+      });
+    const change = row!.inserted ? 'new' : 'repeat';
+    const [active] = await tx
+      .select({ value: count() })
+      .from(commits)
+      .where(and(eq(commits.planId, plan.id), isNull(commits.withdrawnAt)));
+    await appendEvent(tx, {
+      planId: plan.id,
+      commitId: row!.id,
+      type: 'commit.added',
+      data: { change, isCreator: row!.isCreator, activeCount: active!.value },
+    });
+    return { outcome: 'committed', change, commitId: row!.id, name: row!.name };
+  });
 }
 
 export async function countPlans(db: Db): Promise<number> {
