@@ -1,9 +1,11 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
 import { defaultDeadline } from '../../domain/plan-rules.ts';
-import { publish } from '../../domain/plans.ts';
+import { loadSendTarget, publish } from '../../domain/plans.ts';
 import { localToInstant } from '../../domain/time.ts';
-import type { AppDeps } from '../app.ts';
+import { sendOnce } from '../../email/send.ts';
+import { log } from '../../log.ts';
+import type { AppConfig, AppDeps } from '../app.ts';
 import { publishFormSchema } from '../forms.ts';
 import { createPage, type FieldErrors, type FormValues } from '../views/create-page.ts';
 import { layout } from '../views/layout.ts';
@@ -83,7 +85,7 @@ async function rerender(c: Context, errors: FieldErrors) {
   return c.html(layout('Suggest a plan', createPage(values, errors)), 422);
 }
 
-export function createRoutes(deps: AppDeps): Hono {
+export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   const routes = new Hono();
   routes.get('/', (c) => c.html(layout('Suggest a plan', createPage({}, {}))));
   routes.post(
@@ -99,7 +101,14 @@ export function createRoutes(deps: AppDeps): Hono {
       const form = c.req.valid('form');
       const errors = timingErrors(deps, form);
       if (Object.keys(errors).length > 0) return rerender(c, errors);
-      const { manageToken } = await publish(deps, form);
+      const { planId, manageToken } = await publish(deps, form);
+      try {
+        const { plan, commit } = await loadSendTarget(deps.db, planId);
+        await sendOnce({ db: deps.db, sendEmail: deps.sendEmail, baseUrl: config.baseUrl }, 'manage_link', plan, commit);
+      } catch (err) {
+        // The name only: a provider message can carry the creator's address.
+        log.error('manage-link email failed', { planId, errorName: err instanceof Error ? err.name : 'unknown' });
+      }
       return c.redirect(`/m/${manageToken}/published`, 303);
     },
   );

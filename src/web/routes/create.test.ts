@@ -1,4 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { ApplicationFailure } from '@temporalio/activity';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { planForm, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fixedClock } from '../../../tests/support/fakes.ts';
@@ -75,6 +76,82 @@ describe('POST /plans', () => {
     expect(body).not.toMatch(/\bat /);
     expect(body).not.toContain('temporal down');
     expect(await countPlans(db)).toBe(0);
+  });
+});
+
+describe('POST /plans manage-link email', () => {
+  const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+  function captureLogs() {
+    const lines: string[] = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    return lines;
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('emails the creator their manage link once (AC1)', async () => {
+    const deps = testDeps();
+    const res = await post(deps);
+
+    const token = (res.headers.get('location') ?? '').split('/')[2];
+    expect(deps.fakes.email.calls).toHaveLength(1);
+    const call = deps.fakes.email.calls[0] as { payload: { to: string; text: string }; idempotencyKey: string };
+    expect(call.idempotencyKey).toMatch(new RegExp('^manage_link/' + UUID + '/' + UUID + '$'));
+    expect(call.payload.to).toBe('ann@example.test');
+    expect(call.payload.text).toContain('https://calvin.test/m/' + token);
+  });
+
+  it('still redirects, shows the failure copy and logs without the address when the send fails (AC3)', async () => {
+    const lines = captureLogs();
+    const deps = testDeps();
+    deps.fakes.email.failNext();
+
+    const res = await post(deps);
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toMatch(/^\/m\/[A-Za-z0-9_-]{43}\/published$/);
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+    expect(await page.text()).toContain(
+      "We couldn't email you your private link. Bookmark the link below to manage the plan.",
+    );
+    const plan = await publishedPlan(res);
+    const errors = lines.map((l) => JSON.parse(l) as Record<string, unknown>).filter((l) => l.level === 'error');
+    expect(errors).toHaveLength(1);
+    expect(JSON.stringify(errors[0])).toContain(plan!.id);
+    expect(lines.join('')).not.toContain('ann@example.test');
+  });
+
+  it('never logs the address from a provider error message', async () => {
+    const lines = captureLogs();
+    const deps = testDeps({
+      sendEmail: async () => {
+        throw new Error('bounce for ann@example.test');
+      },
+    });
+
+    const res = await post(deps);
+
+    expect(res.status).toBe(303);
+    expect(lines.join('')).not.toContain('ann@example.test');
+    expect(lines.join('')).not.toContain('bounce');
+  });
+
+  it('still redirects when the send fails permanently', async () => {
+    captureLogs();
+    const deps = testDeps({
+      sendEmail: async () => {
+        throw ApplicationFailure.nonRetryable('bad');
+      },
+    });
+
+    const res = await post(deps);
+
+    expect(res.status).toBe(303);
   });
 });
 

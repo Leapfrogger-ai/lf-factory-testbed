@@ -1,6 +1,6 @@
 import { and, asc, count, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
-import { commits, events, plans } from '../db/schema.ts';
+import { commits, emailSends, events, plans } from '../db/schema.ts';
 import type { AppDeps } from '../web/app.ts';
 import type { PublishForm } from '../web/forms.ts';
 import { appendEvent } from './events.ts';
@@ -20,6 +20,7 @@ export type PlanView = {
   gatheringAt: string;
   commitDeadlineAt: string;
   count: number;
+  manageLinkSent: boolean;
   commits: { isCreator: boolean; withdrawToken: string }[];
   events: { type: string; data: Record<string, unknown> }[];
 };
@@ -95,6 +96,13 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
   if (!plan) return null;
   const planCommits = await db.select().from(commits).where(eq(commits.planId, plan.id)).orderBy(asc(commits.createdAt));
   const planEvents = await db.select().from(events).where(eq(events.planId, plan.id)).orderBy(asc(events.id));
+  const creator = planCommits.find((c) => c.isCreator);
+  const [sent] = creator
+    ? await db
+        .select({ sentAt: emailSends.sentAt })
+        .from(emailSends)
+        .where(and(eq(emailSends.commitId, creator.id), eq(emailSends.kind, 'manage_link')))
+    : [];
   return {
     id: plan.id,
     state: plan.state,
@@ -104,6 +112,7 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
     gatheringAt: plan.gatheringAt.toTemporalInstant().toString(),
     commitDeadlineAt: plan.commitDeadlineAt.toTemporalInstant().toString(),
     count: planCommits.filter((c) => c.withdrawnAt === null).length,
+    manageLinkSent: sent?.sentAt != null,
     commits: planCommits.map((c) => ({ isCreator: c.isCreator, withdrawToken: c.withdrawToken })),
     events: planEvents.map((e) => ({ type: e.type, data: e.data as Record<string, unknown> })),
   };

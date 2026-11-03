@@ -1,6 +1,8 @@
 import { serve } from '@hono/node-server';
+import { Resend } from 'resend';
 import { loadConfig } from './config.ts';
 import { createDb } from './db/client.ts';
+import { createSendEmail } from './email/send-email.ts';
 import { connectTemporalClient, createPlanWorkflows } from './temporal/client.ts';
 import { startWorker } from './temporal/worker.ts';
 import { createApp } from './web/app.ts';
@@ -21,13 +23,11 @@ const app = createApp(
   {
     db,
     now: () => Temporal.Now.instant(),
-    // Stubs until the suggestion and email stories (Rulings).
+    // Stub until the suggestion story (Rulings).
     suggestPlanCall: async () => {
       throw new Error('Suggestions are not available yet');
     },
-    sendEmail: async () => {
-      throw new Error('Email is not available yet');
-    },
+    sendEmail: createSendEmail({ resend: new Resend(config.resendApiKey), from: config.emailFrom }),
     planWorkflows: createPlanWorkflows(client),
   },
   { baseUrl: config.baseUrl },

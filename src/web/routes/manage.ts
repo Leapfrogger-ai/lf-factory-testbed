@@ -15,6 +15,7 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
     const page = publishedPage({
       publicLink: `${config.baseUrl}/p/${plan.publicToken}`,
       manageLink: `/m/${plan.manageToken}`,
+      emailed: plan.manageLinkSent,
     });
     return c.html(layout('Your plan is ready to share', page, { noindex: true }));
   });

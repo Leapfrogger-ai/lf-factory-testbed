@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { publishPlan, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
+import { planForm, publishPlan, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
@@ -24,6 +24,19 @@ describe('GET /m/:token/published', () => {
     expect(body).toMatch(new RegExp(`href="/m/${manageToken}"[^>]*>\\s*Manage your plan`));
     expect(body).not.toContain('ann@example.test');
     expect(body).toContain('noindex');
+    expect(body).toContain("We couldn't email you your private link. Bookmark the link below to manage the plan.");
+  });
+
+  it('says the link was emailed after publishing through the form (AC2)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    const posted = await app.request('/plans', { method: 'POST', body: new URLSearchParams(planForm()) });
+
+    const res = await app.request(posted.headers.get('location') ?? '');
+
+    const body = await res.text();
+    expect(body).toContain("We've emailed you a private link to manage the plan. Keep it to yourself.");
+    expect(body).not.toContain("We couldn't email you");
   });
 
   it('unknown token is 404', async () => {
