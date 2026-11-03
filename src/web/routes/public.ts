@@ -14,7 +14,7 @@ export function publicRoutes(deps: AppDeps, config: AppConfig): Hono {
     const plan = isToken(token) ? await loadPublicPlan(deps.db, token) : null;
     if (!plan) return c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
     const state = displayState(plan, deps.now());
-    const page = publicPlanPage({ plan, state });
+    const page = publicPlanPage({ plan, state, publicToken: token });
     const og = publicPlanOg(plan, state, config.baseUrl);
     const format = plan.format.charAt(0).toUpperCase() + plan.format.slice(1);
     return c.html(layout(`${format} at ${plan.venue}`, page, { noindex: true, og }));

@@ -240,3 +240,18 @@ select[aria-invalid="true"] {
   border: 1.5px solid var(--border-strong);
   background: transparent;
 }
+
+.help {
+  margin: var(--s1) 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.notice {
+  margin: var(--s4) 0;
+  padding: var(--s3) var(--s4);
+  border-radius: 8px;
+  background: var(--accent-tint);
+  line-height: 1.4;
+}
