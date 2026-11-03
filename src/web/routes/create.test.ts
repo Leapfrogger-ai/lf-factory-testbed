@@ -816,3 +816,63 @@ describe('POST /plans rate limit', () => {
     expect(inputTag(body, 'suggestionId')).toContain(`value="${id}"`);
   });
 });
+
+describe('rate limited requests log', () => {
+  const IP = '203.0.113.7';
+  let written: string[];
+  beforeEach(() => {
+    written = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      written.push(String(chunk));
+      return true;
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const logLines = () =>
+    written
+      .join('')
+      .split('\n')
+      .filter(Boolean)
+      .flatMap((l) => {
+        try {
+          return [JSON.parse(l) as Record<string, unknown>];
+        } catch {
+          return [];
+        }
+      });
+
+  function expectOneWarnWithoutIp(route: string) {
+    const limited = logLines().filter((l) => l.msg === 'rate limited');
+    expect(limited).toHaveLength(1);
+    expect(limited[0]).toMatchObject({ level: 'warn', route });
+    expect(written.join('')).not.toContain(IP);
+  }
+
+  it('logs a limited suggest request at warn without the IP (AC7)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) await postSuggest(deps, {}, { 'Fly-Client-IP': IP }, app);
+
+    const res = await postSuggest(deps, {}, { 'Fly-Client-IP': IP }, app);
+
+    expect(res.status).toBe(429);
+    expectOneWarnWithoutIp('suggest');
+  });
+
+  it('logs a limited publish request at warn without the IP (AC7)', async () => {
+    const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+    const post = (n: number) =>
+      app.request('/plans', {
+        method: 'POST',
+        headers: { ...sameOrigin, 'Fly-Client-IP': IP },
+        body: new URLSearchParams(planForm({ email: `log${n}@example.test` })),
+      });
+    for (let i = 0; i < 3; i++) await post(i);
+
+    const res = await post(3);
+
+    expect(res.status).toBe(429);
+    expectOneWarnWithoutIp('publish');
+  });
+});
