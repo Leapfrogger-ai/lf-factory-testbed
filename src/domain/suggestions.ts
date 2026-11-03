@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { suggestions } from '../db/schema.ts';
 import type { FailureReason, SuggestInput, SuggestResult } from '../suggest/suggest.ts';
@@ -63,4 +63,9 @@ export async function loadSuggestion(db: Db, id: string): Promise<Suggestion | n
     minimum: row.minimum!,
     commitDeadlineAt: Temporal.Instant.fromEpochMilliseconds(row.commitDeadlineAt!.getTime()),
   };
+}
+
+export async function countSuggestions(db: Db): Promise<number> {
+  const [row] = await db.select({ value: count() }).from(suggestions);
+  return row!.value;
 }

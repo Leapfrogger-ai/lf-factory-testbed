@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import { deadlineIsStale, defaultDeadline } from '../../domain/plan-rules.ts';
 import { loadSendTarget, publish } from '../../domain/plans.ts';
@@ -9,8 +9,18 @@ import { sendOnce } from '../../email/send.ts';
 import { log } from '../../log.ts';
 import { suggest } from '../../suggest/suggest.ts';
 import type { AppConfig, AppDeps } from '../app.ts';
+import { clientIp } from '../client-ip.ts';
 import { publishFormSchema, suggestFormSchema } from '../forms.ts';
-import { createPage, FALLBACK_NOTICE, type CreateState, type FieldErrors, type FormValues } from '../views/create-page.ts';
+import type { RateLimiter, RateRoute } from '../rate-limit.ts';
+import {
+  createPage,
+  FALLBACK_NOTICE,
+  PUBLISH_LIMIT_NOTICE,
+  SUGGEST_LIMIT_NOTICE,
+  type CreateState,
+  type FieldErrors,
+  type FormValues,
+} from '../views/create-page.ts';
 import { layout } from '../views/layout.ts';
 
 const MISSING: Record<string, string> = {
@@ -146,7 +156,40 @@ async function rerenderInputs(c: Context, errors: FieldErrors) {
   return createLayout(c, createPage(state, errors), 422);
 }
 
-export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
+/** Counts the request against the route's limits; answers 429 with Retry-After when over. */
+function limit(
+  limiter: RateLimiter,
+  route: RateRoute,
+  render429: (c: Context) => Response | Promise<Response>,
+): MiddlewareHandler {
+  return async (c, next) => {
+    const decision = limiter.check(route, clientIp(c));
+    if (!decision.limited) return next();
+    c.header('Retry-After', String(decision.retryAfterSeconds));
+    log.warn('rate limited', { route });
+    return render429(c);
+  };
+}
+
+async function renderSuggestLimited(c: Context) {
+  const { city, area, timeWindow, ...rest } = await enteredValues(c);
+  const state: CreateState = {
+    kind: 'fallback',
+    values: { city: city ?? '', area: area ?? '', timeWindow: timeWindow ?? '', ...rest },
+    notice: SUGGEST_LIMIT_NOTICE,
+    city: city ?? '',
+    area: area ?? '',
+    timeWindow: timeWindow ?? '',
+  };
+  return c.html(layout('Suggest a plan', createPage(state, {})), 429);
+}
+
+async function renderPublishLimited(c: Context, deps: Pick<AppDeps, 'db'>) {
+  const state: CreateState = { ...(await stateFor(deps, await enteredValues(c))), notice: PUBLISH_LIMIT_NOTICE };
+  return c.html(layout('Suggest a plan', createPage(state, {})), 429);
+}
+
+export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimiter): Hono {
   const routes = new Hono();
   routes.get('/', async (c) => {
     const suggestion = await loadSuggestion(deps.db, c.req.query('suggestion') ?? '');
@@ -175,6 +218,7 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   });
   routes.post(
     '/plans',
+    limit(limiter, 'publish', (c) => renderPublishLimited(c, deps)),
     zValidator('form', publishFormSchema, async (result, c) => {
       if (result.success) return undefined;
       const errors = schemaErrors(result.error.issues);
@@ -205,6 +249,7 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   );
   routes.post(
     '/suggest',
+    limit(limiter, 'suggest', renderSuggestLimited),
     zValidator('form', suggestFormSchema, (result, c) =>
       result.success ? undefined : rerenderInputs(c, schemaErrors(result.error.issues)),
     ),

@@ -10,6 +10,7 @@ import { log } from '../log.ts';
 import type { SuggestPlanCall } from '../suggest/suggest.ts';
 import { responseHeaders } from './headers.ts';
 import { publicRoutes } from './routes/public.ts';
+import { createRateLimiter } from './rate-limit.ts';
 import { requestLogger } from './request-logger.ts';
 import { createRoutes } from './routes/create.ts';
 import { manageRoutes } from './routes/manage.ts';
@@ -54,7 +55,7 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
     if (c.res.status === 200) c.res.headers.set('Cache-Control', 'public, max-age=86400');
   });
   app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: (path) => path.replace(/^\/static/, '') }));
-  app.route('/', createRoutes(deps, config));
+  app.route('/', createRoutes(deps, config, createRateLimiter(deps.now)));
   app.route('/', manageRoutes(deps, config));
   app.route('/', publicRoutes(deps, config));
   app.onError((err, c) => {
