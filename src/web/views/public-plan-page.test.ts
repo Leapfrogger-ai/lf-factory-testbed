@@ -281,12 +281,12 @@ describe('publicPlanOg', () => {
     });
   });
 
-  it("appends \" It's on.\" for on, happening_now and was_on and nothing for needs_more", () => {
+  it("appends \" It's on.\" only for on and nothing for the other states", () => {
     const base = 'Sat 14 Nov · 10:00 AM · Oakland. Goes ahead if 3 are in.';
-    for (const state of ['on', 'happening_now', 'was_on'] as const) {
-      expect(publicPlanOg(plan(), state, 'https://calvin.test')?.description).toBe(`${base} It's on.`);
+    expect(publicPlanOg(plan(), 'on', 'https://calvin.test')?.description).toBe(`${base} It's on.`);
+    for (const state of ['needs_more', 'happening_now', 'was_on'] as const) {
+      expect(publicPlanOg(plan(), state, 'https://calvin.test')?.description).toBe(base);
     }
-    expect(publicPlanOg(plan(), 'needs_more', 'https://calvin.test')?.description).toBe(base);
   });
 
   it('uses the normal description for a not-this-time plan', () => {

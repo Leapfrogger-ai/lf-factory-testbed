@@ -128,7 +128,7 @@ export function publicPlanPage({
 }
 
 export function publicPlanOg(plan: PublicPlan, state: DisplayState, baseUrl: string): LayoutOptions['og'] {
-  const itsOn = state === 'on' || state === 'happening_now' || state === 'was_on' ? " It's on." : '';
+  const itsOn = state === 'on' ? " It's on." : '';
   const description = `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.${itsOn}`;
   return {
     title: `${capitalise(plan.format)} at ${plan.venue}`,
