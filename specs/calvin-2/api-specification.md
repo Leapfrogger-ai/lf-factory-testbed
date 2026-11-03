@@ -167,7 +167,7 @@ Operator decision: per-IP and global caps on the two routes that cost money or s
 | Route | Per IP | Global |
 |-------|--------|--------|
 | `POST /suggest` | 10 per 10 minutes | 200 per day |
-| `POST /plans` | 5 per hour | 50 per day |
+| `POST /plans` | 3 per hour | 50 per day |
 
 - **Key**: the `Fly-Client-IP` header. In development, where it's absent, use the socket's remote address.
 - **Windows**: fixed windows. A "day" is the calendar day in `America/Los_Angeles`. The limits are constants in `src/config.ts` (`RATE_LIMITS`).
