@@ -15,6 +15,15 @@ describe('createRateLimiter', () => {
     expect(limiter.check('suggest', '1.1.1.1')).toEqual({ limited: true, retryAfterSeconds: 600 });
   });
 
+  test('rounds Retry-After up to a whole second', () => {
+    let at = fixedClock('2026-11-09T18:00:00.000Z')();
+    const limiter = createRateLimiter(() => at, limits);
+    limiter.check('suggest', '1.1.1.1');
+    limiter.check('suggest', '1.1.1.1');
+    at = fixedClock('2026-11-09T18:00:00.250Z')();
+    expect(limiter.check('suggest', '1.1.1.1')).toEqual({ limited: true, retryAfterSeconds: 600 });
+  });
+
   test('counts another IP separately', () => {
     const limiter = createRateLimiter(fixedClock('2026-11-09T18:00:00Z'), limits);
     limiter.check('suggest', '1.1.1.1');

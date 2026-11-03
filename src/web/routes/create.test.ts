@@ -846,6 +846,9 @@ describe('rate limited requests log', () => {
     const limited = logLines().filter((l) => l.msg === 'rate limited');
     expect(limited).toHaveLength(1);
     expect(limited[0]).toMatchObject({ level: 'warn', route });
+    const requests = logLines().filter((l) => l.msg === 'request');
+    expect(requests.length).toBeGreaterThan(0);
+    expect(requests.at(-1)).toMatchObject({ status: 429 });
     expect(written.join('')).not.toContain(IP);
   }
 
