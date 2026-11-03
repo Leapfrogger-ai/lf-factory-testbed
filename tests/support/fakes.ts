@@ -2,13 +2,16 @@ import type { Schedule } from '../../src/domain/plan-rules.ts';
 
 export function fakeEmail() {
   const calls: { payload: unknown; idempotencyKey: string }[] = [];
+  const attempts: { payload: unknown; idempotencyKey: string }[] = [];
   let failures = 0;
   return {
     calls,
+    attempts,
     failNext(): void {
       failures += 1;
     },
     send: async (payload: unknown, idempotencyKey: string): Promise<{ id: string }> => {
+      attempts.push({ payload, idempotencyKey });
       if (failures > 0) {
         failures -= 1;
         throw new Error('email send failed');

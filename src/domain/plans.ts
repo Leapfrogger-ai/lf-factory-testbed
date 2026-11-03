@@ -8,6 +8,9 @@ import { computeSchedule, defaultDeadline } from './plan-rules.ts';
 import { localToInstant } from './time.ts';
 import { newToken } from './tokens.ts';
 
+export type PlanRow = typeof plans.$inferSelect;
+export type CommitRow = typeof commits.$inferSelect;
+
 export type PlanView = {
   id: string;
   state: string;
@@ -24,7 +27,7 @@ export type PlanView = {
 export async function publish(
   deps: Pick<AppDeps, 'db' | 'now' | 'planWorkflows'>,
   form: PublishForm,
-): Promise<{ planId: string; publicToken: string; manageToken: string }> {
+): Promise<{ planId: string; publicToken: string; manageToken: string; creatorCommitId: string }> {
   const gatheringAt = localToInstant(form.date, form.time);
   const deadlineAt =
     form.deadlineDate === undefined || form.deadlineTime === undefined
@@ -72,8 +75,19 @@ export async function publish(
       data: { change: 'new', isCreator: true, activeCount: 1 },
     });
     await deps.planWorkflows.start(planId, schedule);
-    return { planId, publicToken, manageToken };
+    return { planId, publicToken, manageToken, creatorCommitId: commit!.id };
   });
+}
+
+/** The plan and its creator's commit, the target of the manage-link email. */
+export async function loadSendTarget(db: Db, planId: string): Promise<{ plan: PlanRow; commit: CommitRow }> {
+  const [plan] = await db.select().from(plans).where(eq(plans.id, planId));
+  const [commit] = await db
+    .select()
+    .from(commits)
+    .where(and(eq(commits.planId, planId), eq(commits.isCreator, true)));
+  if (!plan || !commit) throw new Error('No plan with a creator commit for that id');
+  return { plan, commit };
 }
 
 export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | null> {

@@ -2,6 +2,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
+import type { SendEmail } from '../email/send-email.ts';
 import { log } from '../log.ts';
 import { responseHeaders } from './headers.ts';
 import { publicRoutes } from './routes/public.ts';
@@ -19,7 +20,7 @@ export type AppDeps = {
   db: Db;
   now: () => Temporal.Instant;
   suggestPlanCall: (request: unknown) => Promise<unknown>;
-  sendEmail: (payload: unknown, idempotencyKey: string) => Promise<{ id: string }>;
+  sendEmail: SendEmail;
   planWorkflows: {
     start(planId: string, schedule: Schedule): Promise<void>;
     signal(planId: string, signal: string, arg?: unknown): Promise<void>;
