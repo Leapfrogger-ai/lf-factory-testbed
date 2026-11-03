@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { DisplayState } from '../../domain/plan-rules.ts';
 import type { PublicPlan } from '../../domain/plans.ts';
 import { layout } from './layout.ts';
 import { publicPlanOg, publicPlanPage } from './public-plan-page.ts';
@@ -19,7 +20,7 @@ type PageOptions = Omit<Parameters<typeof publicPlanPage>[0], 'plan' | 'state'>;
 
 const render = (
   p: PublicPlan,
-  state: 'needs_more' | 'not_this_time' | 'on' = 'needs_more',
+  state: DisplayState = 'needs_more',
   options: Partial<PageOptions> = {},
 ) => String(publicPlanPage({ plan: p, state, publicToken: 'tok123', ...options }));
 
@@ -78,12 +79,66 @@ describe('publicPlanPage', () => {
     expect(body).not.toContain('-1');
   });
 
-  it("has no confirmed-plan copy or pill-on class for the 'on' state", () => {
-    const body = render(plan({ state: 'confirmed', names: ['A', 'B', 'C'] }), 'on');
+  it("the on state shows the It's on pill, filled seats, no empty seat and the welcome line", () => {
+    const body = render(plan({ state: 'confirmed', names: ['Ana Ruiz', 'Raj Rao', 'Mia Chen'] }), 'on');
 
-    expect(body).not.toContain('It&#39;s on');
-    expect(body).not.toContain("It's on");
-    expect(body).not.toContain('pill-on');
+    expect(body).toMatch(/It(&#39;|')s on/);
+    expect(body).toContain('More people are welcome until it starts.');
+    expect(body).not.toContain('you?');
+    expect(body).not.toContain('dot-empty');
+    expect(body).not.toContain('Goes ahead with a minimum');
+    expect(body).toContain('name="email"');
+  });
+
+  it('a confirmed plan with four committers and minimum 3 renders four filled seats and no "Needs"', () => {
+    const body = render(plan({ state: 'confirmed', names: ['A', 'B', 'C', 'D'] }), 'on');
+
+    expect(body.match(/<li class="seat"/g)).toHaveLength(4);
+    expect(body.match(/dot-on/g)).toHaveLength(4);
+    expect(body).not.toContain('Needs');
+    expect(body).not.toContain('you?');
+    expect(body).not.toContain('-1');
+  });
+
+  it('happening_now shows the pill, the seats and no form', () => {
+    const body = render(plan({ state: 'confirmed', names: ['Ana Ruiz', 'Raj Rao', 'Mia Chen'] }), 'happening_now');
+
+    expect(body).toContain('Happening now');
+    expect(body.match(/<li class="seat"/g)).toHaveLength(3);
+    expect(body).not.toContain('More people are welcome');
+    expect(body).not.toContain('name="email"');
+  });
+
+  it('was_on shows "This was on Sat 14 Nov" and no form', () => {
+    const body = render(plan({ state: 'confirmed', names: ['Ana Ruiz', 'Raj Rao', 'Mia Chen'] }), 'was_on');
+
+    expect(body).toContain('This was on Sat 14 Nov');
+    expect(body.match(/<li class="seat"/g)).toHaveLength(3);
+    expect(body).not.toContain('More people are welcome');
+    expect(body).not.toContain('name="email"');
+  });
+
+  it('the on notice replaces the form and escapes n', () => {
+    const confirmed = plan({ state: 'confirmed', names: ['Ana Ruiz', 'Raj Rao', 'Mia Chen'] });
+    const body = render(confirmed, 'on', { notice: { code: 'on', n: '<b>Mia</b>' } });
+
+    expect(body).toMatch(
+      /<p class="notice notice-on" role="status">\s*You(&#39;|')re in, &lt;b&gt;Mia&lt;\/b&gt;\. It(&#39;|')s on! We(&#39;|')ve emailed you the details and we(&#39;|')ll remind you the day before\.\s*<\/p>/,
+    );
+    expect(body).not.toContain('<b>Mia');
+    expect(body).not.toContain('name="email"');
+
+    const long = render(confirmed, 'on', { notice: { code: 'on', n: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' } });
+    expect(long).toContain('ABCDEFGHIJKLMNOP.');
+    expect(long).not.toContain('ABCDEFGHIJKLMNOPQ');
+  });
+
+  it('the on notice without n', () => {
+    const body = render(plan({ state: 'confirmed', names: ['A', 'B', 'C'] }), 'on', { notice: { code: 'on' } });
+
+    expect(body).toMatch(
+      /role="status">\s*You(&#39;|')re in\. It(&#39;|')s on! We(&#39;|')ve emailed you the details and we(&#39;|')ll remind you the day before\.\s*<\/p>/,
+    );
   });
 
   it('renders not-this-time without a list, a count or committer names', () => {
@@ -224,6 +279,14 @@ describe('publicPlanOg', () => {
       image: 'https://calvin.test/static/og.png',
       siteName: 'calvin',
     });
+  });
+
+  it("appends \" It's on.\" for on, happening_now and was_on and nothing for needs_more", () => {
+    const base = 'Sat 14 Nov · 10:00 AM · Oakland. Goes ahead if 3 are in.';
+    for (const state of ['on', 'happening_now', 'was_on'] as const) {
+      expect(publicPlanOg(plan(), state, 'https://calvin.test')?.description).toBe(`${base} It's on.`);
+    }
+    expect(publicPlanOg(plan(), 'needs_more', 'https://calvin.test')?.description).toBe(base);
   });
 
   it('uses the normal description for a not-this-time plan', () => {

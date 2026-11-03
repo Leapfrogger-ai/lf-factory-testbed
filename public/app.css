@@ -236,6 +236,14 @@ select[aria-invalid="true"] {
   background: var(--accent);
 }
 
+.dot-on {
+  background: var(--on);
+}
+
+.notice-on {
+  background: var(--on-tint);
+}
+
 .dot-empty {
   border: 1.5px solid var(--border-strong);
   background: transparent;

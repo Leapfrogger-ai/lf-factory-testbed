@@ -1,11 +1,10 @@
 import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
+import type { DisplayState } from '../../domain/plan-rules.ts';
 import type { PublicPlan } from '../../domain/plans.ts';
-import { formatDeadline, formatWhen } from '../../domain/time.ts';
+import { formatDay, formatDeadline, formatWhen } from '../../domain/time.ts';
 import type { FieldErrors } from './create-page.ts';
 import type { LayoutOptions } from './layout.ts';
-
-type DisplayState = 'needs_more' | 'not_this_time' | 'on';
 
 const FIRST_NAME_MAX = 16;
 
@@ -21,7 +20,18 @@ export function capitalise(text: string): string {
 
 function pillText(plan: PublicPlan, state: DisplayState): string {
   if (state === 'not_this_time') return 'Not this time';
+  if (state === 'on') return "It's on";
+  if (state === 'happening_now') return 'Happening now';
+  if (state === 'was_on') return `This was on ${formatDay(plan.gatheringAt)}`;
   return `Needs ${Math.max(plan.minimum - plan.names.length, 0)} more`;
+}
+
+function filledSeats(plan: PublicPlan): HtmlEscapedString {
+  return html`<ul class="seats" aria-label="${plan.names.length} people in">
+    ${plan.names.map(
+      (name) => html`<li class="seat"><span class="dot dot-on" aria-hidden="true"></span>${firstName(name)}</li>`,
+    )}
+  </ul>` as HtmlEscapedString;
 }
 
 function seats(plan: PublicPlan): HtmlEscapedString {
@@ -69,6 +79,10 @@ export type PublicNotice = { code: string; n?: string };
 function noticeText(notice: PublicNotice): string | undefined {
   const n = notice.n === undefined ? '' : Array.from(notice.n).slice(0, FIRST_NAME_MAX).join('');
   if (notice.code === 'in') return n ? `You're in, ${n}. We'll email you if it's on.` : "You're in. We'll email you if it's on.";
+  if (notice.code === 'on') {
+    const tail = "It's on! We've emailed you the details and we'll remind you the day before.";
+    return n ? `You're in, ${n}. ${tail}` : `You're in. ${tail}`;
+  }
   if (notice.code === 'updated') return n ? `Updated: you're in as ${n}.` : "Updated: you're in.";
   if (notice.code === 'closed') return "This one isn't taking commits any more.";
   return undefined;
@@ -88,12 +102,17 @@ export function publicPlanPage({
   form?: CommitFormState;
 }): HtmlEscapedString {
   const noticeCopy = notice === undefined ? undefined : noticeText(notice);
-  const replacesForm = notice?.code === 'in' || notice?.code === 'updated';
+  const replacesForm = notice?.code === 'in' || notice?.code === 'updated' || notice?.code === 'on';
   const body =
     state === 'not_this_time'
       ? html`<p>This one isn't going ahead. No harm done. Maybe next time.</p>
           <p><a href="/">Suggest a plan</a></p>`
-      : html`${seats(plan)}
+      : state === 'happening_now' || state === 'was_on'
+        ? filledSeats(plan)
+        : state === 'on'
+          ? html`${filledSeats(plan)}
+          <p>More people are welcome until it starts.</p>`
+        : html`${seats(plan)}
           <p>
             Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)}.
           </p>`;
@@ -103,13 +122,14 @@ export function publicPlanPage({
     <h1>${plan.venue}</h1>
     <p class="meta">${plan.city} · ${formatWhen(plan.gatheringAt)}</p>
     ${body}
-    ${noticeCopy === undefined ? '' : html`<p class="notice" role="status">${noticeCopy}</p>`}
-    ${state === 'not_this_time' || replacesForm ? '' : commitForm(publicToken, form)}
+    ${noticeCopy === undefined ? '' : html`<p class="${notice?.code === 'on' ? 'notice notice-on' : 'notice'}" role="status">${noticeCopy}</p>`}
+    ${state === 'not_this_time' || state === 'happening_now' || state === 'was_on' || replacesForm ? '' : commitForm(publicToken, form)}
   </main>` as HtmlEscapedString;
 }
 
-export function publicPlanOg(plan: PublicPlan, _state: DisplayState, baseUrl: string): LayoutOptions['og'] {
-  const description = `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.`;
+export function publicPlanOg(plan: PublicPlan, state: DisplayState, baseUrl: string): LayoutOptions['og'] {
+  const itsOn = state === 'on' || state === 'happening_now' || state === 'was_on' ? " It's on." : '';
+  const description = `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.${itsOn}`;
   return {
     title: `${capitalise(plan.format)} at ${plan.venue}`,
     description,
