@@ -1,7 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { serve } from '@hono/node-server';
+import { Resend } from 'resend';
 import { loadConfig } from './config.ts';
 import { createDb } from './db/client.ts';
+import { createSendEmail } from './email/send-email.ts';
 import { createSuggestPlanCall } from './suggest/suggest.ts';
 import { connectTemporalClient, createPlanWorkflows } from './temporal/client.ts';
 import { startWorker } from './temporal/worker.ts';
@@ -26,10 +28,7 @@ const app = createApp(
     db,
     now: () => Temporal.Now.instant(),
     suggestPlanCall: createSuggestPlanCall(anthropic),
-    // Stub until the email story (Rulings).
-    sendEmail: async () => {
-      throw new Error('Email is not available yet');
-    },
+    sendEmail: createSendEmail({ resend: new Resend(config.resendApiKey), from: config.emailFrom }),
     planWorkflows: createPlanWorkflows(client),
   },
   { baseUrl: config.baseUrl, anthropicModel: config.anthropicModel },

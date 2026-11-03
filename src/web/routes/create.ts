@@ -1,9 +1,10 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
 import { deadlineIsStale, defaultDeadline } from '../../domain/plan-rules.ts';
-import { publish } from '../../domain/plans.ts';
+import { loadSendTarget, publish } from '../../domain/plans.ts';
 import { loadSuggestion, recordSuggestion, type Suggestion } from '../../domain/suggestions.ts';
 import { localToInstant } from '../../domain/time.ts';
+import { sendOnce } from '../../email/send.ts';
 import { log } from '../../log.ts';
 import { suggest } from '../../suggest/suggest.ts';
 import type { AppConfig, AppDeps } from '../app.ts';
@@ -171,7 +172,14 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
       const suggestion = await okSuggestion(deps, form.suggestionId);
       const errors = timingErrors(deps, withoutStaleDeadline(form, suggestion));
       if (Object.keys(errors).length > 0) return rerenderPublish(c, deps, errors);
-      const { manageToken } = await publish(deps, form, suggestion);
+      const { planId, manageToken } = await publish(deps, form, suggestion);
+      try {
+        const { plan, commit } = await loadSendTarget(deps.db, planId);
+        await sendOnce({ db: deps.db, sendEmail: deps.sendEmail, baseUrl: config.baseUrl }, 'manage_link', plan, commit);
+      } catch (err) {
+        // The name only: a provider message can carry the creator's address.
+        log.error('manage-link email failed', { planId, errorName: err instanceof Error ? err.name : 'unknown' });
+      }
       return c.redirect(`/m/${manageToken}/published`, 303);
     },
   );

@@ -28,6 +28,11 @@ function displayParts(instant: Temporal.Instant) {
   };
 }
 
+/** UX §8.8 day part, e.g. `Sat 14 Nov`, in PLAN_TIME_ZONE. */
+export function formatDay(instant: Temporal.Instant): string {
+  return displayParts(instant).day;
+}
+
 /** UX §8.8 event time, e.g. `Sat 14 Nov · 10:00 AM`, in PLAN_TIME_ZONE. */
 export function formatWhen(instant: Temporal.Instant): string {
   const { day, clock } = displayParts(instant);

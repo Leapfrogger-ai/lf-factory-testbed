@@ -1,6 +1,6 @@
 import { and, asc, count, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
-import { commits, events, plans } from '../db/schema.ts';
+import { commits, emailSends, events, plans } from '../db/schema.ts';
 import type { AppDeps } from '../web/app.ts';
 import type { PublishForm } from '../web/forms.ts';
 import { appendEvent } from './events.ts';
@@ -8,6 +8,9 @@ import { computeSchedule, deadlineIsStale, defaultDeadline } from './plan-rules.
 import type { Suggestion } from './suggestions.ts';
 import { localToInstant } from './time.ts';
 import { newToken } from './tokens.ts';
+
+export type PlanRow = typeof plans.$inferSelect;
+export type CommitRow = typeof commits.$inferSelect;
 
 export type PlanView = {
   id: string;
@@ -20,6 +23,7 @@ export type PlanView = {
   suggestionId: string | null;
   suggestionEdited: boolean | null;
   count: number;
+  manageLinkSent: boolean;
   commits: { isCreator: boolean; withdrawToken: string }[];
   events: { type: string; data: Record<string, unknown> }[];
 };
@@ -28,7 +32,7 @@ export async function publish(
   deps: Pick<AppDeps, 'db' | 'now' | 'planWorkflows'>,
   form: PublishForm,
   suggestion?: Extract<Suggestion, { outcome: 'ok' }>,
-): Promise<{ planId: string; publicToken: string; manageToken: string }> {
+): Promise<{ planId: string; publicToken: string; manageToken: string; creatorCommitId: string }> {
   const gatheringAt = localToInstant(form.date, form.time);
   const submittedDeadline =
     form.deadlineDate === undefined || form.deadlineTime === undefined
@@ -91,8 +95,19 @@ export async function publish(
       data: { change: 'new', isCreator: true, activeCount: 1 },
     });
     await deps.planWorkflows.start(planId, schedule);
-    return { planId, publicToken, manageToken };
+    return { planId, publicToken, manageToken, creatorCommitId: commit!.id };
   });
+}
+
+/** The plan and its creator's commit, the target of the manage-link email. */
+export async function loadSendTarget(db: Db, planId: string): Promise<{ plan: PlanRow; commit: CommitRow }> {
+  const [plan] = await db.select().from(plans).where(eq(plans.id, planId));
+  const [commit] = await db
+    .select()
+    .from(commits)
+    .where(and(eq(commits.planId, planId), eq(commits.isCreator, true)));
+  if (!plan || !commit) throw new Error('No plan with a creator commit for that id');
+  return { plan, commit };
 }
 
 export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | null> {
@@ -100,6 +115,13 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
   if (!plan) return null;
   const planCommits = await db.select().from(commits).where(eq(commits.planId, plan.id)).orderBy(asc(commits.createdAt));
   const planEvents = await db.select().from(events).where(eq(events.planId, plan.id)).orderBy(asc(events.id));
+  const creator = planCommits.find((c) => c.isCreator);
+  const [sent] = creator
+    ? await db
+        .select({ sentAt: emailSends.sentAt })
+        .from(emailSends)
+        .where(and(eq(emailSends.commitId, creator.id), eq(emailSends.kind, 'manage_link')))
+    : [];
   return {
     id: plan.id,
     state: plan.state,
@@ -111,6 +133,7 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
     suggestionId: plan.suggestionId,
     suggestionEdited: plan.suggestionEdited,
     count: planCommits.filter((c) => c.withdrawnAt === null).length,
+    manageLinkSent: sent?.sentAt != null,
     commits: planCommits.map((c) => ({ isCreator: c.isCreator, withdrawToken: c.withdrawToken })),
     events: planEvents.map((e) => ({ type: e.type, data: e.data as Record<string, unknown> })),
   };

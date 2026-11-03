@@ -5,6 +5,7 @@ import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
+import type { SendEmail } from '../email/send-email.ts';
 import { log } from '../log.ts';
 import type { SuggestPlanCall } from '../suggest/suggest.ts';
 import { responseHeaders } from './headers.ts';
@@ -23,7 +24,7 @@ export type AppDeps = {
   db: Db;
   now: () => Temporal.Instant;
   suggestPlanCall: SuggestPlanCall;
-  sendEmail: (payload: unknown, idempotencyKey: string) => Promise<{ id: string }>;
+  sendEmail: SendEmail;
   planWorkflows: {
     start(planId: string, schedule: Schedule): Promise<void>;
     signal(planId: string, signal: string, arg?: unknown): Promise<void>;
