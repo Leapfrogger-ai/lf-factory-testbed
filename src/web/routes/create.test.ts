@@ -299,8 +299,17 @@ describe('POST /suggest', () => {
   });
 });
 
+async function suggestedLocation(deps: ReturnType<typeof testDeps>): Promise<string> {
+  const res = await postSuggest(deps);
+  return res.headers.get('location') ?? '';
+}
+
+function inputTag(body: string, name: string): string {
+  return body.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? '';
+}
+
 describe('GET /', () => {
-  it('renders the create page linking the stylesheet (AC1)', async () => {
+  it('renders the inputs state linking the stylesheet', async () => {
     const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
 
     const res = await app.request('/');
@@ -309,7 +318,139 @@ describe('GET /', () => {
     expect(res.headers.get('content-type')).toContain('text/html');
     const body = await res.text();
     expect(body).toContain('/static/app.css');
+    expect(body).toContain('Suggest a plan</button>');
+    expect(body).not.toContain('Publish plan');
+  });
+
+  it('shows the summary, the card rows and the publish form (AC1)', async () => {
+    const fake = fakeSuggest(loadFixture('good'));
+    const deps = testDeps({ suggestPlanCall: fake.call });
+    const location = await suggestedLocation(deps);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('Oakland · Rockridge · next weekend, morning');
+    expect(inputTag(body, 'format')).toContain('value="coffee"');
+    expect(inputTag(body, 'venue')).toContain('value="Highwire Coffee Roasters"');
+    expect(inputTag(body, 'date')).toContain('value="2026-11-14"');
+    expect(inputTag(body, 'time')).toContain('value="10:00"');
+    expect(inputTag(body, 'minimum')).toContain('value="3"');
+    expect(inputTag(body, 'deadlineDate')).toContain('value="2026-11-11"');
+    expect(inputTag(body, 'deadlineTime')).toContain('value="22:00"');
+    expect(inputTag(body, 'suggestionId')).toContain('type="hidden"');
+    expect(inputTag(body, 'suggestionId')).toContain(`value="${location.split('=')[1]}"`);
+    expect(inputTag(body, 'name')).not.toBe('');
+    expect(inputTag(body, 'email')).not.toBe('');
     expect(body).toContain('Publish plan');
+  });
+
+  it.each([['no-tool-call'], ['pause-turn'], ['refusal'], ['max-tokens']] as const)(
+    'shows the fallback for a failed suggestion, %s (AC3)',
+    async (name) => {
+      const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture(name)).call });
+      const location = await suggestedLocation(deps);
+
+      const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain(
+        'We couldn&#39;t come up with a suggestion just now. Fill in your own below, or try again.',
+      );
+      expect(body).toContain('Oakland · Rockridge · next weekend, morning');
+      for (const field of ['format', 'venue', 'date', 'time', 'deadlineDate', 'deadlineTime']) {
+        expect(inputTag(body, field)).toContain('value=""');
+      }
+      expect(inputTag(body, 'minimum')).toContain('value="3"');
+      expect(body).not.toContain('name="suggestionId"');
+      expect(body).toContain('Publish plan');
+    },
+  );
+
+  it('does not call Claude again when the page is requested twice (AC6)', async () => {
+    const fake = fakeSuggest(loadFixture('good'));
+    const deps = testDeps({ suggestPlanCall: fake.call });
+    const location = await suggestedLocation(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    await app.request(location);
+    await app.request(location);
+
+    expect(fake.calls).toHaveLength(1);
+  });
+
+  it.each([[''], ['nope'], ['00000000-0000-4000-8000-000000000000']])(
+    'answers 200 with the plain inputs state for ?suggestion=%s (AC7)',
+    async (value) => {
+      const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+
+      const res = await app.request(`/?suggestion=${value}`);
+
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('Suggest a plan</button>');
+      expect(body).not.toContain('Publish plan');
+      expect(body).not.toContain('name="venue"');
+    },
+  );
+
+  it('escapes HTML in the venue', async () => {
+    const good = loadFixture('good');
+    const edited = {
+      ...good,
+      content: good.content.map((block) =>
+        block.name === 'propose_plan'
+          ? { ...block, input: { ...(block.input as object), venue: '<script>x</script>' } }
+          : block,
+      ),
+    };
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(edited).call });
+    const location = await suggestedLocation(deps);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+
+    const body = await res.text();
+    expect(body).toContain('&lt;script&gt;');
+    expect(body).not.toContain('<script>x');
+  });
+
+  it('still renders a card whose gathering is now in the past', async () => {
+    const fake = fakeSuggest(loadFixture('good'));
+    const location = await suggestedLocation(testDeps({ suggestPlanCall: fake.call }));
+    const later = testDeps({ now: fixedClock('2026-11-20T18:00:00Z'), suggestPlanCall: fake.call });
+
+    const res = await createApp(later, { baseUrl: TEST_BASE_URL }).request(location);
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(inputTag(body, 'venue')).toContain('value="Highwire Coffee Roasters"');
+    expect(inputTag(body, 'date')).toContain('value="2026-11-14"');
+  });
+});
+
+describe('POST /plans re-render state', () => {
+  it('keeps the card, with its suggestionId, when a card publish fails', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await post(deps, { suggestionId: id, name: '' });
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Add your name.');
+    expect(inputTag(body, 'suggestionId')).toContain(`value="${id}"`);
+  });
+
+  it('shows the fallback form when a publish fails without a suggestion', async () => {
+    const res = await post(testDeps(), { name: '' });
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Oakland · Rockridge · next weekend');
+    expect(body).not.toContain('name="suggestionId"');
+    expect(inputTag(body, 'venue')).toContain('value="Blue Bottle"');
   });
 });
 

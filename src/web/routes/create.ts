@@ -2,13 +2,13 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
 import { defaultDeadline } from '../../domain/plan-rules.ts';
 import { publish } from '../../domain/plans.ts';
-import { recordSuggestion } from '../../domain/suggestions.ts';
+import { loadSuggestion, recordSuggestion } from '../../domain/suggestions.ts';
 import { localToInstant } from '../../domain/time.ts';
 import { log } from '../../log.ts';
 import { suggest } from '../../suggest/suggest.ts';
 import type { AppConfig, AppDeps } from '../app.ts';
 import { publishFormSchema, suggestFormSchema } from '../forms.ts';
-import { createPage, type FieldErrors, type FormValues } from '../views/create-page.ts';
+import { createPage, FALLBACK_NOTICE, type CreateState, type FieldErrors, type FormValues } from '../views/create-page.ts';
 import { layout } from '../views/layout.ts';
 
 const MISSING: Record<string, string> = {
@@ -80,16 +80,51 @@ function timingInput(values: Record<string, unknown>, invalid: ReadonlySet<strin
   return { date: pick('date'), time: pick('time'), deadlineDate: pick('deadlineDate'), deadlineTime: pick('deadlineTime') };
 }
 
-async function rerender(c: Context, errors: FieldErrors) {
+async function enteredValues(c: Context): Promise<FormValues> {
   const entered = await c.req.parseBody();
   const values: FormValues = {};
   for (const [key, value] of Object.entries(entered)) if (typeof value === 'string') values[key] = value;
-  return c.html(layout('Suggest a plan', createPage(values, errors)), 422);
+  return values;
+}
+
+/** The card when the form came from an ok suggestion, the fallback when it came from the publish form, else the inputs. */
+async function stateFor(deps: Pick<AppDeps, 'db'>, values: FormValues): Promise<CreateState> {
+  const suggestion = await loadSuggestion(deps.db, values.suggestionId ?? '');
+  if (suggestion?.outcome === 'ok') return { kind: 'card', suggestion, values };
+  const { city, area, timeWindow } = values;
+  if (city === undefined && area === undefined && timeWindow === undefined) return { kind: 'inputs', values };
+  return { kind: 'fallback', values, city: city ?? '', area: area ?? '', timeWindow: timeWindow ?? '' };
+}
+
+async function rerenderPublish(c: Context, deps: Pick<AppDeps, 'db'>, errors: FieldErrors) {
+  const state = await stateFor(deps, await enteredValues(c));
+  return c.html(layout('Suggest a plan', createPage(state, errors)), 422);
+}
+
+async function rerenderInputs(c: Context, errors: FieldErrors) {
+  const values = await enteredValues(c);
+  return c.html(layout('Suggest a plan', createPage({ kind: 'inputs', values }, errors)), 422);
 }
 
 export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   const routes = new Hono();
-  routes.get('/', (c) => c.html(layout('Suggest a plan', createPage({}, {}))));
+  routes.get('/', async (c) => {
+    const suggestion = await loadSuggestion(deps.db, c.req.query('suggestion') ?? '');
+    const state: CreateState =
+      suggestion === null
+        ? { kind: 'inputs', values: {} }
+        : suggestion.outcome === 'ok'
+          ? { kind: 'card', suggestion, values: {} }
+          : {
+              kind: 'fallback',
+              values: {},
+              notice: FALLBACK_NOTICE,
+              city: suggestion.city,
+              area: suggestion.area,
+              timeWindow: suggestion.timeWindow,
+            };
+    return c.html(layout('Suggest a plan', createPage(state, {})));
+  });
   routes.post(
     '/plans',
     zValidator('form', publishFormSchema, async (result, c) => {
@@ -97,12 +132,12 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
       const errors = schemaErrors(result.error.issues);
       const raw = await c.req.parseBody();
       const timing = timingErrors(deps, timingInput(raw, new Set(Object.keys(errors))));
-      return rerender(c, { ...timing, ...errors });
+      return rerenderPublish(c, deps, { ...timing, ...errors });
     }),
     async (c) => {
       const form = c.req.valid('form');
       const errors = timingErrors(deps, form);
-      if (Object.keys(errors).length > 0) return rerender(c, errors);
+      if (Object.keys(errors).length > 0) return rerenderPublish(c, deps, errors);
       const { manageToken } = await publish(deps, form);
       return c.redirect(`/m/${manageToken}/published`, 303);
     },
@@ -110,7 +145,7 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   routes.post(
     '/suggest',
     zValidator('form', suggestFormSchema, (result, c) =>
-      result.success ? undefined : rerender(c, schemaErrors(result.error.issues)),
+      result.success ? undefined : rerenderInputs(c, schemaErrors(result.error.issues)),
     ),
     async (c) => {
       const form = c.req.valid('form');
