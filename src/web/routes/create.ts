@@ -2,9 +2,12 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
 import { defaultDeadline } from '../../domain/plan-rules.ts';
 import { publish } from '../../domain/plans.ts';
+import { recordSuggestion } from '../../domain/suggestions.ts';
 import { localToInstant } from '../../domain/time.ts';
-import type { AppDeps } from '../app.ts';
-import { publishFormSchema } from '../forms.ts';
+import { log } from '../../log.ts';
+import { suggest } from '../../suggest/suggest.ts';
+import type { AppConfig, AppDeps } from '../app.ts';
+import { publishFormSchema, suggestFormSchema } from '../forms.ts';
 import { createPage, type FieldErrors, type FormValues } from '../views/create-page.ts';
 import { layout } from '../views/layout.ts';
 
@@ -84,7 +87,7 @@ async function rerender(c: Context, errors: FieldErrors) {
   return c.html(layout('Suggest a plan', createPage(values, errors)), 422);
 }
 
-export function createRoutes(deps: AppDeps): Hono {
+export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   const routes = new Hono();
   routes.get('/', (c) => c.html(layout('Suggest a plan', createPage({}, {}))));
   routes.post(
@@ -102,6 +105,23 @@ export function createRoutes(deps: AppDeps): Hono {
       if (Object.keys(errors).length > 0) return rerender(c, errors);
       const { manageToken } = await publish(deps, form);
       return c.redirect(`/m/${manageToken}/published`, 303);
+    },
+  );
+  routes.post(
+    '/suggest',
+    zValidator('form', suggestFormSchema, (result, c) =>
+      result.success ? undefined : rerender(c, schemaErrors(result.error.issues)),
+    ),
+    async (c) => {
+      const form = c.req.valid('form');
+      const result = await suggest(form, {
+        suggestPlanCall: deps.suggestPlanCall,
+        now: deps.now,
+        model: config.anthropicModel,
+      });
+      if (result.outcome === 'failed') log.warn('suggestion failed', { failureReason: result.failureReason });
+      const id = await recordSuggestion(deps, form, result);
+      return c.redirect(`/?suggestion=${id}`, 303);
     },
   );
   return routes;

@@ -30,7 +30,7 @@ export type AppDeps = {
   };
 };
 
-export type AppConfig = { baseUrl: string };
+export type AppConfig = { baseUrl: string; anthropicModel?: string };
 
 export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();
@@ -53,7 +53,7 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
     if (c.res.status === 200) c.res.headers.set('Cache-Control', 'public, max-age=86400');
   });
   app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: (path) => path.replace(/^\/static/, '') }));
-  app.route('/', createRoutes(deps));
+  app.route('/', createRoutes(deps, config));
   app.route('/', manageRoutes(deps, config));
   app.route('/', publicRoutes(deps, config));
   app.onError((err, c) => {

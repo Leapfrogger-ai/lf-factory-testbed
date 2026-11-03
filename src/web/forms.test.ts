@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { CITIES } from '../config.ts';
-import { publishFormSchema } from './forms.ts';
+import { publishFormSchema, suggestFormSchema } from './forms.ts';
 
 const valid = {
   city: 'Oakland',
@@ -65,6 +65,15 @@ test('a deadline date and time together parse', () => {
   const form = publishFormSchema.parse({ ...valid, deadlineDate: '2026-11-12', deadlineTime: '18:00' });
   expect(form.deadlineDate).toBe('2026-11-12');
   expect(form.deadlineTime).toBe('18:00');
+});
+
+test('a suggest body is trimmed', () => {
+  const form = suggestFormSchema.parse({ city: 'Oakland', area: '  Rockridge ', timeWindow: ' next weekend, morning  ' });
+  expect(form).toEqual({ city: 'Oakland', area: 'Rockridge', timeWindow: 'next weekend, morning' });
+});
+
+test('a suggest body with a city outside the list is rejected', () => {
+  expect(suggestFormSchema.safeParse({ city: 'Gotham', area: 'Rockridge', timeWindow: 'soon' }).success).toBe(false);
 });
 
 test('CITIES starts with San Francisco and has 15 cities', () => {

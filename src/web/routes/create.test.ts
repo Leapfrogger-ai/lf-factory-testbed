@@ -1,8 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
-import { fixedClock } from '../../../tests/support/fakes.ts';
+import { fakeSuggest, fixedClock } from '../../../tests/support/fakes.ts';
+import { loadFixture } from '../../../tests/support/fixtures.ts';
 import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
+import { loadSuggestion } from '../../domain/suggestions.ts';
 import { createApp } from '../app.ts';
 
 const { db, pool } = testDb();
@@ -230,6 +232,70 @@ describe('POST /plans validation', () => {
 
     expect(body).toContain('&lt;script&gt;');
     expect(body).not.toContain('<script>x');
+  });
+});
+
+async function postSuggest(deps: ReturnType<typeof testDeps>, fields: Record<string, string> = {}) {
+  const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+  return app.request('/suggest', {
+    method: 'POST',
+    headers: sameOrigin,
+    body: new URLSearchParams({ city: 'Oakland', area: 'Rockridge', timeWindow: 'next weekend, morning', ...fields }),
+  });
+}
+
+describe('POST /suggest', () => {
+  it('redirects 303 to /?suggestion=<id> and stores one ok row (AC1)', async () => {
+    const fake = fakeSuggest(loadFixture('good'));
+
+    const res = await postSuggest(testDeps({ suggestPlanCall: fake.call }));
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toMatch(/^\/\?suggestion=[0-9a-f-]{36}$/);
+    expect(fake.calls).toHaveLength(1);
+    const stored = await loadSuggestion(db, location.split('=')[1] ?? '');
+    expect(stored).toMatchObject({ outcome: 'ok', venue: 'Highwire Coffee Roasters' });
+  });
+
+  it.each([
+    ['no-tool-call', 'no_proposal'],
+    ['pause-turn', 'pause_turn'],
+    ['refusal', 'refusal'],
+    ['max-tokens', 'max_tokens'],
+    ['an API error', 'api_error'],
+  ] as const)('stores a failed row and still redirects for %s (AC3)', async (name, failureReason) => {
+    const fake = fakeSuggest(name === 'an API error' ? undefined : loadFixture(name));
+    if (name === 'an API error') fake.failWith(new Error('upstream down'));
+
+    const res = await postSuggest(testDeps({ suggestPlanCall: fake.call }));
+
+    expect(res.status).toBe(303);
+    const stored = await loadSuggestion(db, (res.headers.get('location') ?? '').split('=')[1] ?? '');
+    expect(stored).toMatchObject({ outcome: 'failed', failureReason });
+  });
+
+  it.each([
+    ['empty inputs', { city: '', area: '', timeWindow: '' }],
+    ['whitespace and an unknown city', { city: 'Gotham', area: '   ', timeWindow: '  ' }],
+  ])('answers 422 with the three messages and never calls Claude for %s (AC5)', async (_name, fields) => {
+    const fake = fakeSuggest(loadFixture('good'));
+
+    const res = await postSuggest(testDeps({ suggestPlanCall: fake.call }), fields);
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Pick a city.');
+    expect(body).toContain('Add a rough area.');
+    expect(body).toContain('Add a rough time.');
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('keeps what was entered when it answers 422 (AC5)', async () => {
+    const res = await postSuggest(testDeps(), { area: 'Rockridge', timeWindow: '' });
+
+    expect(res.status).toBe(422);
+    expect(await res.text()).toContain('Rockridge');
   });
 });
 
