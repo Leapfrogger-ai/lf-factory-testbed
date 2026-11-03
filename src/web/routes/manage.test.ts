@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { planForm, publishPlan, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
+import { planForm, publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
@@ -30,7 +30,11 @@ describe('GET /m/:token/published', () => {
   it('says the link was emailed after publishing through the form (AC2)', async () => {
     const deps = testDeps();
     const app = createApp(deps, { baseUrl: TEST_BASE_URL });
-    const posted = await app.request('/plans', { method: 'POST', body: new URLSearchParams(planForm()) });
+    const posted = await app.request('/plans', {
+      method: 'POST',
+      headers: sameOrigin,
+      body: new URLSearchParams(planForm()),
+    });
 
     const res = await app.request(posted.headers.get('location') ?? '');
 

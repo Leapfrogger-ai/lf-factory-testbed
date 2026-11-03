@@ -6,6 +6,9 @@ import { fakeEmail, fakePlanWorkflows, fakeSuggest, fixedClock } from './fakes.t
 
 export const TEST_BASE_URL = 'https://calvin.test';
 
+// Headers a browser sends on a same-origin form POST; every POST test spreads these in.
+export const sameOrigin = { 'Sec-Fetch-Site': 'same-origin' };
+
 export function planForm(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     city: 'Oakland',

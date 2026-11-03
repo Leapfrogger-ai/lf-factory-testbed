@@ -1,5 +1,8 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { csrf } from 'hono/csrf';
+import { HTTPException } from 'hono/http-exception';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
 import type { SendEmail } from '../email/send-email.ts';
@@ -33,6 +36,17 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();
   app.use('*', requestLogger());
   app.use('*', responseHeaders());
+  app.post('*', csrf({ origin: config.baseUrl }));
+  app.post(
+    '*',
+    bodyLimit({
+      maxSize: 16 * 1024,
+      onError: (c) => {
+        log.warn('body too large');
+        return c.html(layout('Something went wrong', systemErrorPage(), { noindex: true }), 413);
+      },
+    }),
+  );
   app.get('/healthz', (c) => c.text('ok'));
   app.use('/static/*', async (c, next) => {
     await next();
@@ -43,6 +57,10 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
   app.route('/', manageRoutes(deps, config));
   app.route('/', publicRoutes(deps, config));
   app.onError((err, c) => {
+    if (err instanceof HTTPException && err.status === 403) {
+      log.warn('csrf rejected');
+      return c.html(layout('Something went wrong', systemErrorPage(), { noindex: true }), 403);
+    }
     log.error('unexpected error', { errorName: err.name });
     return c.html(layout('Something went wrong', systemErrorPage(), { noindex: true }), 500);
   });
