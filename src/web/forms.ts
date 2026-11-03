@@ -64,6 +64,7 @@ export const suggestFormSchema = z.object({
   city: z.string().trim().refine((city) => CITIES.includes(city)),
   area: text(200),
   timeWindow: text(200),
+  previousSuggestionId: optional(z.string().trim()),
 });
 
 export type SuggestForm = z.output<typeof suggestFormSchema>;

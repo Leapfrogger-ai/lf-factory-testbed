@@ -1,5 +1,6 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
+import type { HtmlEscapedString } from 'hono/utils/html';
 import { deadlineIsStale, defaultDeadline } from '../../domain/plan-rules.ts';
 import { loadSendTarget, publish } from '../../domain/plans.ts';
 import { loadSuggestion, recordSuggestion, type Suggestion } from '../../domain/suggestions.ts';
@@ -134,14 +135,25 @@ async function stateFor(deps: Pick<AppDeps, 'db'>, values: FormValues): Promise<
   return { kind: 'fallback', values, city: city ?? '', area: area ?? '', timeWindow: timeWindow ?? '' };
 }
 
+/** The create page with create.js loaded under the response's CSP nonce. */
+function createLayout(c: Context, body: HtmlEscapedString, status?: 422) {
+  const nonce = c.get('secureHeadersNonce') as string;
+  const page = layout('Suggest a plan', body, { script: { src: '/static/create.js', nonce } });
+  return status === undefined ? c.html(page) : c.html(page, status);
+}
+
 async function rerenderPublish(c: Context, deps: Pick<AppDeps, 'db'>, errors: FieldErrors) {
   const state = await stateFor(deps, await enteredValues(c));
-  return c.html(layout('Suggest a plan', createPage(state, errors)), 422);
+  return createLayout(c, createPage(state, errors), 422);
 }
 
 async function rerenderInputs(c: Context, errors: FieldErrors) {
   const values = await enteredValues(c);
-  return c.html(layout('Suggest a plan', createPage({ kind: 'inputs', values }, errors)), 422);
+  // Kept as entered so Change still links the next suggestion; it is checked again on the next submit.
+  const previous = values.previousSuggestionId?.trim();
+  const state: CreateState =
+    previous ? { kind: 'inputs', values, previousSuggestionId: previous } : { kind: 'inputs', values };
+  return createLayout(c, createPage(state, errors), 422);
 }
 
 /** Counts the request against the route's limits; answers 429 with Retry-After when over. */
@@ -181,20 +193,28 @@ export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimi
   const routes = new Hono();
   routes.get('/', async (c) => {
     const suggestion = await loadSuggestion(deps.db, c.req.query('suggestion') ?? '');
+    const changing = c.req.query('change') === '1';
     const state: CreateState =
       suggestion === null
         ? { kind: 'inputs', values: {} }
-        : suggestion.outcome === 'ok'
-          ? { kind: 'card', suggestion, values: {} }
-          : {
-              kind: 'fallback',
-              values: {},
-              notice: FALLBACK_NOTICE,
-              city: suggestion.city,
-              area: suggestion.area,
-              timeWindow: suggestion.timeWindow,
-            };
-    return c.html(layout('Suggest a plan', createPage(state, {})));
+        : changing
+          ? {
+              kind: 'inputs',
+              values: { city: suggestion.city, area: suggestion.area, timeWindow: suggestion.timeWindow },
+              previousSuggestionId: suggestion.id,
+            }
+          : suggestion.outcome === 'ok'
+            ? { kind: 'card', suggestion, values: {} }
+            : {
+                kind: 'fallback',
+                values: {},
+                notice: FALLBACK_NOTICE,
+                city: suggestion.city,
+                area: suggestion.area,
+                timeWindow: suggestion.timeWindow,
+                previousSuggestionId: suggestion.id,
+              };
+    return createLayout(c, createPage(state, {}));
   });
   routes.post(
     '/plans',
@@ -241,7 +261,8 @@ export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimi
         model: config.anthropicModel,
       });
       if (result.outcome === 'failed') log.warn('suggestion failed', { failureReason: result.failureReason });
-      const id = await recordSuggestion(deps, form, result);
+      const previous = await loadSuggestion(deps.db, form.previousSuggestionId ?? '');
+      const id = await recordSuggestion(deps, form, result, previous?.id ?? null);
       return c.redirect(`/?suggestion=${id}`, 303);
     },
   );

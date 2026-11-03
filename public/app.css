@@ -97,6 +97,38 @@ h2 {
   min-width: 0;
 }
 
+.row-view {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.row-view[hidden] {
+  display: none;
+}
+
+.row-label {
+  flex: none;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.row-summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-view .btn {
+  width: auto;
+  padding: 0 var(--s4);
+}
+
+.row-edit > .btn {
+  margin-bottom: var(--s4);
+}
+
 label {
   display: block;
   margin-bottom: var(--s1);

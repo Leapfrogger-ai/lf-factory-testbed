@@ -17,4 +17,12 @@ describe('layout', () => {
     expect(page).toContain('<meta property="og:site_name" content="calvin"');
     expect(page.match(/og:title/g)).toHaveLength(1);
   });
+
+  it('loads a script with its nonce only when one is given', () => {
+    const withScript = String(layout('Plan', body, { script: { src: '/static/create.js', nonce: 'abc' } }));
+    const without = String(layout('Plan', body));
+
+    expect(withScript).toContain('<script src="/static/create.js" nonce="abc"');
+    expect(without).not.toContain('<script');
+  });
 });

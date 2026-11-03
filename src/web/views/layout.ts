@@ -4,6 +4,7 @@ import type { HtmlEscapedString } from 'hono/utils/html';
 export type LayoutOptions = {
   noindex?: boolean;
   og?: { title: string; description: string; image: string; siteName: string };
+  script?: { src: string; nonce: string };
 };
 
 export function layout(title: string, body: HtmlEscapedString, options: LayoutOptions = {}): HtmlEscapedString {
@@ -16,6 +17,8 @@ export function layout(title: string, body: HtmlEscapedString, options: LayoutOp
     : html`<meta property="og:title" content="Calvin" />
         <meta property="og:description" content="Get something on the calendar with people nearby." />`;
   const head = options.noindex ? html`<meta name="robots" content="noindex" />${ogTags}` : '';
+  const { script } = options;
+  const scriptTag = script ? html`<script src="${script.src}" nonce="${script.nonce}" defer></script>` : '';
   return html`<!doctype html>
     <html lang="en">
       <head>
@@ -23,7 +26,7 @@ export function layout(title: string, body: HtmlEscapedString, options: LayoutOp
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>${title}</title>
         <link rel="stylesheet" href="/static/app.css" />
-        ${head}
+        ${head}${scriptTag}
       </head>
       <body>
         ${body}

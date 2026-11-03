@@ -1,9 +1,11 @@
 import { ApplicationFailure } from '@temporalio/activity';
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { afterAll,afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fakeSuggest, fixedClock } from '../../../tests/support/fakes.ts';
 import { loadFixture } from '../../../tests/support/fixtures.ts';
+import { suggestions } from '../../db/schema.ts';
 import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
 import { countSuggestions, loadSuggestion } from '../../domain/suggestions.ts';
 import { createApp } from '../app.ts';
@@ -398,6 +400,77 @@ describe('POST /suggest', () => {
   });
 });
 
+async function storedPreviousId(location: string): Promise<string | null | undefined> {
+  const id = location.split('=')[1] ?? '';
+  const [row] = await db.select().from(suggestions).where(eq(suggestions.id, id));
+  return row?.previousSuggestionId;
+}
+
+describe('POST /suggest with previousSuggestionId', () => {
+  it('links the new suggestion to the previous one and shows its card (AC1)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const first = (await postSuggest(deps)).headers.get('location') ?? '';
+    const previousSuggestionId = first.split('=')[1] ?? '';
+
+    const res = await postSuggest(deps, { previousSuggestionId });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toMatch(/^\/\?suggestion=[0-9a-f-]{36}$/);
+    expect(location).not.toBe(first);
+    expect(await storedPreviousId(location)).toBe(previousSuggestionId);
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('Highwire Coffee Roasters');
+  });
+
+  it('links to a previous suggestion that failed and shows the new card (AC2)', async () => {
+    const failed = (await postSuggest(testDeps({ suggestPlanCall: fakeSuggest(loadFixture('refusal')).call }))).headers.get('location') ?? '';
+    const previousSuggestionId = failed.split('=')[1] ?? '';
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+
+    const res = await postSuggest(deps, { previousSuggestionId });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(await storedPreviousId(location)).toBe(previousSuggestionId);
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+    expect(await page.text()).toContain('Highwire Coffee Roasters');
+  });
+
+  it('keeps the previous suggestion id when it answers 422 after Change', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const previousSuggestionId = (await postSuggest(deps)).headers.get('location')?.split('=')[1] ?? '';
+
+    const res = await postSuggest(deps, { previousSuggestionId, area: '' });
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Add a rough area.');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${previousSuggestionId}"`);
+  });
+
+  it('has no previous suggestion id on a 422 without one', async () => {
+    const res = await postSuggest(testDeps(), { area: '' });
+
+    expect(res.status).toBe(422);
+    expect(await res.text()).not.toContain('previousSuggestionId');
+  });
+
+  it.each([
+    ['an unknown id', '3f2b8c1e-9d4a-4e6b-8a7c-5d1e2f3a4b5c'],
+    ['a malformed id', 'not-a-uuid'],
+    ['an empty id', ''],
+  ])('stores no previous suggestion for %s (AC3)', async (_name, previousSuggestionId) => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+
+    const res = await postSuggest(deps, { previousSuggestionId });
+
+    expect(res.status).toBe(303);
+    expect(await storedPreviousId(res.headers.get('location') ?? '')).toBeNull();
+  });
+});
+
 async function suggestedLocation(deps: ReturnType<typeof testDeps>): Promise<string> {
   const res = await postSuggest(deps);
   return res.headers.get('location') ?? '';
@@ -614,6 +687,88 @@ describe('GET /', () => {
   });
 });
 
+describe('GET / suggest another, try again and change', () => {
+  const failedDeps = () => testDeps({ suggestPlanCall: fakeSuggest(loadFixture('refusal')).call });
+  const okDeps = () => testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+
+  async function change(deps: ReturnType<typeof testDeps>, id: string) {
+    return createApp(deps, { baseUrl: TEST_BASE_URL }).request(`/?suggestion=${id}&change=1`);
+  }
+
+  it('prefills the inputs from an ok suggestion and carries its id (AC4)', async () => {
+    const deps = okDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await change(deps, id);
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('action="/suggest"');
+    expect(body).not.toContain('action="/plans"');
+    expect(inputTag(body, 'area')).toContain('value="Rockridge"');
+    expect(inputTag(body, 'timeWindow')).toContain('value="next weekend, morning"');
+    expect(body).toContain('<option value="Oakland" selected');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${id}"`);
+  });
+
+  it('prefills the inputs the same way from a failed suggestion (AC4)', async () => {
+    const deps = failedDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const body = await (await change(deps, id)).text();
+
+    expect(body).not.toContain('action="/plans"');
+    expect(inputTag(body, 'area')).toContain('value="Rockridge"');
+    expect(body).toContain('<option value="Oakland" selected');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${id}"`);
+  });
+
+  it('shows plain empty inputs for an unknown id with change=1', async () => {
+    const res = await change(testDeps(), '3f2b8c1e-9d4a-4e6b-8a7c-5d1e2f3a4b5c');
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('action="/suggest"');
+    expect(body).not.toContain('previousSuggestionId');
+    expect(inputTag(body, 'area')).not.toContain('Rockridge');
+  });
+
+  it('carries the failed suggestion id on the fallback (AC2)', async () => {
+    const deps = failedDeps();
+    const location = await suggestedLocation(deps);
+
+    const body = await (await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location)).text();
+
+    expect(body).toContain('Try suggesting again');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${location.split('=')[1]}"`);
+  });
+
+  it('links Change on the fallback to the inputs prefilled from the failed suggestion', async () => {
+    const deps = failedDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const body = await (await createApp(deps, { baseUrl: TEST_BASE_URL }).request(`/?suggestion=${id}`)).text();
+
+    const href = /<a href="([^"]*)"[^>]*>Change<\/a>/.exec(body)?.[1] ?? '';
+    expect(href.replace('&amp;', '&')).toBe(`/?suggestion=${id}&change=1`);
+    const changed = await (await change(deps, id)).text();
+    expect(inputTag(changed, 'area')).toContain('value="Rockridge"');
+    expect(inputTag(changed, 'previousSuggestionId')).toContain(`value="${id}"`);
+  });
+
+  it('still shows Suggest another when a card publish fails with 422', async () => {
+    const deps = okDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await post(deps, { suggestionId: id, name: '' });
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Suggest another');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${id}"`);
+  });
+});
+
 describe('POST /plans re-render state', () => {
   it('keeps the card, with its suggestionId, when a card publish fails', async () => {
     const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
@@ -635,6 +790,54 @@ describe('POST /plans re-render state', () => {
     expect(body).toContain('Oakland · Rockridge · next weekend');
     expect(body).not.toContain('name="suggestionId"');
     expect(inputTag(body, 'venue')).toContain('value="Blue Bottle"');
+  });
+});
+
+describe('create.js under the CSP nonce (AC5)', () => {
+  function nonceOf(res: Response): string {
+    return /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy') ?? '')?.[1] ?? '';
+  }
+
+  async function expectScript(res: Response) {
+    const nonce = nonceOf(res);
+    expect(nonce).not.toBe('');
+    expect(await res.text()).toContain(`<script src="/static/create.js" nonce="${nonce}"`);
+  }
+
+  it('is loaded by the inputs page', async () => {
+    await expectScript(await createApp(testDeps(), { baseUrl: TEST_BASE_URL }).request('/'));
+  });
+
+  it('is loaded by the card page, whose forms post without inline handlers or scripts', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const location = await suggestedLocation(deps);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+
+    const nonce = nonceOf(res);
+    const body = await res.text();
+    expect(body).toContain(`<script src="/static/create.js" nonce="${nonce}"`);
+    const forms = body.match(/<form\b[^>]*>/g) ?? [];
+    expect(forms.length).toBeGreaterThan(0);
+    for (const form of forms) {
+      expect(form).toContain('method="post"');
+      expect(form).toMatch(/action="\/(suggest|plans)"/);
+    }
+    expect(body).not.toMatch(/\sonclick=|\sonsubmit=/);
+    expect(body).not.toMatch(/<script(?![^>]*\ssrc=)/);
+  });
+
+  it('is loaded by a 422 re-render of POST /plans', async () => {
+    const res = await post(testDeps(), { name: '' });
+
+    expect(res.status).toBe(422);
+    await expectScript(res);
+  });
+
+  it('is served', async () => {
+    const res = await createApp(testDeps(), { baseUrl: TEST_BASE_URL }).request('/static/create.js');
+
+    expect(res.status).toBe(200);
   });
 });
 

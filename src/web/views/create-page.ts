@@ -2,15 +2,23 @@ import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import { CITIES } from '../../config.ts';
 import type { Suggestion } from '../../domain/suggestions.ts';
-import { localDateTime } from '../../domain/time.ts';
+import { formatDeadline, formatWhen, localDateTime, localToInstant } from '../../domain/time.ts';
 
 export type FormValues = Record<string, string>;
 export type FieldErrors = Record<string, string>;
 
 export type CreateState =
-  | { kind: 'inputs'; values: FormValues; notice?: string }
+  | { kind: 'inputs'; values: FormValues; notice?: string; previousSuggestionId?: string }
   | { kind: 'card'; suggestion: Extract<Suggestion, { outcome: 'ok' }>; values: FormValues; notice?: string }
-  | { kind: 'fallback'; values: FormValues; notice?: string; city: string; area: string; timeWindow: string };
+  | {
+      kind: 'fallback';
+      values: FormValues;
+      notice?: string;
+      city: string;
+      area: string;
+      timeWindow: string;
+      previousSuggestionId?: string;
+    };
 
 export const SUGGEST_LIMIT_NOTICE = 'Lots of suggestions just now. Fill in your own below, or try again in a few minutes.';
 export const PUBLISH_LIMIT_NOTICE = 'Lots of plans from here just now. Try again in a little while.';
@@ -59,7 +67,10 @@ export function createPage(
 
   if (state.kind === 'inputs') {
     const describeCity = describedBy('city');
-    return main(html`<form method="post" action="/suggest">
+    return main(html`<form method="post" action="/suggest" data-suggest-form>
+      ${state.previousSuggestionId !== undefined
+        ? html`<input type="hidden" name="previousSuggestionId" value="${state.previousSuggestionId}" />`
+        : ''}
       <div class="field">
         <label for="city">City</label>
         <select id="city" name="city" ${describeCity ? html`aria-describedby="${describeCity}" aria-invalid="true"` : ''}>
@@ -87,31 +98,87 @@ export function createPage(
           deadline: localDateTime(state.suggestion.commitDeadlineAt),
         }
       : { format: '', venue: '', date: '', time: '', minimum: '3', deadline: { date: '', time: '' } };
+  const shown = (field: string, fallback: string) => (values[field] ?? fallback).trim();
+  const instantOf = (date: string, time: string) =>
+    DATE.test(date) && TIME.test(time) ? safely(() => localToInstant(date, time)) : undefined;
+  const whenAt = instantOf(shown('date', prefill.date), shown('time', prefill.time));
+  const decideAt = instantOf(shown('deadlineDate', prefill.deadline.date), shown('deadlineTime', prefill.deadline.time));
+  const minimum = shown('minimum', prefill.minimum);
+  const summaries: Record<string, string | undefined> = {
+    where: shown('venue', prefill.venue) || undefined,
+    when: whenAt && formatWhen(whenAt),
+    minimum: /^\d+$/.test(minimum) ? `${Number(minimum)} people, you included` : undefined,
+    decide: decideAt && formatDeadline(decideAt),
+  };
+  const row = (field: string, body: HtmlEscapedString | Promise<HtmlEscapedString>) =>
+    html`<div class="row-field" data-field="${field}"${summaries[field] === undefined ? '' : html` data-summary="${summaries[field]}"`}>
+      ${body}
+    </div>`;
+  const changeId =state.kind === 'card' ? state.suggestion.id : state.previousSuggestionId;
   const contextErrors = CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
   return main(html`${state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
-    ${hasContext ? html`<p class="summary">${context.city} · ${context.area} · ${context.timeWindow}</p>` : ''}
+    ${hasContext
+      ? html`<p class="summary">
+          ${context.city} · ${context.area} · ${context.timeWindow}
+          ${changeId !== undefined ? html`<a href="/?suggestion=${changeId}&change=1">Change</a>` : ''}
+        </p>`
+      : ''}
     ${contextErrors.length > 0
       ? html`<ul class="errors">
           ${contextErrors.map((field) => html`<li class="error" id="${field}-error">${errors[field]}</li>`)}
         </ul>`
       : ''}
-    <form method="post" action="/plans">
+    <form method="post" action="/plans" data-publish-form="${state.kind}">
       ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
       ${state.kind === 'card' ? html`<input type="hidden" name="suggestionId" value="${state.suggestion.id}" />` : ''}
-      ${input('format', 'What', prefill.format)} ${input('venue', 'Where', prefill.venue)}
-      <div class="row">
-        ${input('date', 'Date', prefill.date, { type: 'date' })} ${input('time', 'Time', prefill.time, { type: 'time' })}
-      </div>
-      ${input('minimum', 'Minimum, you included', prefill.minimum, { type: 'number' })}
-      <div class="row">
-        ${input('deadlineDate', 'Decide by', prefill.deadline.date, { type: 'date' })}
-        ${input('deadlineTime', 'Time', prefill.deadline.time, { type: 'time' })}
-      </div>
+      ${input('format', 'What', prefill.format)}
+      ${row('where', input('venue', 'Where', prefill.venue))}
+      ${row(
+        'when',
+        html`<div class="row">
+          ${input('date', 'Date', prefill.date, { type: 'date' })} ${input('time', 'Time', prefill.time, { type: 'time' })}
+        </div>`,
+      )}
+      ${row('minimum', input('minimum', 'Minimum, you included', prefill.minimum, { type: 'number' }))}
+      ${row(
+        'decide',
+        html`<div class="row">
+          ${input('deadlineDate', 'Decide by', prefill.deadline.date, { type: 'date' })}
+          ${input('deadlineTime', 'Time', prefill.deadline.time, { type: 'time' })}
+        </div>`,
+      )}
       <h2>You're the first one in</h2>
       ${input('name', 'Your name', '', { autocomplete: 'name' })}
       ${input('email', 'Your email', '', { type: 'email', autocomplete: 'email' })}
       <button type="submit" class="btn btn-primary">Publish plan</button>
-    </form>`);
+    </form>
+    ${state.kind === 'card' ? suggestAgain(context, state.suggestion.id, 'Suggest another') : ''}
+    ${state.kind === 'fallback' && state.previousSuggestionId !== undefined
+      ? suggestAgain(context, state.previousSuggestionId, 'Try suggesting again')
+      : ''}`);
+}
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^\d{2}:\d{2}$/;
+
+/** The value, or undefined when it throws (an impossible date such as 2026-02-30). */
+function safely<T>(make: () => T): T | undefined {
+  try {
+    return make();
+  } catch {
+    return undefined;
+  }
+}
+
+type Context = { city: string; area: string; timeWindow: string };
+
+/** A form beside the publish form that asks for another suggestion for the same city, area and time. */
+function suggestAgain(context: Context, previousId: string, label: string): HtmlEscapedString {
+  return html`<form method="post" action="/suggest" data-suggest-form>
+    ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
+    <input type="hidden" name="previousSuggestionId" value="${previousId}" />
+    <button type="submit" class="btn">${label}</button>
+  </form>` as HtmlEscapedString;
 }
