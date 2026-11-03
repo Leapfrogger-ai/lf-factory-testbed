@@ -8,9 +8,17 @@ export type FormValues = Record<string, string>;
 export type FieldErrors = Record<string, string>;
 
 export type CreateState =
-  | { kind: 'inputs'; values: FormValues }
+  | { kind: 'inputs'; values: FormValues; previousSuggestionId?: string }
   | { kind: 'card'; suggestion: Extract<Suggestion, { outcome: 'ok' }>; values: FormValues }
-  | { kind: 'fallback'; values: FormValues; notice?: string; city: string; area: string; timeWindow: string };
+  | {
+      kind: 'fallback';
+      values: FormValues;
+      notice?: string;
+      city: string;
+      area: string;
+      timeWindow: string;
+      previousSuggestionId?: string;
+    };
 
 export const FALLBACK_NOTICE =
   "We couldn't come up with a suggestion just now. Fill in your own below, or try again.";
@@ -56,6 +64,9 @@ export function createPage(
   if (state.kind === 'inputs') {
     const describeCity = describedBy('city');
     return main(html`<form method="post" action="/suggest">
+      ${state.previousSuggestionId !== undefined
+        ? html`<input type="hidden" name="previousSuggestionId" value="${state.previousSuggestionId}" />`
+        : ''}
       <div class="field">
         <label for="city">City</label>
         <select id="city" name="city" ${describeCity ? html`aria-describedby="${describeCity}" aria-invalid="true"` : ''}>
@@ -87,7 +98,14 @@ export function createPage(
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
   return main(html`${state.kind === 'fallback' && state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
-    ${hasContext ? html`<p class="summary">${context.city} · ${context.area} · ${context.timeWindow}</p>` : ''}
+    ${hasContext
+      ? html`<p class="summary">
+          ${context.city} · ${context.area} · ${context.timeWindow}
+          ${state.kind === 'card'
+            ? html`<a href="/?suggestion=${state.suggestion.id}&change=1">Change</a>`
+            : ''}
+        </p>`
+      : ''}
     ${contextErrors.length > 0
       ? html`<ul class="errors">
           ${contextErrors.map((field) => html`<li class="error" id="${field}-error">${errors[field]}</li>`)}
@@ -109,5 +127,20 @@ export function createPage(
       ${input('name', 'Your name', '', { autocomplete: 'name' })}
       ${input('email', 'Your email', '', { type: 'email', autocomplete: 'email' })}
       <button type="submit" class="btn btn-primary">Publish plan</button>
-    </form>`);
+    </form>
+    ${state.kind === 'card' ? suggestAgain(context, state.suggestion.id, 'Suggest another') : ''}
+    ${state.kind === 'fallback' && state.previousSuggestionId !== undefined
+      ? suggestAgain(context, state.previousSuggestionId, 'Try suggesting again')
+      : ''}`);
+}
+
+type Context = { city: string; area: string; timeWindow: string };
+
+/** A form beside the publish form that asks for another suggestion for the same city, area and time. */
+function suggestAgain(context: Context, previousId: string, label: string): HtmlEscapedString {
+  return html`<form method="post" action="/suggest">
+    ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
+    <input type="hidden" name="previousSuggestionId" value="${previousId}" />
+    <button type="submit" class="btn">${label}</button>
+  </form>` as HtmlEscapedString;
 }

@@ -138,19 +138,27 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   const routes = new Hono();
   routes.get('/', async (c) => {
     const suggestion = await loadSuggestion(deps.db, c.req.query('suggestion') ?? '');
+    const changing = c.req.query('change') === '1';
     const state: CreateState =
       suggestion === null
         ? { kind: 'inputs', values: {} }
-        : suggestion.outcome === 'ok'
-          ? { kind: 'card', suggestion, values: {} }
-          : {
-              kind: 'fallback',
-              values: {},
-              notice: FALLBACK_NOTICE,
-              city: suggestion.city,
-              area: suggestion.area,
-              timeWindow: suggestion.timeWindow,
-            };
+        : changing
+          ? {
+              kind: 'inputs',
+              values: { city: suggestion.city, area: suggestion.area, timeWindow: suggestion.timeWindow },
+              previousSuggestionId: suggestion.id,
+            }
+          : suggestion.outcome === 'ok'
+            ? { kind: 'card', suggestion, values: {} }
+            : {
+                kind: 'fallback',
+                values: {},
+                notice: FALLBACK_NOTICE,
+                city: suggestion.city,
+                area: suggestion.area,
+                timeWindow: suggestion.timeWindow,
+                previousSuggestionId: suggestion.id,
+              };
     return c.html(layout('Suggest a plan', createPage(state, {})));
   });
   routes.post(

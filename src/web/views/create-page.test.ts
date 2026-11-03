@@ -22,7 +22,10 @@ const card = (values: Record<string, string> = {}): CreateState => ({ kind: 'car
 
 const NOTICE = "We couldn't come up with a suggestion just now. Fill in your own below, or try again.";
 
-const fallback = (values: Record<string, string> = {}, notice?: string): CreateState => ({
+const fallback = (
+  values: Record<string, string> = {},
+  notice?: string,
+): Extract<CreateState, { kind: 'fallback' }> => ({
   kind: 'fallback',
   values,
   notice,
@@ -159,5 +162,88 @@ describe('createPage fallback state', () => {
 
     expect(body).toMatch(/<input[^>]*name="venue"[^>]*value="Blue Bottle"/);
     expect(body).not.toContain('come up with a suggestion');
+  });
+});
+
+const ID = '11111111-1111-4111-8111-111111111111';
+
+function suggestAgainForm(body: string): string {
+  return body.match(/<form method="post" action="\/suggest"[\s\S]*?<\/form>/)?.[0] ?? '';
+}
+
+function hidden(form: string, name: string): string | undefined {
+  return form.match(new RegExp('<input[^>]*name="' + name + '"[^>]*value="([^"]*)"'))?.[1];
+}
+
+describe('createPage card state suggest another and change', () => {
+  it('links Change back to the inputs prefilled from this suggestion', () => {
+    const body = render(card());
+
+    expect(body).toMatch(new RegExp('<a href="/\\?suggestion=' + ID + '&(amp;)?change=1"[^>]*>Change</a>'));
+  });
+
+  it('posts the context and this suggestion to /suggest as Suggest another, outside the publish form', () => {
+    const body = render(card());
+    const form = suggestAgainForm(body);
+
+    expect(form).toContain('Suggest another');
+    expect(hidden(form, 'previousSuggestionId')).toBe(ID);
+    expect(hidden(form, 'city')).toBe('Oakland');
+    expect(hidden(form, 'area')).toBe('Rockridge');
+    expect(hidden(form, 'timeWindow')).toBe('next weekend, morning');
+    const publish = body.match(/<form method="post" action="\/plans"[\s\S]*?<\/form>/)?.[0] ?? '';
+    expect(publish).not.toContain('Suggest another');
+  });
+
+  it('shows Try suggesting again on a fallback that has a previous suggestion', () => {
+    const form = suggestAgainForm(render({ ...fallback({}, NOTICE), previousSuggestionId: ID }));
+
+    expect(form).toContain('Try suggesting again');
+    expect(hidden(form, 'previousSuggestionId')).toBe(ID);
+    expect(hidden(form, 'city')).toBe('Oakland');
+    expect(hidden(form, 'area')).toBe('Rockridge');
+    expect(hidden(form, 'timeWindow')).toBe('next weekend, morning');
+  });
+
+  it('shows no Try suggesting again on a fallback without a previous suggestion', () => {
+    const body = render(fallback({}, NOTICE));
+
+    expect(body).not.toContain('Try suggesting again');
+    expect(suggestAgainForm(body)).toBe('');
+  });
+
+  it('keeps the previous suggestion, prefilled values and city in the inputs state', () => {
+    const body = render({
+      kind: 'inputs',
+      values: { city: 'Oakland', area: 'Rockridge', timeWindow: 'next weekend, morning' },
+      previousSuggestionId: ID,
+    });
+
+    expect(hidden(body, 'previousSuggestionId')).toBe(ID);
+    expect(body).toMatch(/<option[^>]*selected[^>]*>Oakland<\/option>/);
+    expect(body).toMatch(/<input[^>]*name="area"[^>]*value="Rockridge"/);
+    expect(body).toMatch(/<input[^>]*name="timeWindow"[^>]*value="next weekend, morning"/);
+  });
+
+  it('has no previousSuggestionId in the inputs state without one', () => {
+    expect(render({ kind: 'inputs', values: {} })).not.toContain('previousSuggestionId');
+  });
+
+  it('escapes an area with markup in the inputs state', () => {
+    const body = render({ kind: 'inputs', values: { area: '"><script>' }, previousSuggestionId: ID });
+
+    expect(body).not.toContain('<script>');
+  });
+
+  it('escapes an area with markup in the fallback Try suggesting again form', () => {
+    const body = render({ ...fallback(), area: '"><script>', previousSuggestionId: ID });
+
+    expect(body).not.toContain('<script>');
+  });
+
+  it('escapes an area with markup in the Suggest another form and summary', () => {
+    const body = render({ kind: 'card', suggestion: { ...okSuggestion, area: '"><script>' }, values: {} });
+
+    expect(body).not.toContain('<script>');
   });
 });

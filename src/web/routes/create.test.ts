@@ -663,6 +663,75 @@ describe('GET /', () => {
   });
 });
 
+describe('GET / suggest another, try again and change', () => {
+  const failedDeps = () => testDeps({ suggestPlanCall: fakeSuggest(loadFixture('refusal')).call });
+  const okDeps = () => testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+
+  async function change(deps: ReturnType<typeof testDeps>, id: string) {
+    return createApp(deps, { baseUrl: TEST_BASE_URL }).request(`/?suggestion=${id}&change=1`);
+  }
+
+  it('prefills the inputs from an ok suggestion and carries its id (AC4)', async () => {
+    const deps = okDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await change(deps, id);
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('action="/suggest"');
+    expect(body).not.toContain('action="/plans"');
+    expect(inputTag(body, 'area')).toContain('value="Rockridge"');
+    expect(inputTag(body, 'timeWindow')).toContain('value="next weekend, morning"');
+    expect(body).toContain('<option value="Oakland" selected');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${id}"`);
+  });
+
+  it('prefills the inputs the same way from a failed suggestion (AC4)', async () => {
+    const deps = failedDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const body = await (await change(deps, id)).text();
+
+    expect(body).not.toContain('action="/plans"');
+    expect(inputTag(body, 'area')).toContain('value="Rockridge"');
+    expect(body).toContain('<option value="Oakland" selected');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${id}"`);
+  });
+
+  it('shows plain empty inputs for an unknown id with change=1', async () => {
+    const res = await change(testDeps(), '3f2b8c1e-9d4a-4e6b-8a7c-5d1e2f3a4b5c');
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('action="/suggest"');
+    expect(body).not.toContain('previousSuggestionId');
+    expect(inputTag(body, 'area')).not.toContain('Rockridge');
+  });
+
+  it('carries the failed suggestion id on the fallback (AC2)', async () => {
+    const deps = failedDeps();
+    const location = await suggestedLocation(deps);
+
+    const body = await (await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location)).text();
+
+    expect(body).toContain('Try suggesting again');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${location.split('=')[1]}"`);
+  });
+
+  it('still shows Suggest another when a card publish fails with 422', async () => {
+    const deps = okDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await post(deps, { suggestionId: id, name: '' });
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Suggest another');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${id}"`);
+  });
+});
+
 describe('POST /plans re-render state', () => {
   it('keeps the card, with its suggestionId, when a card publish fails', async () => {
     const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
