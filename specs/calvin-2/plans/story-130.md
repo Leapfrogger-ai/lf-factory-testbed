@@ -109,7 +109,7 @@ Binding: CODING_STANDARDS.md, GLOSSARY.md, specs/calvin-2/test-strategy.md, spec
 
 ### Task 4: Published page markup and share text
 
-**Covers:** AC6 (the markup the script hooks into; behaviour checked by hand in Task 5)
+**Covers:** AC5 (the page loads create.js under the nonce; behaviour checked by hand in Task 5)
 
 **Files:**
 - Modify: `src/domain/time.ts`, `src/web/views/published-page.ts`, `src/web/routes/manage.ts`
@@ -126,7 +126,7 @@ Binding: CODING_STANDARDS.md, GLOSSARY.md, specs/calvin-2/test-strategy.md, spec
 
 ### Task 5: `public/create.js` and its hand checks
 
-**Covers:** AC6
+**Covers:** AC5
 
 **Files:**
 - Modify: `public/create.js`; give the card rows the hooks it needs in `src/web/views/create-page.ts` (rows wrapped as `<div class="row-field" data-field="where|when|minimum|decide">`, Edit buttons with `aria-label="Edit where"` etc. added by the script, so without JS every row is an input), plus `data-suggest-form` on the suggest forms and `data-publish-form` on the publish form.
@@ -149,7 +149,7 @@ Binding: CODING_STANDARDS.md, GLOSSARY.md, specs/calvin-2/test-strategy.md, spec
   2. JS on: Edit/Done on each row, focus moves correctly, Escape closes.
   3. Change When on a card without touching Decide by: Decide by updates to 48 h before; edit Decide by, change When again: Decide by stays.
   4. Submit Suggest a plan: the button disables and the text rotates through "Finding something nearby…" and "Picking a time…".
-  5. Published screen: **Copy** reads "Copied" for 2s then "Copy"; **Share…** appears only on a browser with `navigator.share` (check one without it) and opens the share sheet with the text "Coffee at Blue Bottle, Sat 14 Nov 10:00 AM — I'm in, who else?" (AC6).
+  5. Published screen: **Copy** reads "Copied" for 2s then "Copy"; **Share…** appears only on a browser with `navigator.share` (check one without it) and opens the share sheet with the text "Coffee at Blue Bottle, Sat 14 Nov 10:00 AM — I'm in, who else?" (hand check beyond the story criteria).
   6. Double-tap **Publish plan**: one plan only.
   Record the browser and result of each in the commit message body.
 - [ ] **Step 5: Run** `npx vitest run` and `npx tsc --noEmit` — Expected: PASS, clean.
