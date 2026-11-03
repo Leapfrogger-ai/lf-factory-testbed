@@ -25,14 +25,14 @@ export function publicRoutes(deps: AppDeps, config: AppConfig): Hono {
     return status === undefined ? c.html(html) : c.html(html, status);
   }
 
+  const notFound = (c: Context) => c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
+
   routes.get('/p/:token', async (c) => {
     const token = c.req.param('token');
     const plan = isToken(token) ? await loadPublicPlan(deps.db, token) : null;
-    if (!plan) return c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
+    if (!plan) return notFound(c);
     return renderPlan(c, plan, token);
   });
-
-  const notFound = (c: Context) => c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
 
   routes.post(
     '/p/:token/commit',
@@ -51,7 +51,8 @@ export function publicRoutes(deps: AppDeps, config: AppConfig): Hono {
     }),
     async (c) => {
       const token = c.req.param('token') ?? '';
-      const result = await commit(deps, token, c.req.valid('form'));      if (result.outcome === 'not_found') return notFound(c);
+      const result = await commit(deps, token, c.req.valid('form'));
+      if (result.outcome === 'not_found') return notFound(c);
       if (result.outcome === 'closed') return c.redirect(`/p/${token}?notice=closed`, 303);
       const notice = result.change === 'repeat' ? 'updated' : 'in';
       return c.redirect(`/p/${token}?notice=${notice}&n=${encodeURIComponent(firstName(result.name))}`, 303);

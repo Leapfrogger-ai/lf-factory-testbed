@@ -86,7 +86,7 @@ export function publicPlanPage({
   publicToken: string;
   notice?: PublicNotice;
   form?: CommitFormState;
-}):HtmlEscapedString {
+}): HtmlEscapedString {
   const noticeCopy = notice === undefined ? undefined : noticeText(notice);
   const replacesForm = notice?.code === 'in' || notice?.code === 'updated';
   const body =
