@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
-import { fixedClock } from '../../../tests/support/fakes.ts';
-import { loadPlan } from '../../domain/plans.ts';
+import { fakePlanWorkflows, fixedClock } from '../../../tests/support/fakes.ts';
+import { commit, loadPlan } from '../../domain/plans.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
+import { commitFormSchema } from '../forms.ts';
 
 const { db, pool } = testDb();
 
@@ -33,6 +34,13 @@ function post(app: ReturnType<typeof createApp>, token: string, body: Record<str
 }
 
 const creator = { name: 'Ana Ruiz', email: 'ana@example.test' };
+
+// The example plan (minimum 3) with Ana and Raj in, so one more commit confirms it.
+async function confirmedPlan(deps: ReturnType<typeof testDeps>) {
+  const published = await publishPlan(deps, creator);
+  await commit(deps, published.publicToken, commitFormSchema.parse({ name: 'Raj Rao', email: 'raj@example.test' }));
+  return published;
+}
 
 describe('GET /p/:token', () => {
   it('shows the open plan (AC1)', async () => {
@@ -335,10 +343,128 @@ describe('POST /p/:token/commit', () => {
     expect(raw).toContain('You&#39;re in, &lt;b&gt;Mia&lt;/b&gt;.');
   });
 
+  it("Mia's commit confirms the example plan and signals once", async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await confirmedPlan(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location')!;
+    expect(location).toBe(`/p/${publicToken}?notice=on&n=Mia`);
+    const body = decodeEntities(await (await app.request(location)).text());
+    expect(body).toContain(
+      "You're in, Mia. It's on! We've emailed you the details and we'll remind you the day before.",
+    );
+    expect(body).toContain("It's on");
+    expect(body).not.toContain('name="email"');
+    const plan = (await loadPlan(deps.db, manageToken))!;
+    expect(plan.state).toBe('confirmed');
+    expect(plan.events.some((e) => e.type === 'plan.confirmed')).toBe(true);
+    expect(deps.fakes.planWorkflows.signalCalls).toEqual([{ planId: plan.id, signal: 'confirmed', arg: undefined }]);
+  });
+
+  it("a confirmed plan's page shows It's on, every seat filled, the welcome line, the form and the og suffix", async () => {
+    const deps = testDeps();
+    const { publicToken } = await confirmedPlan(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).toContain("It's on");
+    expect(body).toContain('More people are welcome until it starts.');
+    expect(body).toContain('name="email"');
+    expect(body).not.toContain('you?');
+    expect(body.match(/<li class="seat"/g)).toHaveLength(3);
+    expect(body).toMatch(/<meta property="og:description" content="[^"]* It's on\."/);
+  });
+
+  it("a new commit on a confirmed plan after its deadline signals committed with the new commit's id", async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await confirmedPlan(deps);
+    await post(createApp(deps, { baseUrl: TEST_BASE_URL }), publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+    const late = createApp({ ...deps, now: fixedClock('2026-11-13T18:00:00Z') }, { baseUrl: TEST_BASE_URL });
+
+    const res = await post(late, publicToken, { name: 'Sam Lee', email: 'sam@example.test' });
+    const other = await post(late, publicToken, { name: 'Kit Wu', email: 'kit@example.test' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(`/p/${publicToken}?notice=on&n=Sam`);
+    expect(other.headers.get('location')).toBe(`/p/${publicToken}?notice=on&n=Kit`);
+    expect((await loadPlan(deps.db, manageToken))!.count).toBe(5);
+    const calls = deps.fakes.planWorkflows.signalCalls;
+    expect(calls.map((c) => c.signal)).toEqual(['confirmed', 'committed', 'committed']);
+    const [, sam, kit] = calls;
+    expect(typeof sam!.arg).toBe('string');
+    expect(typeof kit!.arg).toBe('string');
+    expect(sam!.arg).not.toBe(kit!.arg);
+  });
+
+  it('an existing committer committing again sends no signal and shows updated', async () => {
+    const deps = testDeps();
+    const { publicToken } = await confirmedPlan(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    const res = await post(app, publicToken, { name: 'Mia Chen', email: 'MIA@Example.test' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(`/p/${publicToken}?notice=updated&n=Mia`);
+    expect(deps.fakes.planWorkflows.signalCalls.map((c) => c.signal)).toEqual(['confirmed']);
+  });
+
+  it('two simultaneous commits on a plan one short send one confirmed signal', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await confirmedPlan(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const [mia, sam] = await Promise.all([
+      post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' }),
+      post(app, publicToken, { name: 'Sam Lee', email: 'sam@example.test' }),
+    ]);
+
+    expect(mia.status).toBe(303);
+    expect(sam.status).toBe(303);
+    expect(deps.fakes.planWorkflows.signalCalls.map((c) => c.signal).sort()).toEqual(['committed', 'confirmed']);
+    const plan = (await loadPlan(deps.db, manageToken))!;
+    expect(plan.events.filter((e) => e.type === 'plan.confirmed')).toHaveLength(1);
+  });
+
+  it.each([
+    { now: '2026-11-14T20:59:59Z', copy: 'Happening now' },
+    { now: '2026-11-14T21:00:00Z', copy: 'This was on Sat 14 Nov' },
+  ])('a confirmed plan at $now reads "$copy" with no form', async ({ now, copy }) => {
+    const deps = testDeps();
+    const { publicToken } = await confirmedPlan(deps);
+    await post(createApp(deps, { baseUrl: TEST_BASE_URL }), publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+    const app = createApp({ ...deps, now: fixedClock(now) }, { baseUrl: TEST_BASE_URL });
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).toContain(copy);
+    expect(body).not.toContain('name="email"');
+    expect(body).toContain('<li class="seat"');
+  });
+
+  it('a POST once the gathering has started on a confirmed plan is refused with notice=closed and no signal', async () => {
+    const deps = testDeps();
+    const { publicToken } = await confirmedPlan(deps);
+    await post(createApp(deps, { baseUrl: TEST_BASE_URL }), publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+    const app = createApp({ ...deps, now: fixedClock('2026-11-14T18:00:00Z') }, { baseUrl: TEST_BASE_URL });
+
+    const res = await post(app, publicToken, { name: 'Sam Lee', email: 'sam@example.test' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(`/p/${publicToken}?notice=closed`);
+    expect(deps.fakes.planWorkflows.signalCalls.map((c) => c.signal)).toEqual(['confirmed']);
+  });
+
   describe('logging', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it('no email address in the redirect, the page or the log', async () => {
+    function captureLog() {
       const lines: Record<string, unknown>[] = [];
       vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: string | Uint8Array) => {
         for (const l of String(chunk).split('\n').filter(Boolean)) {
@@ -350,6 +476,42 @@ describe('POST /p/:token/commit', () => {
         }
         return true;
       }) as typeof process.stdout.write);
+      return lines;
+    }
+
+    it('a failing signal leaves the plan confirmed, the response a 303 and an error log line', async () => {
+      const lines = captureLog();
+      const deps = testDeps({
+        planWorkflows: {
+          ...fakePlanWorkflows(),
+          signal: async () => {
+            throw new Error('temporal down');
+          },
+        },
+      });
+      const { publicToken, manageToken } = await confirmedPlan(deps);
+      const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+      const res = await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+      const location = res.headers.get('location')!;
+      const body = await (await app.request(location)).text();
+
+      expect(res.status).toBe(303);
+      expect(location).toBe(`/p/${publicToken}?notice=on&n=Mia`);
+      const plan = (await loadPlan(deps.db, manageToken))!;
+      expect(plan.state).toBe('confirmed');
+      const errorLine = lines.find((l) => l.level === 'error' && l.msg === 'plan signal failed');
+      expect(errorLine).toMatchObject({ planId: plan.id, signal: 'confirmed' });
+      const logged = JSON.stringify(lines).toLowerCase();
+      for (const secret of ['mia@example.test', publicToken.toLowerCase(), 'temporal down']) {
+        expect(logged).not.toContain(secret);
+        expect(location.toLowerCase().replace(publicToken.toLowerCase(), '')).not.toContain(secret);
+        expect(body.toLowerCase().replaceAll(publicToken.toLowerCase(), '')).not.toContain(secret);
+      }
+    });
+
+    it('no email address in the redirect, the page or the log', async () => {
+      const lines = captureLog();
       const deps = testDeps();
       const { publicToken } = await publishPlan(deps, creator);
       const app = createApp(deps, { baseUrl: TEST_BASE_URL });
