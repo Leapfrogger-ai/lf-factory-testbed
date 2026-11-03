@@ -74,11 +74,13 @@ Acceptance criteria:
 - Given a plan published from the fallback form, when it's read back, then it has no `suggestion_id`.
 - Given 10 real suggestion calls for different cities, when their `latency_ms` is read, then the p95 is at most 15 seconds (checked by hand).
 
-### Story 1.8 (v1): Suggest another, change the inputs, and copy the link
+### Story 1.8 (v2): Suggest another, change the inputs, and copy the link
 
 As a creator, I want to ask for a different suggestion, change what I typed, and copy or share the link in one tap, so that I get to a plan I like fast.
 
-**Suggest another** and **Try suggesting again** are R2 forms with hidden `city`, `area`, `timeWindow` and `previousSuggestionId`. **Change** links to `/?suggestion=<id>&change=1`. The create page's script, `/static/create.js`, served under the CSP nonce, only enhances: Edit/Done toggles on the card rows, recomputing Decide by when When changes (unless the creator edited Decide by), the spinner text "Finding something nearby…" and "Picking a time…", **Copy** reading "Copied" for 2s, **Share…** only where `navigator.share` exists (text "Coffee at Blue Bottle, Sat 14 Nov 10:00 AM — I'm in, who else?"), and disabling **Publish plan** on submit. The script has no automated tests at poc; the plan records the hand checks.
+**Suggest another** and **Try suggesting again** are R2 forms with hidden `city`, `area`, `timeWindow` and `previousSuggestionId`. **Change** links to `/?suggestion=<id>&change=1`. The create page's script, `/static/create.js`, served under the CSP nonce, only enhances: Edit/Done toggles on the card rows, recomputing Decide by when When changes (unless the creator edited Decide by), the spinner text "Finding something nearby…" and "Picking a time…", **Copy** reading "Copied" for 2s, **Share…** only where `navigator.share` exists (text "Coffee at Blue Bottle, Sat 14 Nov 10:00 AM — I'm in, who else?"), and disabling **Publish plan** on submit. The script has no automated tests at poc; the plan records the checks a session can make by reading the code.
+
+After the merge, the operator checks by hand on a phone with JS on: when the creator edits When on a card and taps **Copy** and **Share…** on the published screen, Decide by updates, the button reads "Copied" for 2s, and the native share sheet opens with the share text. A story session doesn't have a phone, so this check is not a criterion.
 
 Prerequisites: Story 1.7
 
@@ -88,7 +90,6 @@ Acceptance criteria:
 - Given a `previousSuggestionId` that matches no row, when `POST /suggest` is submitted, then the new row's `previous_suggestion_id` is null and no error is shown.
 - Given a suggestion, when `GET /?suggestion=<id>&change=1` is requested, then the inputs state is shown pre-filled with that suggestion's city, area and rough time, with a hidden `previousSuggestionId`.
 - Given the create page, when its HTML is read, then it loads `/static/create.js` with the response's CSP nonce, and the suggest and publish forms are plain POST forms that work without the script.
-- Given a phone with JS on, when the creator edits When on a card and taps **Copy** and **Share…** on the published screen, then Decide by updates, the button reads "Copied" for 2s, and the native share sheet opens with the share text (checked by hand).
 
 ### Story 1.9 (v2): Rate limits on suggesting and publishing
 
