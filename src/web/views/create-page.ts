@@ -63,7 +63,7 @@ export function createPage(
 
   if (state.kind === 'inputs') {
     const describeCity = describedBy('city');
-    return main(html`<form method="post" action="/suggest">
+    return main(html`<form method="post" action="/suggest" data-suggest-form>
       ${state.previousSuggestionId !== undefined
         ? html`<input type="hidden" name="previousSuggestionId" value="${state.previousSuggestionId}" />`
         : ''}
@@ -111,17 +111,24 @@ export function createPage(
           ${contextErrors.map((field) => html`<li class="error" id="${field}-error">${errors[field]}</li>`)}
         </ul>`
       : ''}
-    <form method="post" action="/plans">
+    <form method="post" action="/plans" data-publish-form="${state.kind}">
       ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
       ${state.kind === 'card' ? html`<input type="hidden" name="suggestionId" value="${state.suggestion.id}" />` : ''}
-      ${input('format', 'What', prefill.format)} ${input('venue', 'Where', prefill.venue)}
-      <div class="row">
-        ${input('date', 'Date', prefill.date, { type: 'date' })} ${input('time', 'Time', prefill.time, { type: 'time' })}
+      ${input('format', 'What', prefill.format)}
+      <div class="row-field" data-field="where">${input('venue', 'Where', prefill.venue)}</div>
+      <div class="row-field" data-field="when">
+        <div class="row">
+          ${input('date', 'Date', prefill.date, { type: 'date' })} ${input('time', 'Time', prefill.time, { type: 'time' })}
+        </div>
       </div>
-      ${input('minimum', 'Minimum, you included', prefill.minimum, { type: 'number' })}
-      <div class="row">
-        ${input('deadlineDate', 'Decide by', prefill.deadline.date, { type: 'date' })}
-        ${input('deadlineTime', 'Time', prefill.deadline.time, { type: 'time' })}
+      <div class="row-field" data-field="minimum">
+        ${input('minimum', 'Minimum, you included', prefill.minimum, { type: 'number' })}
+      </div>
+      <div class="row-field" data-field="decide">
+        <div class="row">
+          ${input('deadlineDate', 'Decide by', prefill.deadline.date, { type: 'date' })}
+          ${input('deadlineTime', 'Time', prefill.deadline.time, { type: 'time' })}
+        </div>
       </div>
       <h2>You're the first one in</h2>
       ${input('name', 'Your name', '', { autocomplete: 'name' })}
@@ -138,7 +145,7 @@ type Context = { city: string; area: string; timeWindow: string };
 
 /** A form beside the publish form that asks for another suggestion for the same city, area and time. */
 function suggestAgain(context: Context, previousId: string, label: string): HtmlEscapedString {
-  return html`<form method="post" action="/suggest">
+  return html`<form method="post" action="/suggest" data-suggest-form>
     ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
     <input type="hidden" name="previousSuggestionId" value="${previousId}" />
     <button type="submit" class="btn">${label}</button>

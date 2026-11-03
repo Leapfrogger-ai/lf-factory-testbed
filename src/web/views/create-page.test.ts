@@ -247,3 +247,21 @@ describe('createPage card state suggest another and change', () => {
     expect(body).not.toContain('<script>');
   });
 });
+
+describe('createPage hooks for create.js', () => {
+  it('gives the card rows, suggest forms and publish form the hooks create.js looks for', () => {
+    const inputs = render({ kind: 'inputs', values: {} });
+    const body = render(card());
+
+    expect(inputs).toMatch(/<form method="post" action="\/suggest" data-suggest-form>/);
+    expect([...body.matchAll(/<div class="row-field" data-field="([a-z]+)">/g)].map((m) => m[1])).toEqual([
+      'where',
+      'when',
+      'minimum',
+      'decide',
+    ]);
+    expect(body).toMatch(/<form method="post" action="\/plans" data-publish-form="card">/);
+    expect(body).toMatch(/<form method="post" action="\/suggest" data-suggest-form>/);
+    expect(render(fallback())).toMatch(/<form method="post" action="\/plans" data-publish-form="fallback">/);
+  });
+});
