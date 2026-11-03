@@ -18,6 +18,12 @@ export const CITIES: readonly string[] = [
   'Walnut Creek',
 ];
 
+// Requests allowed per route: per IP in a window, and in total per local day (PLAN_TIME_ZONE).
+export const RATE_LIMITS = {
+  suggest: { perIp: { limit: 10, windowSeconds: 600 }, perDay: { limit: 200 } },
+  publish: { perIp: { limit: 3, windowSeconds: 3600 }, perDay: { limit: 50 } },
+} as const;
+
 export type Config = {
   baseUrl: string;
   port: number;
