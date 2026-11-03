@@ -5,6 +5,7 @@ import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
+import type { SendEmail } from '../email/send-email.ts';
 import { log } from '../log.ts';
 import { responseHeaders } from './headers.ts';
 import { publicRoutes } from './routes/public.ts';
@@ -22,7 +23,7 @@ export type AppDeps = {
   db: Db;
   now: () => Temporal.Instant;
   suggestPlanCall: (request: unknown) => Promise<unknown>;
-  sendEmail: (payload: unknown, idempotencyKey: string) => Promise<{ id: string }>;
+  sendEmail: SendEmail;
   planWorkflows: {
     start(planId: string, schedule: Schedule): Promise<void>;
     signal(planId: string, signal: string, arg?: unknown): Promise<void>;
@@ -52,7 +53,7 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
     if (c.res.status === 200) c.res.headers.set('Cache-Control', 'public, max-age=86400');
   });
   app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: (path) => path.replace(/^\/static/, '') }));
-  app.route('/', createRoutes(deps));
+  app.route('/', createRoutes(deps, config));
   app.route('/', manageRoutes(deps, config));
   app.route('/', publicRoutes(deps, config));
   app.onError((err, c) => {
