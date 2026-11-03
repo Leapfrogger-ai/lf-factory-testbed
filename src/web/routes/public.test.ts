@@ -1,7 +1,8 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { publishPlan, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fixedClock } from '../../../tests/support/fakes.ts';
+import { loadPlan } from '../../domain/plans.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
 
@@ -21,6 +22,14 @@ function decodeEntities(html: string): string {
     .replaceAll('&lt;', '<')
     .replaceAll('&gt;', '>')
     .replaceAll('&amp;', '&');
+}
+
+function post(app: ReturnType<typeof createApp>, token: string, body: Record<string, string>) {
+  return app.request(`/p/${token}/commit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...sameOrigin },
+    body: new URLSearchParams(body).toString(),
+  });
 }
 
 const creator = { name: 'Ana Ruiz', email: 'ana@example.test' };
@@ -43,6 +52,9 @@ describe('GET /p/:token', () => {
     expect(body).toContain('you?');
     expect(body).toContain('aria-label="1 of 3 people in"');
     expect(body).toContain('Goes ahead with a minimum of 3. Decide by Wed 11 Nov, 10:00 PM.');
+    expect(body).toContain('name="email"');
+    expect(body).not.toContain('<script');
+    expect(body.match(/<link rel="stylesheet"/g)).toHaveLength(1);
   });
 
   it('renders no email address and escapes the creator name (AC4, AC3)', async () => {
@@ -125,5 +137,235 @@ describe('GET /p/:token', () => {
     expect(body.match(/<link rel="stylesheet"/g)).toHaveLength(1);
     expect(body).toContain('href="/static/app.css"');
     expect(body).not.toContain('<script');
+  });
+});
+
+describe('POST /p/:token/commit', () => {
+  it("Mia's commit redirects to notice=in and the page shows it", async () => {
+    const deps = testDeps();
+    const { publicToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location')!;
+    expect(location).toBe(`/p/${publicToken}?notice=in&n=Mia`);
+    const body = decodeEntities(await (await app.request(location)).text());
+    expect(body).toContain("You're in, Mia. We'll email you if it's on.");
+    expect(body).toContain('Ana');
+    expect(body).toContain('Mia');
+    expect(body.match(/you\?/g)).toHaveLength(1);
+    expect(body).toContain('Needs 1 more');
+    expect(body).not.toContain('name="email"');
+  });
+
+  it('a repeat commit with other case and name redirects with notice=updated', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    const res = await post(app, publicToken, { name: 'Mimi Chen', email: 'MIA@Example.test' });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location')!;
+    expect(location).toBe(`/p/${publicToken}?notice=updated&n=Mimi`);
+    const body = decodeEntities(await (await app.request(location)).text());
+    expect(body).toContain("Updated: you're in as Mimi.");
+    expect((await loadPlan(deps.db, manageToken))!.count).toBe(2);
+  });
+
+  it('the events record new and repeat with the active count', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+    await post(app, publicToken, { name: 'Mimi Chen', email: 'MIA@Example.test' });
+
+    // The creator's own commit.added from publishing comes first; Mia's are the ones that are not the creator's.
+    const added = (await loadPlan(deps.db, manageToken))!.events.filter(
+      (e) => e.type === 'commit.added' && e.data.isCreator === false,
+    );
+
+    expect(added.map((e) => e.data)).toEqual([
+      { change: 'new', isCreator: false, activeCount: 2 },
+      { change: 'repeat', isCreator: false, activeCount: 2 },
+    ]);
+  });
+
+  it.each([
+    {
+      label: 'an empty name',
+      entered: { name: '', email: 'mia@example.test' },
+      message: 'Add your name.',
+      id: 'name-error',
+      kept: 'value="mia@example.test"',
+    },
+    {
+      label: 'the email "mia@"',
+      entered: { name: 'Mia Chen', email: 'mia@' },
+      message: "That email doesn't look right.",
+      id: 'email-error',
+      kept: 'value="Mia Chen"',
+    },
+  ])('$label re-renders with 422 and keeps what was entered', async ({ entered, message, id, kept }) => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await post(app, publicToken, entered);
+
+    expect(res.status).toBe(422);
+    const body = decodeEntities(await res.text());
+    expect(body).toContain('<h1>Blue Bottle</h1>');
+    expect(body).toContain(message);
+    expect(body).toContain(`id="${id}"`);
+    expect(body).toContain(kept);
+    expect((await loadPlan(deps.db, manageToken))!.count).toBe(1);
+  });
+
+  it('a commit after the commit deadline is refused', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, creator);
+    const app = createApp({ ...deps, now: fixedClock('2026-11-12T06:00:00Z') }, { baseUrl: TEST_BASE_URL });
+    const before = (await loadPlan(deps.db, manageToken))!.events.length;
+
+    const res = await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location')!;
+    expect(location).toBe(`/p/${publicToken}?notice=closed`);
+    expect(decodeEntities(await (await app.request(location)).text())).toContain(
+      "This one isn't taking commits any more.",
+    );
+    const plan = (await loadPlan(deps.db, manageToken))!;
+    expect(plan.count).toBe(1);
+    expect(plan.events).toHaveLength(before);
+  });
+
+  it('a commit once the gathering has started is refused', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, creator);
+    const app = createApp({ ...deps, now: fixedClock('2026-11-14T18:00:00Z') }, { baseUrl: TEST_BASE_URL });
+    const before = (await loadPlan(deps.db, manageToken))!.events.length;
+
+    const res = await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(`/p/${publicToken}?notice=closed`);
+    const plan = (await loadPlan(deps.db, manageToken))!;
+    expect(plan.count).toBe(1);
+    expect(plan.events).toHaveLength(before);
+  });
+
+  it('GET /p/:token/commit is the 404 page', async () => {
+    const deps = testDeps();
+    const { publicToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await app.request(`/p/${publicToken}/commit`);
+
+    expect(res.status).toBe(404);
+    expect(decodeEntities(await res.text())).toContain(NOT_FOUND_COPY);
+  });
+
+  it('a malformed token POST is 404 and never touches the database', async () => {
+    const throwingDb = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('database touched');
+        },
+      },
+    ) as ReturnType<typeof testDeps>['db'];
+    const app = createApp(testDeps({ db: throwingDb }), { baseUrl: TEST_BASE_URL });
+
+    for (const token of ['short', 'a'.repeat(44), `${'a'.repeat(42)}.`]) {
+      const res = await post(app, token, { name: 'Mia Chen', email: 'mia@example.test' });
+      expect(res.status, token).toBe(404);
+      expect(decodeEntities(await res.text()), token).toContain(NOT_FOUND_COPY);
+    }
+    // An invalid form on a malformed token is the 404 page too, not a 422.
+    expect((await post(app, 'short', { name: '', email: 'mia@' })).status).toBe(404);
+  });
+
+  it('an unknown token POST is 404', async () => {
+    const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+
+    const valid = await post(app, newToken(), { name: 'Mia Chen', email: 'mia@example.test' });
+    const invalid = await post(app, newToken(), { name: '', email: 'mia@' });
+
+    expect(valid.status).toBe(404);
+    expect(decodeEntities(await valid.text())).toContain(NOT_FOUND_COPY);
+    expect(invalid.status).toBe(404);
+  });
+
+  it('an unknown notice and an n over 16 characters on GET /p/:token', async () => {
+    const deps = testDeps();
+    const { publicToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const bogus = decodeEntities(await (await app.request(`/p/${publicToken}?notice=bogus&n=Mia`)).text());
+    const long = decodeEntities(
+      await (await app.request(`/p/${publicToken}?notice=in&n=${'a'.repeat(40)}`)).text(),
+    );
+    const bare = decodeEntities(await (await app.request(`/p/${publicToken}?notice=in`)).text());
+
+    expect(bogus).not.toContain('role="status"');
+    expect(bogus).toContain('name="email"');
+    expect(long).toContain(`You're in, ${'a'.repeat(16)}. We'll email you if it's on.`);
+    expect(long).not.toContain('a'.repeat(17));
+    expect(bare).toContain("You're in. We'll email you if it's on.");
+    expect(bare).not.toContain('undefined');
+  });
+
+  it('a name with markup commits and the notice escapes it', async () => {
+    const deps = testDeps();
+    const { publicToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await post(app, publicToken, { name: '<b>Mia</b> Chen', email: 'mia@example.test' });
+
+    const location = res.headers.get('location')!;
+    expect(res.status).toBe(303);
+    expect(location).not.toContain('<b>');
+    const raw = await (await app.request(location)).text();
+    expect(raw).not.toContain('<b>');
+    expect(raw).toContain('You&#39;re in, &lt;b&gt;Mia&lt;/b&gt;.');
+  });
+
+  describe('logging', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('no email address in the redirect, the page or the log', async () => {
+      const lines: Record<string, unknown>[] = [];
+      vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: string | Uint8Array) => {
+        for (const l of String(chunk).split('\n').filter(Boolean)) {
+          try {
+            lines.push(JSON.parse(l));
+          } catch {
+            // not a log line
+          }
+        }
+        return true;
+      }) as typeof process.stdout.write);
+      const deps = testDeps();
+      const { publicToken } = await publishPlan(deps, creator);
+      const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+      const res = await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+      const location = res.headers.get('location')!;
+      const body = await (await app.request(location)).text();
+
+      const logged = JSON.stringify(lines).toLowerCase();
+      expect(location.toLowerCase()).not.toContain('example.test');
+      expect(body.toLowerCase()).not.toContain('example.test');
+      expect(logged).not.toContain('mia@example.test');
+      expect(logged).not.toContain('example.test');
+      expect(logged).not.toContain(publicToken.toLowerCase());
+      const commitLine = lines.find((l) => l.msg === 'request' && l.status === 303);
+      expect(commitLine?.path).toBe('/p/:token/commit');
+    });
   });
 });
