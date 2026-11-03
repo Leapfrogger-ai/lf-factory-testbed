@@ -60,6 +60,15 @@ export const publishFormSchema = z
 
 export type PublishForm = z.output<typeof publishFormSchema>;
 
+export const commitFormSchema = z
+  .object({
+    name: text(80),
+    email: z.string().trim().min(3).max(254).pipe(z.email()),
+  })
+  .transform((form) => ({ ...form, emailNormalized: form.email.toLowerCase() }));
+
+export type CommitForm = z.output<typeof commitFormSchema>;
+
 export const suggestFormSchema = z.object({
   city: z.string().trim().refine((city) => CITIES.includes(city)),
   area: text(200),
