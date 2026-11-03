@@ -183,7 +183,15 @@ export async function loadPublicPlan(db: Db, publicToken: string): Promise<Publi
 export type CommitResult =
   | { outcome: 'not_found' }
   | { outcome: 'closed' }
-  | { outcome: 'committed'; change: 'new' | 'repeat'; commitId: string; name: string };
+  | {
+      outcome: 'committed';
+      change: 'new' | 'repeat';
+      commitId: string;
+      name: string;
+      planId: string;
+      confirmed: boolean;
+      planConfirmed: boolean;
+    };
 
 export async function commit(
   deps: Pick<AppDeps, 'db' | 'now'>,
@@ -220,13 +228,32 @@ export async function commit(
       .select({ value: count() })
       .from(commits)
       .where(and(eq(commits.planId, plan.id), isNull(commits.withdrawnAt)));
+    const activeCount = active!.value;
+    const confirmed = plan.state === 'open' && activeCount >= plan.minimum && !pastDeadline;
+    if (confirmed) {
+      await tx
+        .update(plans)
+        .set({ state: 'confirmed', confirmedAt: new Date(now.epochMilliseconds) })
+        .where(eq(plans.id, plan.id));
+    }
     await appendEvent(tx, {
       planId: plan.id,
       commitId: row!.id,
       type: 'commit.added',
-      data: { change, isCreator: row!.isCreator, activeCount: active!.value },
+      data: { change, isCreator: row!.isCreator, activeCount },
     });
-    return { outcome: 'committed', change, commitId: row!.id, name: row!.name };
+    if (confirmed) {
+      await appendEvent(tx, { planId: plan.id, type: 'plan.confirmed', data: { activeCount } });
+    }
+    return {
+      outcome: 'committed',
+      change,
+      commitId: row!.id,
+      name: row!.name,
+      planId: plan.id,
+      confirmed,
+      planConfirmed: confirmed || plan.state === 'confirmed',
+    };
   });
 }
 

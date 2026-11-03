@@ -191,6 +191,73 @@ describe('commit', () => {
     });
   });
 
+  it('confirms the plan when the commit reaches the minimum', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps);
+
+    const first = await commit(deps, publicToken, form('Raj Patel', 'raj@example.test'));
+    expect(first).toMatchObject({ outcome: 'committed', confirmed: false, planConfirmed: false });
+    expect((await loadPlan(db, manageToken))?.state).toBe('open');
+
+    const second = await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    expect(second).toMatchObject({ outcome: 'committed', confirmed: true, planConfirmed: true });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.state).toBe('confirmed');
+    expect(plan?.events.slice(-2)).toMatchObject([
+      { type: 'commit.added', data: { change: 'new', activeCount: 3 } },
+      { type: 'plan.confirmed', data: { activeCount: 3 } },
+    ]);
+  });
+
+  it('a new commit on a confirmed plan after its commit deadline is stored without a second confirmation', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps);
+    await commit(deps, publicToken, form('Raj Patel', 'raj@example.test'));
+    await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+    const later = testDeps({ now: fixedClock('2026-11-13T18:00:00Z') });
+
+    const result = await commit(later, publicToken, form('Sam Lee', 'sam@example.test'));
+
+    expect(result).toMatchObject({ outcome: 'committed', change: 'new', confirmed: false, planConfirmed: true });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.count).toBe(4);
+    expect(plan?.events.filter((e) => e.type === 'plan.confirmed')).toHaveLength(1);
+  });
+
+  it('a repeat commit on a confirmed plan confirms nothing and adds no event of type plan.confirmed', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps);
+    await commit(deps, publicToken, form('Raj Patel', 'raj@example.test'));
+    await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    const result = await commit(deps, publicToken, form('Mia Chen', 'MIA@Example.test'));
+
+    expect(result).toMatchObject({ outcome: 'committed', change: 'repeat', confirmed: false, planConfirmed: true });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.events.filter((e) => e.type === 'plan.confirmed')).toHaveLength(1);
+  });
+
+  it('two simultaneous commits on a plan one short of its minimum confirm it once', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps);
+    await commit(deps, publicToken, form('Raj Patel', 'raj@example.test'));
+    // Open a second pooled connection first, so neither commit waits on a connect and finishes alone.
+    await Promise.all([loadPublicPlan(db, publicToken), loadPublicPlan(db, publicToken)]);
+
+    const results = await Promise.all([
+      commit(deps, publicToken, form('Mia Chen', 'mia@example.test')),
+      commit(deps, publicToken, form('Sam Lee', 'sam@example.test')),
+    ]);
+
+    expect(results.filter((r) => r.outcome === 'committed' && r.confirmed)).toHaveLength(1);
+    expect(results.every((r) => r.outcome === 'committed' && r.planConfirmed)).toBe(true);
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.events.filter((e) => e.type === 'plan.confirmed')).toHaveLength(1);
+    expect(plan?.state).toBe('confirmed');
+    expect(plan?.count).toBe(4);
+  });
+
   it('a repeat with different case and a new name updates the one commit', async () => {
     const deps = testDeps();
     const { publicToken, manageToken } = await publishPlan(deps);
