@@ -27,8 +27,8 @@ export function createPlanWorkflows(client: Client): AppDeps['planWorkflows'] {
         ],
       });
     },
-    async signal(): Promise<void> {
-      throw new Error('Signalling a plan workflow is not available yet');
+    async signal(planId: string, signal: string, arg?: unknown): Promise<void> {
+      await client.workflow.getHandle(`plan-${planId}`).signal(signal, arg);
     },
   };
 }

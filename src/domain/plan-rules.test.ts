@@ -64,24 +64,46 @@ test('localToInstant returns an instant for a nonexistent and a repeated wall-cl
   expect(() => localToInstant('2026-11-01', '01:30')).not.toThrow();
 });
 
+const timing = { commitDeadlineAt: at('2026-11-12T06:00:00Z'), gatheringAt: at('2026-11-14T18:00:00Z') };
+
 test('displayState: an open plan one minute before the deadline needs more', () => {
-  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
-  expect(displayState({ state: 'open', commitDeadlineAt }, at('2026-11-12T05:59:00Z'))).toBe('needs_more');
+  expect(displayState({ state: 'open', ...timing }, at('2026-11-12T05:59:00Z'))).toBe('needs_more');
 });
 
 test('displayState: an open plan at exactly the deadline is not this time', () => {
-  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
-  expect(displayState({ state: 'open', commitDeadlineAt }, at('2026-11-12T06:00:00Z'))).toBe('not_this_time');
+  expect(displayState({ state: 'open', ...timing }, at('2026-11-12T06:00:00Z'))).toBe('not_this_time');
 });
 
 test('displayState: a called off plan is not this time even before the deadline', () => {
-  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
-  expect(displayState({ state: 'called_off', commitDeadlineAt }, at('2026-11-11T06:00:00Z'))).toBe('not_this_time');
+  expect(displayState({ state: 'called_off', ...timing }, at('2026-11-11T06:00:00Z'))).toBe('not_this_time');
 });
 
 test('displayState: a confirmed plan is on', () => {
-  const commitDeadlineAt = at('2026-11-12T06:00:00Z');
-  expect(displayState({ state: 'confirmed', commitDeadlineAt }, at('2026-11-11T06:00:00Z'))).toBe('on');
+  expect(displayState({ state: 'confirmed', ...timing }, at('2026-11-11T06:00:00Z'))).toBe('on');
+});
+
+describe('displayState on a confirmed plan', () => {
+  const confirmed = {
+    state: 'confirmed',
+    commitDeadlineAt: at('2026-11-12T06:00:00Z'),
+    gatheringAt: at('2026-11-14T18:00:00Z'),
+  };
+
+  test('confirmed before the gathering is on', () => {
+    expect(displayState(confirmed, at('2026-11-14T17:59:59Z'))).toBe('on');
+  });
+
+  test('confirmed one second after the gathering starts is happening_now', () => {
+    expect(displayState(confirmed, at('2026-11-14T18:00:01Z'))).toBe('happening_now');
+  });
+
+  test('confirmed at gathering + 3h minus one second is happening_now', () => {
+    expect(displayState(confirmed, at('2026-11-14T20:59:59Z'))).toBe('happening_now');
+  });
+
+  test('confirmed at exactly gathering + 3h is was_on', () => {
+    expect(displayState(confirmed, at('2026-11-14T21:00:00Z'))).toBe('was_on');
+  });
 });
 
 describe('deadlineIsStale', () => {

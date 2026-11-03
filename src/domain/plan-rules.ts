@@ -9,13 +9,17 @@ export type Schedule = {
   checkInAt: string;
 };
 
-export type DisplayState = 'needs_more' | 'not_this_time' | 'on';
+export type DisplayState = 'needs_more' | 'not_this_time' | 'on' | 'happening_now' | 'was_on';
 
 export function displayState(
-  plan: { state: string; commitDeadlineAt: Temporal.Instant },
+  plan: { state: string; commitDeadlineAt: Temporal.Instant; gatheringAt: Temporal.Instant },
   now: Temporal.Instant,
 ): DisplayState {
-  if (plan.state === 'confirmed') return 'on';
+  if (plan.state === 'confirmed') {
+    if (Temporal.Instant.compare(now, plan.gatheringAt) < 0) return 'on';
+    if (Temporal.Instant.compare(now, plan.gatheringAt.add({ hours: 3 })) < 0) return 'happening_now';
+    return 'was_on';
+  }
   if (plan.state === 'open' && Temporal.Instant.compare(now, plan.commitDeadlineAt) < 0) return 'needs_more';
   return 'not_this_time';
 }

@@ -3,6 +3,7 @@ import { Hono, type Context } from 'hono';
 import { displayState } from '../../domain/plan-rules.ts';
 import { commit, loadPublicPlan, type PublicPlan } from '../../domain/plans.ts';
 import { isToken } from '../../domain/tokens.ts';
+import { log } from '../../log.ts';
 import type { AppConfig, AppDeps } from '../app.ts';
 import { schemaErrors } from '../field-errors.ts';
 import { commitFormSchema } from '../forms.ts';
@@ -54,7 +55,23 @@ export function publicRoutes(deps: AppDeps, config: AppConfig): Hono {
       const result = await commit(deps, token, c.req.valid('form'));
       if (result.outcome === 'not_found') return notFound(c);
       if (result.outcome === 'closed') return c.redirect(`/p/${token}?notice=closed`, 303);
-      const notice = result.change === 'repeat' ? 'updated' : 'in';
+      const signal = result.confirmed
+        ? { name: 'confirmed', arg: undefined }
+        : result.planConfirmed && result.change !== 'repeat'
+          ? { name: 'committed', arg: result.commitId }
+          : undefined;
+      if (signal) {
+        try {
+          await deps.planWorkflows.signal(result.planId, signal.name, signal.arg);
+        } catch (error) {
+          log.error('plan signal failed', {
+            planId: result.planId,
+            signal: signal.name,
+            errorName: error instanceof Error ? error.name : 'unknown',
+          });
+        }
+      }
+      const notice = result.change === 'repeat' ? 'updated' : result.planConfirmed ? 'on' : 'in';
       return c.redirect(`/p/${token}?notice=${notice}&n=${encodeURIComponent(firstName(result.name))}`, 303);
     },
   );
