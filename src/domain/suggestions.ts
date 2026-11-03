@@ -24,8 +24,9 @@ export async function recordSuggestion(
   deps: Pick<AppDeps, 'db' | 'now'>,
   input: SuggestInput,
   result: SuggestResult,
+  previousSuggestionId: string | null = null,
 ): Promise<string> {
-  const base = { ...input, latencyMs: result.latencyMs };
+  const base = { ...input, latencyMs: result.latencyMs, previousSuggestionId };
   const values =
     result.outcome === 'ok'
       ? {

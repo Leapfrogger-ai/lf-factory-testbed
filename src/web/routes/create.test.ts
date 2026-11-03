@@ -1,10 +1,12 @@
 import { ApplicationFailure } from '@temporalio/activity';
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { afterAll,afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fakeSuggest, fixedClock } from '../../../tests/support/fakes.ts';
 import { loadFixture } from '../../../tests/support/fixtures.ts';
-import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
+import { suggestions } from '../../db/schema.ts';
+import { countPlans,loadPlan, loadPublicPlan } from '../../domain/plans.ts';
 import { loadSuggestion } from '../../domain/suggestions.ts';
 import { createApp } from '../app.ts';
 
@@ -390,6 +392,58 @@ describe('POST /suggest', () => {
 
     expect(res.status).toBe(422);
     expect(await res.text()).toContain('Rockridge');
+  });
+});
+
+async function storedPreviousId(location: string): Promise<string | null | undefined> {
+  const id = location.split('=')[1] ?? '';
+  const [row] = await db.select().from(suggestions).where(eq(suggestions.id, id));
+  return row?.previousSuggestionId;
+}
+
+describe('POST /suggest with previousSuggestionId', () => {
+  it('links the new suggestion to the previous one and shows its card (AC1)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const first = (await postSuggest(deps)).headers.get('location') ?? '';
+    const previousSuggestionId = first.split('=')[1] ?? '';
+
+    const res = await postSuggest(deps, { previousSuggestionId });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toMatch(/^\/\?suggestion=[0-9a-f-]{36}$/);
+    expect(location).not.toBe(first);
+    expect(await storedPreviousId(location)).toBe(previousSuggestionId);
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('Highwire Coffee Roasters');
+  });
+
+  it('links to a previous suggestion that failed and shows the new card (AC2)', async () => {
+    const failed = (await postSuggest(testDeps({ suggestPlanCall: fakeSuggest(loadFixture('refusal')).call }))).headers.get('location') ?? '';
+    const previousSuggestionId = failed.split('=')[1] ?? '';
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+
+    const res = await postSuggest(deps, { previousSuggestionId });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(await storedPreviousId(location)).toBe(previousSuggestionId);
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+    expect(await page.text()).toContain('Highwire Coffee Roasters');
+  });
+
+  it.each([
+    ['an unknown id', '3f2b8c1e-9d4a-4e6b-8a7c-5d1e2f3a4b5c'],
+    ['a malformed id', 'not-a-uuid'],
+    ['an empty id', ''],
+  ])('stores no previous suggestion for %s (AC3)', async (_name, previousSuggestionId) => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+
+    const res = await postSuggest(deps, { previousSuggestionId });
+
+    expect(res.status).toBe(303);
+    expect(await storedPreviousId(res.headers.get('location') ?? '')).toBeNull();
   });
 });
 

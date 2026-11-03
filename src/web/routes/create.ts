@@ -196,7 +196,8 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
         model: config.anthropicModel,
       });
       if (result.outcome === 'failed') log.warn('suggestion failed', { failureReason: result.failureReason });
-      const id = await recordSuggestion(deps, form, result);
+      const previous = await loadSuggestion(deps.db, form.previousSuggestionId ?? '');
+      const id = await recordSuggestion(deps, form, result, previous?.id ?? null);
       return c.redirect(`/?suggestion=${id}`, 303);
     },
   );
