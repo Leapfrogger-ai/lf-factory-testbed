@@ -5,3 +5,6 @@ project = "Leapfrogger-ai/1"
 test = "npx vitest run"
 build = "npx tsc --noEmit"
 setup = "if [ -f package-lock.json ]; then npm ci; fi"
+
+[gates.poc]
+spec_review = "on"
