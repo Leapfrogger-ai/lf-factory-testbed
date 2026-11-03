@@ -29,6 +29,17 @@ export function computeSchedule(gatheringAt: Temporal.Instant, deadlineAt: Tempo
   };
 }
 
+/** R3 rule 3: true when the creator changed When but left Decide by at the suggestion's. */
+export function deadlineIsStale(
+  submitted: { gatheringAt: Temporal.Instant; deadlineAt: Temporal.Instant },
+  suggestion: { gatheringAt: Temporal.Instant; commitDeadlineAt: Temporal.Instant },
+): boolean {
+  return (
+    Temporal.Instant.compare(submitted.deadlineAt, suggestion.commitDeadlineAt) === 0 &&
+    Temporal.Instant.compare(submitted.gatheringAt, suggestion.gatheringAt) !== 0
+  );
+}
+
 export function defaultDeadline(now: Temporal.Instant, gatheringAt: Temporal.Instant): Temporal.Instant {
   const nowNs = now.epochNanoseconds;
   const halfway = nowNs + (gatheringAt.epochNanoseconds - nowNs) / 2n;

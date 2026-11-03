@@ -44,6 +44,7 @@ export const publishFormSchema = z
     minimum,
     deadlineDate: optional(date),
     deadlineTime: optional(time),
+    suggestionId: optional(z.string().trim()),
     name: text(80),
     email: z.string().trim().min(3).max(254).pipe(z.email()),
   })
@@ -58,3 +59,11 @@ export const publishFormSchema = z
   .transform((form) => ({ ...form, emailNormalized: form.email.toLowerCase() }));
 
 export type PublishForm = z.output<typeof publishFormSchema>;
+
+export const suggestFormSchema = z.object({
+  city: z.string().trim().refine((city) => CITIES.includes(city)),
+  area: text(200),
+  timeWindow: text(200),
+});
+
+export type SuggestForm = z.output<typeof suggestFormSchema>;

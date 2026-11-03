@@ -1,13 +1,94 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { suggest, type SuggestInput } from '../suggest/suggest.ts';
 import { publishPlan, testDeps } from '../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../tests/support/db.ts';
+import { loadFixture } from '../../tests/support/fixtures.ts';
 import { countPlans, loadPlan, loadPublicPlan } from './plans.ts';
+import { loadSuggestion, recordSuggestion } from './suggestions.ts';
 import { newToken } from './tokens.ts';
 
 const { db, pool } = testDb();
 
 beforeEach(() => resetDb(db));
 afterAll(() => pool.end());
+
+const suggestionInput: SuggestInput = { city: 'Oakland', area: 'Rockridge', timeWindow: 'next weekend, morning' };
+
+// The good proposal at clock 2026-11-09T18:00Z: coffee at Highwire, 2026-11-14 10:00 local, minimum 3,
+// default deadline 2026-11-12T06:00Z (2026-11-11 22:00 local).
+async function okSuggestion(deps: ReturnType<typeof testDeps>) {
+  const response = loadFixture('good');
+  const result = await suggest(suggestionInput, { suggestPlanCall: async () => response, now: deps.now });
+  const id = await recordSuggestion(deps, suggestionInput, result);
+  const suggestion = await loadSuggestion(db, id);
+  if (suggestion?.outcome !== 'ok') throw new Error('expected an ok suggestion');
+  return suggestion;
+}
+
+const fromSuggestion = {
+  format: 'coffee',
+  venue: 'Highwire Coffee Roasters',
+  date: '2026-11-14',
+  time: '10:00',
+  minimum: '3',
+  deadlineDate: '2026-11-11',
+  deadlineTime: '22:00',
+};
+
+describe('publish from a suggestion', () => {
+  it('published without changes links the suggestion and is not edited (AC8)', async () => {
+    const deps = testDeps();
+    const suggestion = await okSuggestion(deps);
+
+    const { manageToken } = await publishPlan(deps, fromSuggestion, suggestion);
+
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.suggestionId).toBe(suggestion.id);
+    expect(plan?.suggestionEdited).toBe(false);
+  });
+
+  it.each([
+    ['venue', { venue: 'Blue Bottle' }],
+    ['format', { format: 'drinks' }],
+    ['minimum', { minimum: '4' }],
+    ['deadline', { deadlineDate: '2026-11-11', deadlineTime: '20:00' }],
+  ])('a changed %s is edited (AC9)', async (_field, change) => {
+    const deps = testDeps();
+    const suggestion = await okSuggestion(deps);
+
+    const { manageToken } = await publishPlan(deps, { ...fromSuggestion, ...change }, suggestion);
+
+    expect((await loadPlan(db, manageToken))?.suggestionEdited).toBe(true);
+  });
+
+  it('a venue that differs only by trailing spaces is not edited', async () => {
+    const deps = testDeps();
+    const suggestion = await okSuggestion(deps);
+
+    const { manageToken } = await publishPlan(deps, { ...fromSuggestion, venue: 'Highwire Coffee Roasters  ' }, suggestion);
+
+    expect((await loadPlan(db, manageToken))?.suggestionEdited).toBe(false);
+  });
+
+  it('When changed with Decide by left at the suggestion\'s takes the default for the new When (AC10)', async () => {
+    const deps = testDeps();
+    const suggestion = await okSuggestion(deps);
+
+    const { manageToken } = await publishPlan(deps, { ...fromSuggestion, date: '2026-11-20' }, suggestion);
+
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.commitDeadlineAt).toBe('2026-11-15T06:00:00Z');
+    expect(plan?.suggestionEdited).toBe(true);
+  });
+
+  it('a plan published without a suggestion has none (AC11)', async () => {
+    const { manageToken } = await publishPlan(testDeps());
+
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.suggestionId).toBeNull();
+    expect(plan?.suggestionEdited).toBeNull();
+  });
+});
 
 describe('publish', () => {
   it('a published plan is open with its creator as only committer', async () => {

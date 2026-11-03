@@ -7,6 +7,7 @@ import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
 import type { SendEmail } from '../email/send-email.ts';
 import { log } from '../log.ts';
+import type { SuggestPlanCall } from '../suggest/suggest.ts';
 import { responseHeaders } from './headers.ts';
 import { publicRoutes } from './routes/public.ts';
 import { requestLogger } from './request-logger.ts';
@@ -22,7 +23,7 @@ export type { Db };
 export type AppDeps = {
   db: Db;
   now: () => Temporal.Instant;
-  suggestPlanCall: (request: unknown) => Promise<unknown>;
+  suggestPlanCall: SuggestPlanCall;
   sendEmail: SendEmail;
   planWorkflows: {
     start(planId: string, schedule: Schedule): Promise<void>;
@@ -30,7 +31,7 @@ export type AppDeps = {
   };
 };
 
-export type AppConfig = { baseUrl: string };
+export type AppConfig = { baseUrl: string; anthropicModel?: string };
 
 export function createApp(deps: AppDeps, config: AppConfig): Hono {
   const app = new Hono();

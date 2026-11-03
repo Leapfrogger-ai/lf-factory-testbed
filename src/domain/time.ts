@@ -50,6 +50,15 @@ export function localHour(instant: Temporal.Instant): number {
   return instant.toZonedDateTimeISO(PLAN_TIME_ZONE).hour;
 }
 
+/** The wall-clock date (YYYY-MM-DD) and time (HH:MM) of the instant in PLAN_TIME_ZONE. */
+export function localDateTime(instant: Temporal.Instant): { date: string; time: string } {
+  const local = instant.toZonedDateTimeISO(PLAN_TIME_ZONE);
+  return {
+    date: local.toPlainDate().toString(),
+    time: local.toPlainTime().toString({ smallestUnit: 'minute' }),
+  };
+}
+
 /** The `hour`:00 wall-clock in PLAN_TIME_ZONE, `dayOffset` days after the instant's local date. */
 export function localOn(instant: Temporal.Instant, hour: number, dayOffset: number): Temporal.Instant {
   return instant

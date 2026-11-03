@@ -1,8 +1,10 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { serve } from '@hono/node-server';
 import { Resend } from 'resend';
 import { loadConfig } from './config.ts';
 import { createDb } from './db/client.ts';
 import { createSendEmail } from './email/send-email.ts';
+import { createSuggestPlanCall } from './suggest/suggest.ts';
 import { connectTemporalClient, createPlanWorkflows } from './temporal/client.ts';
 import { startWorker } from './temporal/worker.ts';
 import { createApp } from './web/app.ts';
@@ -19,18 +21,17 @@ const { db, pool } = createDb(config.databaseUrl);
 const client = await connectTemporalClient();
 const worker = await startWorker();
 
+const anthropic = new Anthropic({ apiKey: config.anthropicApiKey, timeout: 20_000, maxRetries: 0 });
+
 const app = createApp(
   {
     db,
     now: () => Temporal.Now.instant(),
-    // Stub until the suggestion story (Rulings).
-    suggestPlanCall: async () => {
-      throw new Error('Suggestions are not available yet');
-    },
+    suggestPlanCall: createSuggestPlanCall(anthropic),
     sendEmail: createSendEmail({ resend: new Resend(config.resendApiKey), from: config.emailFrom }),
     planWorkflows: createPlanWorkflows(client),
   },
-  { baseUrl: config.baseUrl },
+  { baseUrl: config.baseUrl, anthropicModel: config.anthropicModel },
 );
 
 const server = serve({ fetch: app.fetch, port: config.port });

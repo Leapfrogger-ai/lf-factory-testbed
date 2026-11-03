@@ -4,7 +4,8 @@ import { commits, emailSends, events, plans } from '../db/schema.ts';
 import type { AppDeps } from '../web/app.ts';
 import type { PublishForm } from '../web/forms.ts';
 import { appendEvent } from './events.ts';
-import { computeSchedule, defaultDeadline } from './plan-rules.ts';
+import { computeSchedule, deadlineIsStale, defaultDeadline } from './plan-rules.ts';
+import type { Suggestion } from './suggestions.ts';
 import { localToInstant } from './time.ts';
 import { newToken } from './tokens.ts';
 
@@ -19,6 +20,8 @@ export type PlanView = {
   checkInToken: string;
   gatheringAt: string;
   commitDeadlineAt: string;
+  suggestionId: string | null;
+  suggestionEdited: boolean | null;
   count: number;
   manageLinkSent: boolean;
   commits: { isCreator: boolean; withdrawToken: string }[];
@@ -28,12 +31,26 @@ export type PlanView = {
 export async function publish(
   deps: Pick<AppDeps, 'db' | 'now' | 'planWorkflows'>,
   form: PublishForm,
+  suggestion?: Extract<Suggestion, { outcome: 'ok' }>,
 ): Promise<{ planId: string; publicToken: string; manageToken: string; creatorCommitId: string }> {
   const gatheringAt = localToInstant(form.date, form.time);
-  const deadlineAt =
+  const submittedDeadline =
     form.deadlineDate === undefined || form.deadlineTime === undefined
-      ? defaultDeadline(deps.now(), gatheringAt)
+      ? undefined
       : localToInstant(form.deadlineDate, form.deadlineTime);
+  const deadlineAt =
+    submittedDeadline === undefined ||
+    (suggestion !== undefined && deadlineIsStale({ gatheringAt, deadlineAt: submittedDeadline }, suggestion))
+      ? defaultDeadline(deps.now(), gatheringAt)
+      : submittedDeadline;
+  const suggestionEdited =
+    suggestion === undefined
+      ? null
+      : form.format !== suggestion.format ||
+        form.venue.trim() !== suggestion.venue.trim() ||
+        Temporal.Instant.compare(gatheringAt, suggestion.gatheringAt) !== 0 ||
+        form.minimum !== suggestion.minimum ||
+        Temporal.Instant.compare(deadlineAt, suggestion.commitDeadlineAt) !== 0;
   const schedule = computeSchedule(gatheringAt, deadlineAt);
   const publicToken = newToken();
   const manageToken = newToken();
@@ -53,6 +70,8 @@ export async function publish(
         gatheringAt: new Date(gatheringAt.epochMilliseconds),
         commitDeadlineAt: new Date(deadlineAt.epochMilliseconds),
         minimum: form.minimum,
+        suggestionId: suggestion?.id ?? null,
+        suggestionEdited,
         state: 'open',
       })
       .returning({ id: plans.id });
@@ -111,6 +130,8 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
     checkInToken: plan.checkInToken,
     gatheringAt: plan.gatheringAt.toTemporalInstant().toString(),
     commitDeadlineAt: plan.commitDeadlineAt.toTemporalInstant().toString(),
+    suggestionId: plan.suggestionId,
+    suggestionEdited: plan.suggestionEdited,
     count: planCommits.filter((c) => c.withdrawnAt === null).length,
     manageLinkSent: sent?.sentAt != null,
     commits: planCommits.map((c) => ({ isCreator: c.isCreator, withdrawToken: c.withdrawToken })),

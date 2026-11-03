@@ -1,13 +1,15 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
-import { defaultDeadline } from '../../domain/plan-rules.ts';
+import { deadlineIsStale, defaultDeadline } from '../../domain/plan-rules.ts';
 import { loadSendTarget, publish } from '../../domain/plans.ts';
+import { loadSuggestion, recordSuggestion, type Suggestion } from '../../domain/suggestions.ts';
 import { localToInstant } from '../../domain/time.ts';
 import { sendOnce } from '../../email/send.ts';
 import { log } from '../../log.ts';
+import { suggest } from '../../suggest/suggest.ts';
 import type { AppConfig, AppDeps } from '../app.ts';
-import { publishFormSchema } from '../forms.ts';
-import { createPage, type FieldErrors, type FormValues } from '../views/create-page.ts';
+import { publishFormSchema, suggestFormSchema } from '../forms.ts';
+import { createPage, FALLBACK_NOTICE, type CreateState, type FieldErrors, type FormValues } from '../views/create-page.ts';
 import { layout } from '../views/layout.ts';
 
 const MISSING: Record<string, string> = {
@@ -79,30 +81,98 @@ function timingInput(values: Record<string, unknown>, invalid: ReadonlySet<strin
   return { date: pick('date'), time: pick('time'), deadlineDate: pick('deadlineDate'), deadlineTime: pick('deadlineTime') };
 }
 
-async function rerender(c: Context, errors: FieldErrors) {
+type OkSuggestion = Extract<Suggestion, { outcome: 'ok' }>;
+
+/** The stored ok suggestion for the id, or undefined for no id, a malformed or unknown one, or a failed row. */
+async function okSuggestion(deps: Pick<AppDeps, 'db'>, id: string | undefined): Promise<OkSuggestion | undefined> {
+  const suggestion = await loadSuggestion(deps.db, id ?? '');
+  return suggestion?.outcome === 'ok' ? suggestion : undefined;
+}
+
+/** R3 rule 3: drops the deadline fields when they are the suggestion's but When changed, so the default applies. */
+function withoutStaleDeadline(input: TimingInput, suggestion: OkSuggestion | undefined): TimingInput {
+  const { date, time, deadlineDate, deadlineTime } = input;
+  if (
+    suggestion === undefined ||
+    date === undefined ||
+    time === undefined ||
+    deadlineDate === undefined ||
+    deadlineTime === undefined
+  ) {
+    return input;
+  }
+  const stale = deadlineIsStale(
+    { gatheringAt: localToInstant(date, time), deadlineAt: localToInstant(deadlineDate, deadlineTime) },
+    suggestion,
+  );
+  return stale ? { date, time } : input;
+}
+
+async function enteredValues(c: Context): Promise<FormValues> {
   const entered = await c.req.parseBody();
   const values: FormValues = {};
   for (const [key, value] of Object.entries(entered)) if (typeof value === 'string') values[key] = value;
-  return c.html(layout('Suggest a plan', createPage(values, errors)), 422);
+  return values;
+}
+
+/** The card when the form came from an ok suggestion, the fallback when it came from the publish form, else the inputs. */
+async function stateFor(deps: Pick<AppDeps, 'db'>, values: FormValues): Promise<CreateState> {
+  const suggestion = await loadSuggestion(deps.db, values.suggestionId ?? '');
+  if (suggestion?.outcome === 'ok') return { kind: 'card', suggestion, values };
+  const { city, area, timeWindow } = values;
+  if (city === undefined && area === undefined && timeWindow === undefined) return { kind: 'inputs', values };
+  return { kind: 'fallback', values, city: city ?? '', area: area ?? '', timeWindow: timeWindow ?? '' };
+}
+
+async function rerenderPublish(c: Context, deps: Pick<AppDeps, 'db'>, errors: FieldErrors) {
+  const state = await stateFor(deps, await enteredValues(c));
+  return c.html(layout('Suggest a plan', createPage(state, errors)), 422);
+}
+
+async function rerenderInputs(c: Context, errors: FieldErrors) {
+  const values = await enteredValues(c);
+  return c.html(layout('Suggest a plan', createPage({ kind: 'inputs', values }, errors)), 422);
 }
 
 export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
   const routes = new Hono();
-  routes.get('/', (c) => c.html(layout('Suggest a plan', createPage({}, {}))));
+  routes.get('/', async (c) => {
+    const suggestion = await loadSuggestion(deps.db, c.req.query('suggestion') ?? '');
+    const state: CreateState =
+      suggestion === null
+        ? { kind: 'inputs', values: {} }
+        : suggestion.outcome === 'ok'
+          ? { kind: 'card', suggestion, values: {} }
+          : {
+              kind: 'fallback',
+              values: {},
+              notice: FALLBACK_NOTICE,
+              city: suggestion.city,
+              area: suggestion.area,
+              timeWindow: suggestion.timeWindow,
+            };
+    return c.html(layout('Suggest a plan', createPage(state, {})));
+  });
   routes.post(
     '/plans',
     zValidator('form', publishFormSchema, async (result, c) => {
       if (result.success) return undefined;
       const errors = schemaErrors(result.error.issues);
       const raw = await c.req.parseBody();
-      const timing = timingErrors(deps, timingInput(raw, new Set(Object.keys(errors))));
-      return rerender(c, { ...timing, ...errors });
+      const suggestionId = typeof raw.suggestionId === 'string' ? raw.suggestionId.trim() : undefined;
+      const suggestion = await okSuggestion(deps, suggestionId);
+      const timing = timingErrors(
+        deps,
+        withoutStaleDeadline(timingInput(raw, new Set(Object.keys(errors))), suggestion),
+      );
+      return rerenderPublish(c, deps, { ...timing, ...errors });
     }),
     async (c) => {
       const form = c.req.valid('form');
-      const errors = timingErrors(deps, form);
-      if (Object.keys(errors).length > 0) return rerender(c, errors);
-      const { planId, manageToken } = await publish(deps, form);
+      const suggestion = await okSuggestion(deps, form.suggestionId);
+      const errors = timingErrors(deps, withoutStaleDeadline(form, suggestion));
+      if (Object.keys(errors).length > 0) return rerenderPublish(c, deps, errors);
+      const { planId, manageToken } = await publish(deps, form, suggestion);
       try {
         const { plan, commit } = await loadSendTarget(deps.db, planId);
         await sendOnce({ db: deps.db, sendEmail: deps.sendEmail, baseUrl: config.baseUrl }, 'manage_link', plan, commit);
@@ -111,6 +181,23 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
         log.error('manage-link email failed', { planId, errorName: err instanceof Error ? err.name : 'unknown' });
       }
       return c.redirect(`/m/${manageToken}/published`, 303);
+    },
+  );
+  routes.post(
+    '/suggest',
+    zValidator('form', suggestFormSchema, (result, c) =>
+      result.success ? undefined : rerenderInputs(c, schemaErrors(result.error.issues)),
+    ),
+    async (c) => {
+      const form = c.req.valid('form');
+      const result = await suggest(form, {
+        suggestPlanCall: deps.suggestPlanCall,
+        now: deps.now,
+        model: config.anthropicModel,
+      });
+      if (result.outcome === 'failed') log.warn('suggestion failed', { failureReason: result.failureReason });
+      const id = await recordSuggestion(deps, form, result);
+      return c.redirect(`/?suggestion=${id}`, 303);
     },
   );
   return routes;

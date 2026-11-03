@@ -1,56 +1,163 @@
 import { describe, expect, it } from 'vitest';
 import { CITIES } from '../../config.ts';
-import { createPage } from './create-page.ts';
+import type { Suggestion } from '../../domain/suggestions.ts';
+import { createPage, type CreateState } from './create-page.ts';
 
-const render = (values: Record<string, string>, errors: Record<string, string>) => String(createPage(values, errors));
+const render = (state: CreateState, errors: Record<string, string> = {}) => String(createPage(state, errors));
 
-describe('createPage', () => {
+const okSuggestion: Extract<Suggestion, { outcome: 'ok' }> = {
+  id: '11111111-1111-4111-8111-111111111111',
+  city: 'Oakland',
+  area: 'Rockridge',
+  timeWindow: 'next weekend, morning',
+  outcome: 'ok',
+  format: 'coffee',
+  venue: 'Highwire Coffee Roasters',
+  gatheringAt: Temporal.Instant.from('2026-11-14T18:00:00Z'),
+  minimum: 3,
+  commitDeadlineAt: Temporal.Instant.from('2026-11-12T06:00:00Z'),
+};
+
+const card = (values: Record<string, string> = {}): CreateState => ({ kind: 'card', suggestion: okSuggestion, values });
+
+const NOTICE = "We couldn't come up with a suggestion just now. Fill in your own below, or try again.";
+
+const fallback = (values: Record<string, string> = {}, notice?: string): CreateState => ({
+  kind: 'fallback',
+  values,
+  notice,
+  city: 'Oakland',
+  area: 'Rockridge',
+  timeWindow: 'next weekend, morning',
+});
+
+describe('createPage inputs state', () => {
   it('renders the cities in order after an unselected blank option', () => {
-    const body = render({}, {});
+    const body = render({ kind: 'inputs', values: {} });
     const options = [...body.matchAll(/<option([^>]*)>([^<]*)<\/option>/g)];
 
     expect(options.map((m) => m[2])).toEqual(['', ...CITIES]);
     expect(options.some((m) => /selected/.test(m[1] ?? ''))).toBe(false);
   });
 
-  it('defaults the minimum to 3 and leaves Decide by empty', () => {
-    const body = render({}, {});
+  it('posts the suggest form to /suggest with a Suggest a plan button and no publish fields', () => {
+    const body = render({ kind: 'inputs', values: {} });
 
-    expect(body).toMatch(/<input[^>]*name="minimum"[^>]*value="3"/);
-    expect(body).toMatch(/<input[^>]*type="date"[^>]*name="deadlineDate"[^>]*value=""/);
-    expect(body).toMatch(/<input[^>]*type="time"[^>]*name="deadlineTime"[^>]*value=""/);
-    expect(body).toContain('Decide by');
+    expect(body).toContain('<form method="post" action="/suggest"');
+    expect(body).toMatch(/<button[^>]*type="submit"[^>]*>Suggest a plan<\/button>/);
+    expect(body).toMatch(/<input[^>]*name="area"/);
+    expect(body).toMatch(/<input[^>]*name="timeWindow"/);
+    expect(body).not.toContain('Publish plan');
+    expect(body).not.toContain('name="venue"');
   });
 
-  it('posts the first-one-in form to /plans with a Publish plan button', () => {
-    const body = render({}, {});
+  it('keeps the chosen city selected and the entered values on re-render', () => {
+    const body = render({ kind: 'inputs', values: { city: 'Oakland', area: 'Rockridge' } });
 
-    expect(body).toContain('<form method="post" action="/plans"');
-    expect(body).toContain("You're the first one in");
-    expect(body).toMatch(/<button[^>]*type="submit"[^>]*>Publish plan<\/button>/);
-    expect(body).toMatch(/<input[^>]*type="date"[^>]*name="date"/);
-    expect(body).toMatch(/<input[^>]*type="time"[^>]*name="time"/);
-    expect(body).toMatch(/<input[^>]*type="email"[^>]*name="email"/);
+    expect(body).toMatch(/<option[^>]*selected[^>]*>Oakland<\/option>/);
+    expect(body).toMatch(/<input[^>]*name="area"[^>]*value="Rockridge"/);
+  });
+
+  it('shows a field error under its field, linked with aria-describedby', () => {
+    const body = render({ kind: 'inputs', values: {} }, { area: 'Add a rough area.', city: 'Pick a city.' });
+
+    expect(body).toMatch(/<input[^>]*name="area"[^>]*aria-describedby="area-error"/);
+    expect(body).toMatch(/id="area-error"[^>]*>Add a rough area\.</);
+    expect(body).toMatch(/<select[^>]*aria-describedby="city-error"/);
+    expect(body).toMatch(/id="city-error"[^>]*>Pick a city\.</);
   });
 
   it('escapes entered values', () => {
-    const body = render({ name: '<b>' }, {});
+    const body = render({ kind: 'inputs', values: { area: '<b>' } });
 
     expect(body).toContain('value="&lt;b&gt;"');
     expect(body).not.toContain('<b>');
   });
+});
 
-  it('keeps the chosen city selected on re-render', () => {
-    const body = render({ city: 'Oakland' }, {});
+describe('createPage card state', () => {
+  it('shows the summary line and the card rows prefilled from the suggestion', () => {
+    const body = render(card());
 
-    expect(body).toMatch(/<option[^>]*selected[^>]*>Oakland<\/option>/);
+    expect(body).toContain('Oakland · Rockridge · next weekend, morning');
+    expect(body).toMatch(/<input[^>]*name="format"[^>]*value="coffee"/);
+    expect(body).toMatch(/<input[^>]*name="venue"[^>]*value="Highwire Coffee Roasters"/);
+    expect(body).toMatch(/<input[^>]*type="date"[^>]*name="date"[^>]*value="2026-11-14"/);
+    expect(body).toMatch(/<input[^>]*type="time"[^>]*name="time"[^>]*value="10:00"/);
+    expect(body).toMatch(/<input[^>]*name="minimum"[^>]*value="3"/);
+    expect(body).toMatch(/<input[^>]*type="date"[^>]*name="deadlineDate"[^>]*value="2026-11-11"/);
+    expect(body).toMatch(/<input[^>]*type="time"[^>]*name="deadlineTime"[^>]*value="22:00"/);
+  });
+
+  it('posts the first-one-in form to /plans with hidden context and a Publish plan button', () => {
+    const body = render(card());
+
+    expect(body).toContain('<form method="post" action="/plans"');
+    expect(body).toContain("You're the first one in");
+    expect(body).toMatch(/<button[^>]*type="submit"[^>]*>Publish plan<\/button>/);
+    expect(body).toMatch(/<input[^>]*type="email"[^>]*name="email"/);
+    expect(body).toMatch(/<input[^>]*type="hidden"[^>]*name="city"[^>]*value="Oakland"/);
+    expect(body).toMatch(/<input[^>]*type="hidden"[^>]*name="area"[^>]*value="Rockridge"/);
+    expect(body).toMatch(/<input[^>]*type="hidden"[^>]*name="timeWindow"[^>]*value="next weekend, morning"/);
+    expect(body).toMatch(
+      /<input[^>]*type="hidden"[^>]*name="suggestionId"[^>]*value="11111111-1111-4111-8111-111111111111"/,
+    );
+  });
+
+  it('keeps the entered values over the suggestion on a re-render', () => {
+    const body = render(card({ venue: 'Somewhere else', name: 'Ann' }));
+
+    expect(body).toMatch(/<input[^>]*name="venue"[^>]*value="Somewhere else"/);
+    expect(body).toMatch(/<input[^>]*name="name"[^>]*value="Ann"/);
+  });
+
+  it('escapes the venue', () => {
+    const body = render({ kind: 'card', suggestion: { ...okSuggestion, venue: '<script>x</script>' }, values: {} });
+
+    expect(body).toContain('&lt;script&gt;');
+    expect(body).not.toContain('<script>x');
   });
 
   it('shows a field error under its field, linked with aria-describedby', () => {
-    const body = render({}, { name: 'Add your name.' });
+    const body = render(card(), { name: 'Add your name.' });
 
-    expect(body).toContain('Add your name.');
     expect(body).toMatch(/<input[^>]*name="name"[^>]*aria-describedby="name-error"/);
     expect(body).toMatch(/id="name-error"[^>]*>Add your name\.</);
+  });
+
+  it('lists errors on the hidden city, area and time under the summary line', () => {
+    const body = render(card(), { city: 'Pick a city.', timeWindow: 'Add a rough time.' });
+
+    expect(body).toMatch(/<ul[^>]*class="errors"[^>]*>[\s\S]*Pick a city\.[\s\S]*Add a rough time\.[\s\S]*<\/ul>/);
+  });
+});
+
+describe('createPage fallback state', () => {
+  it('shows the notice, the summary and empty rows with a minimum of 3', () => {
+    const body = render(fallback({}, NOTICE));
+
+    expect(body).toContain(
+      "We couldn&#39;t come up with a suggestion just now. Fill in your own below, or try again.",
+    );
+    expect(body).toContain('Oakland · Rockridge · next weekend, morning');
+    for (const field of ['format', 'venue', 'date', 'time', 'deadlineDate', 'deadlineTime']) {
+      expect(body).toMatch(new RegExp(`<input[^>]*name="${field}"[^>]*value=""`));
+    }
+    expect(body).toMatch(/<input[^>]*name="minimum"[^>]*value="3"/);
+    expect(body).toMatch(/<button[^>]*type="submit"[^>]*>Publish plan<\/button>/);
+  });
+
+  it('has no suggestionId and carries the hidden city, area and time', () => {
+    const body = render(fallback());
+
+    expect(body).not.toContain('name="suggestionId"');
+    expect(body).toMatch(/<input[^>]*type="hidden"[^>]*name="city"[^>]*value="Oakland"/);
+  });
+
+  it('keeps entered values and leaves out the notice when it is not given', () => {
+    const body = render(fallback({ venue: 'Blue Bottle' }));
+
+    expect(body).toMatch(/<input[^>]*name="venue"[^>]*value="Blue Bottle"/);
+    expect(body).not.toContain('come up with a suggestion');
   });
 });

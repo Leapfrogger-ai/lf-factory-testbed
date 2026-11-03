@@ -1,5 +1,5 @@
-import { expect, test } from 'vitest';
-import { computeSchedule, defaultDeadline, displayState } from './plan-rules.ts';
+import { describe, expect, test } from 'vitest';
+import { computeSchedule, deadlineIsStale, defaultDeadline, displayState } from './plan-rules.ts';
 import { localToInstant } from './time.ts';
 
 const at = (iso: string) => Temporal.Instant.from(iso);
@@ -82,4 +82,28 @@ test('displayState: a called off plan is not this time even before the deadline'
 test('displayState: a confirmed plan is on', () => {
   const commitDeadlineAt = at('2026-11-12T06:00:00Z');
   expect(displayState({ state: 'confirmed', commitDeadlineAt }, at('2026-11-11T06:00:00Z'))).toBe('on');
+});
+
+describe('deadlineIsStale', () => {
+  const suggestion = { gatheringAt: at('2026-11-14T18:00:00Z'), commitDeadlineAt: at('2026-11-12T06:00:00Z') };
+
+  test("is stale when the gathering moved and the deadline is still the suggestion's", () => {
+    const submitted = { gatheringAt: at('2026-11-20T18:00:00Z'), deadlineAt: at('2026-11-12T06:00:00Z') };
+    expect(deadlineIsStale(submitted, suggestion)).toBe(true);
+  });
+
+  test('is not stale when both are unchanged', () => {
+    const submitted = { gatheringAt: at('2026-11-14T18:00:00Z'), deadlineAt: at('2026-11-12T06:00:00Z') };
+    expect(deadlineIsStale(submitted, suggestion)).toBe(false);
+  });
+
+  test('is not stale when the deadline was changed too', () => {
+    const submitted = { gatheringAt: at('2026-11-20T18:00:00Z'), deadlineAt: at('2026-11-18T06:00:00Z') };
+    expect(deadlineIsStale(submitted, suggestion)).toBe(false);
+  });
+
+  test('is not stale when only the deadline was changed', () => {
+    const submitted = { gatheringAt: at('2026-11-14T18:00:00Z'), deadlineAt: at('2026-11-11T22:00:00Z') };
+    expect(deadlineIsStale(submitted, suggestion)).toBe(false);
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatDay, formatDeadline, formatWhen } from './time.ts';
+import { formatDay, formatDeadline, formatWhen, localDateTime } from './time.ts';
 
 const when = (iso: string) => formatWhen(Temporal.Instant.from(iso));
 const day = (iso: string) => formatDay(Temporal.Instant.from(iso));
@@ -36,6 +36,26 @@ test('formatWhen shows noon as 12:00 PM', () => {
 
 test('formatDeadline shows midnight as 12:00 AM', () => {
   expect(formatDeadline(Temporal.Instant.from('2026-11-12T08:00:00Z'))).toBe('Thu 12 Nov, 12:00 AM');
+});
+
+const local = (iso: string) => localDateTime(Temporal.Instant.from(iso));
+
+test('localDateTime gives the plan-time date and wall clock', () => {
+  expect(local('2026-11-14T18:00:00Z')).toEqual({ date: '2026-11-14', time: '10:00' });
+});
+
+test('localDateTime is right across the 2026-11-01 fall-back, including the repeated hour', () => {
+  expect([local('2026-11-01T08:30:00Z'), local('2026-11-01T09:30:00Z')]).toEqual([
+    { date: '2026-11-01', time: '01:30' },
+    { date: '2026-11-01', time: '01:30' },
+  ]);
+});
+
+test('localDateTime is right across the 2027-03-14 spring-forward', () => {
+  expect([local('2027-03-14T09:30:00Z'), local('2027-03-14T10:30:00Z')]).toEqual([
+    { date: '2027-03-14', time: '01:30' },
+    { date: '2027-03-14', time: '03:30' },
+  ]);
 });
 
 describe('formatDay', () => {
