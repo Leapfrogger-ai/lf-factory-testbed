@@ -98,6 +98,9 @@ describe('suggest', () => {
     ],
     ['an impossible date', (p: Record<string, unknown>) => (p.date = '2026-02-30')],
     ['a missing venue', (p: Record<string, unknown>) => delete p.venue],
+    ['a 201-character venue_address', (p: Record<string, unknown>) => (p.venue_address = 'a'.repeat(201))],
+    ['a 2049-character venue_url', (p: Record<string, unknown>) => (p.venue_url = 'u'.repeat(2049))],
+    ['minimum 2147483648', (p: Record<string, unknown>) => (p.minimum = 2147483648)],
   ])('fails with invalid_proposal for %s (AC4)', async (_label, edit) => {
     const fake = fakeSuggest(withInput(edit));
     const result = await suggest(input, { suggestPlanCall: fake.call, now });

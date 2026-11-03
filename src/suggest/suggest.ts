@@ -106,11 +106,11 @@ export type SuggestResult = (
 const proposalInput = z.object({
   format: z.string().trim().min(1).max(40),
   venue: z.string().trim().min(1).max(120),
-  venue_address: z.string().trim(),
-  venue_url: z.string().trim(),
+  venue_address: z.string().trim().max(200),
+  venue_url: z.string().trim().max(2048),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
-  minimum: z.number().int().min(2),
+  minimum: z.number().int().min(2).max(2_147_483_647),
 });
 
 export async function suggest(

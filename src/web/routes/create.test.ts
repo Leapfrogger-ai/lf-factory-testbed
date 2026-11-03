@@ -275,6 +275,23 @@ describe('POST /suggest', () => {
     expect(stored).toMatchObject({ outcome: 'failed', failureReason });
   });
 
+  it('stores a failed invalid_proposal row for an over-long venue and shows the fallback', async () => {
+    const response = loadFixture('good');
+    const call = response.content.find((block) => block.name === 'propose_plan')!;
+    (call.input as Record<string, unknown>).venue = 'v'.repeat(121);
+    const fake = fakeSuggest(response);
+    const deps = testDeps({ suggestPlanCall: fake.call });
+
+    const res = await postSuggest(deps);
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    const stored = await loadSuggestion(db, location.split('=')[1] ?? '');
+    expect(stored).toMatchObject({ outcome: 'failed', failureReason: 'invalid_proposal' });
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+    expect(await page.text()).toContain('Fill in your own below');
+  });
+
   it.each([
     ['empty inputs', { city: '', area: '', timeWindow: '' }],
     ['whitespace and an unknown city', { city: 'Gotham', area: '   ', timeWindow: '  ' }],
