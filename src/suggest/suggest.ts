@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { localToInstant } from '../domain/time.ts';
 
@@ -13,6 +14,17 @@ export type SuggestResponse = {
   content: { type: string; name?: string; input?: unknown }[];
 };
 export type SuggestPlanCall = (request: SuggestRequest, options: { signal: AbortSignal }) => Promise<SuggestResponse>;
+
+export function createSuggestPlanCall(client: Anthropic): SuggestPlanCall {
+  return async (request, options) => {
+    // The SDK types don't know web_search_20260318, so the request is cast.
+    const response = await client.messages.create(
+      request as unknown as Anthropic.MessageCreateParamsNonStreaming,
+      { signal: options.signal },
+    );
+    return response as unknown as SuggestResponse;
+  };
+}
 
 const SYSTEM = [
   'You suggest one concrete, low-stakes plan for a small group of strangers to meet in the San Francisco Bay Area.',
