@@ -1,5 +1,6 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
+import type { HtmlEscapedString } from 'hono/utils/html';
 import { deadlineIsStale, defaultDeadline } from '../../domain/plan-rules.ts';
 import { loadSendTarget, publish } from '../../domain/plans.ts';
 import { loadSuggestion, recordSuggestion, type Suggestion } from '../../domain/suggestions.ts';
@@ -124,14 +125,21 @@ async function stateFor(deps: Pick<AppDeps, 'db'>, values: FormValues): Promise<
   return { kind: 'fallback', values, city: city ?? '', area: area ?? '', timeWindow: timeWindow ?? '' };
 }
 
+/** The create page with create.js loaded under the response's CSP nonce. */
+function createLayout(c: Context, body: HtmlEscapedString, status?: 422) {
+  const nonce = c.get('secureHeadersNonce') as string;
+  const page = layout('Suggest a plan', body, { script: { src: '/static/create.js', nonce } });
+  return status === undefined ? c.html(page) : c.html(page, status);
+}
+
 async function rerenderPublish(c: Context, deps: Pick<AppDeps, 'db'>, errors: FieldErrors) {
   const state = await stateFor(deps, await enteredValues(c));
-  return c.html(layout('Suggest a plan', createPage(state, errors)), 422);
+  return createLayout(c, createPage(state, errors), 422);
 }
 
 async function rerenderInputs(c: Context, errors: FieldErrors) {
   const values = await enteredValues(c);
-  return c.html(layout('Suggest a plan', createPage({ kind: 'inputs', values }, errors)), 422);
+  return createLayout(c, createPage({ kind: 'inputs', values }, errors), 422);
 }
 
 export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
@@ -159,7 +167,7 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
                 timeWindow: suggestion.timeWindow,
                 previousSuggestionId: suggestion.id,
               };
-    return c.html(layout('Suggest a plan', createPage(state, {})));
+    return createLayout(c, createPage(state, {}));
   });
   routes.post(
     '/plans',

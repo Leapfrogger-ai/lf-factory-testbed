@@ -756,6 +756,54 @@ describe('POST /plans re-render state', () => {
   });
 });
 
+describe('create.js under the CSP nonce (AC5)', () => {
+  function nonceOf(res: Response): string {
+    return /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy') ?? '')?.[1] ?? '';
+  }
+
+  async function expectScript(res: Response) {
+    const nonce = nonceOf(res);
+    expect(nonce).not.toBe('');
+    expect(await res.text()).toContain(`<script src="/static/create.js" nonce="${nonce}"`);
+  }
+
+  it('is loaded by the inputs page', async () => {
+    await expectScript(await createApp(testDeps(), { baseUrl: TEST_BASE_URL }).request('/'));
+  });
+
+  it('is loaded by the card page, whose forms post without inline handlers or scripts', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const location = await suggestedLocation(deps);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+
+    const nonce = nonceOf(res);
+    const body = await res.text();
+    expect(body).toContain(`<script src="/static/create.js" nonce="${nonce}"`);
+    const forms = body.match(/<form\b[^>]*>/g) ?? [];
+    expect(forms.length).toBeGreaterThan(0);
+    for (const form of forms) {
+      expect(form).toContain('method="post"');
+      expect(form).toMatch(/action="\/(suggest|plans)"/);
+    }
+    expect(body).not.toMatch(/\sonclick=|\sonsubmit=/);
+    expect(body).not.toMatch(/<script(?![^>]*\ssrc=)/);
+  });
+
+  it('is loaded by a 422 re-render of POST /plans', async () => {
+    const res = await post(testDeps(), { name: '' });
+
+    expect(res.status).toBe(422);
+    await expectScript(res);
+  });
+
+  it('is served', async () => {
+    const res = await createApp(testDeps(), { baseUrl: TEST_BASE_URL }).request('/static/create.js');
+
+    expect(res.status).toBe(200);
+  });
+});
+
 describe('GET /static/app.css', () => {
   it('serves the stylesheet with light and dark tokens, cached for a day', async () => {
     const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
