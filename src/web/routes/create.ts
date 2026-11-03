@@ -14,6 +14,7 @@ import type { RateLimiter, RateRoute } from '../rate-limit.ts';
 import {
   createPage,
   FALLBACK_NOTICE,
+  PUBLISH_LIMIT_NOTICE,
   SUGGEST_LIMIT_NOTICE,
   type CreateState,
   type FieldErrors,
@@ -171,6 +172,11 @@ async function renderSuggestLimited(c: Context) {
   return c.html(layout('Suggest a plan', createPage(state, {})), 429);
 }
 
+async function renderPublishLimited(c: Context, deps: Pick<AppDeps, 'db'>) {
+  const state: CreateState = { ...(await stateFor(deps, await enteredValues(c))), notice: PUBLISH_LIMIT_NOTICE };
+  return c.html(layout('Suggest a plan', createPage(state, {})), 429);
+}
+
 export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimiter): Hono {
   const routes = new Hono();
   routes.get('/', async (c) => {
@@ -192,6 +198,7 @@ export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimi
   });
   routes.post(
     '/plans',
+    limit(limiter, 'publish', (c) => renderPublishLimited(c, deps)),
     zValidator('form', publishFormSchema, async (result, c) => {
       if (result.success) return undefined;
       const errors = schemaErrors(result.error.issues);

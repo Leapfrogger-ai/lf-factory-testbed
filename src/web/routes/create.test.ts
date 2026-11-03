@@ -7,7 +7,7 @@ import { loadFixture } from '../../../tests/support/fixtures.ts';
 import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
 import { countSuggestions, loadSuggestion } from '../../domain/suggestions.ts';
 import { createApp } from '../app.ts';
-import { SUGGEST_LIMIT_NOTICE } from '../views/create-page.ts';
+import { PUBLISH_LIMIT_NOTICE, SUGGEST_LIMIT_NOTICE } from '../views/create-page.ts';
 
 const { db, pool } = testDb();
 
@@ -737,5 +737,82 @@ describe('POST /suggest rate limit', () => {
     const body = await res.text();
     expect(body).toContain('&lt;script&gt;x&lt;/script&gt;');
     expect(body).not.toContain('<script>x');
+  });
+});
+
+describe('POST /plans rate limit', () => {
+  const fromIp = (ip: string) => ({ 'Fly-Client-IP': ip });
+  let seq = 0;
+  async function postPlan(app: ReturnType<typeof createApp>, ip: string, overrides: Record<string, string> = {}) {
+    seq += 1;
+    return app.request('/plans', {
+      method: 'POST',
+      headers: { ...sameOrigin, ...fromIp(ip) },
+      body: new URLSearchParams(planForm({ email: `ann${seq}@example.test`, ...overrides })),
+    });
+  }
+
+  it('answers 429 on the 4th publish from one IP (AC3)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 3; i++) expect((await postPlan(app, '203.0.113.7')).status).toBe(303);
+
+    const res = await postPlan(app, '203.0.113.7', { venue: 'Chez Panisse' });
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toMatch(/^\d+$/);
+    const body = await res.text();
+    expect(body).toContain(PUBLISH_LIMIT_NOTICE);
+    expect(body).toContain('Chez Panisse');
+    expect(body).toContain('value="Oakland"');
+    expect(body).toContain('value="Rockridge"');
+    expect(await countPlans(db)).toBe(3);
+  });
+
+  it('answers 429 on the 51st publish of a Los Angeles day (AC4)', async () => {
+    const deps = testDeps({ now: fixedClock('2026-11-09T18:00:00Z') });
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 50; i++) {
+      expect((await postPlan(app, `198.51.100.${i}`, { date: '2026-11-20' })).status).toBe(303);
+    }
+
+    const res = await postPlan(app, '192.0.2.1', { date: '2026-11-20' });
+
+    expect(res.status).toBe(429);
+    expect(await countPlans(db)).toBe(50);
+  });
+
+  it('does not limit another IP (AC5)', async () => {
+    const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 3; i++) await postPlan(app, '203.0.113.7');
+    expect((await postPlan(app, '203.0.113.7')).status).toBe(429);
+
+    const res = await postPlan(app, '203.0.113.8');
+
+    expect(res.status).toBe(303);
+  });
+
+  it('counts invalid publishes (AC6)', async () => {
+    const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 3; i++) expect((await postPlan(app, '203.0.113.7', { venue: '' })).status).toBe(422);
+
+    const res = await postPlan(app, '203.0.113.7');
+
+    expect(res.status).toBe(429);
+    expect(await countPlans(db)).toBe(0);
+  });
+
+  it('keeps the suggestion card on the 429 page', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 3; i++) await postPlan(app, '203.0.113.7');
+
+    const res = await postPlan(app, '203.0.113.7', { suggestionId: id });
+
+    expect(res.status).toBe(429);
+    const body = await res.text();
+    expect(body).toContain(PUBLISH_LIMIT_NOTICE);
+    expect(inputTag(body, 'suggestionId')).toContain(`value="${id}"`);
   });
 });
