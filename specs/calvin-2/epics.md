@@ -90,7 +90,7 @@ Acceptance criteria:
 - Given the create page, when its HTML is read, then it loads `/static/create.js` with the response's CSP nonce, and the suggest and publish forms are plain POST forms that work without the script.
 - Given a phone with JS on, when the creator edits When on a card and taps **Copy** and **Share…** on the published screen, then Decide by updates, the button reads "Copied" for 2s, and the native share sheet opens with the share text (checked by hand).
 
-### Story 1.9 (v1): Rate limits on suggesting and publishing
+### Story 1.9 (v2): Rate limits on suggesting and publishing
 
 As the operator, I want suggesting and publishing capped per IP and per day, so that nobody can run up the Claude bill or email arbitrary addresses at scale.
 
@@ -101,7 +101,7 @@ Prerequisites: Story 1.7
 Acceptance criteria:
 - Given 10 suggestion requests from one IP within 10 minutes, when an 11th arrives, then the response is 429 with a `Retry-After` header, the create page shows "Lots of suggestions just now. Fill in your own below, or try again in a few minutes." with the fallback card, Claude isn't called, and no `suggestions` row is stored.
 - Given 200 suggestion requests on one Los Angeles calendar day from different IPs, when a 201st arrives, then it gets 429.
-- Given 5 publish requests from one IP within an hour, when a 6th arrives, then the response is 429 with "Lots of plans from here just now. Try again in a little while.", everything entered kept, and no plan stored.
+- Given 3 publish requests from one IP within an hour, when a 4th arrives, then the response is 429 with "Lots of plans from here just now. Try again in a little while.", everything entered kept, and no plan stored.
 - Given 50 publish requests on one Los Angeles calendar day, when a 51st arrives, then it gets 429.
 - Given one IP at its limit, when a request arrives from another IP, then it isn't limited.
 - Given 10 invalid suggestion requests from one IP, when an 11th valid one arrives within 10 minutes, then it gets 429.
