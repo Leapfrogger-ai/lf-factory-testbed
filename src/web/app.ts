@@ -6,6 +6,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { Db } from '../db/client.ts';
 import type { Schedule } from '../domain/plan-rules.ts';
 import { log } from '../log.ts';
+import type { SuggestPlanCall } from '../suggest/suggest.ts';
 import { responseHeaders } from './headers.ts';
 import { publicRoutes } from './routes/public.ts';
 import { requestLogger } from './request-logger.ts';
@@ -21,7 +22,7 @@ export type { Db };
 export type AppDeps = {
   db: Db;
   now: () => Temporal.Instant;
-  suggestPlanCall: (request: unknown) => Promise<unknown>;
+  suggestPlanCall: SuggestPlanCall;
   sendEmail: (payload: unknown, idempotencyKey: string) => Promise<{ id: string }>;
   planWorkflows: {
     start(planId: string, schedule: Schedule): Promise<void>;

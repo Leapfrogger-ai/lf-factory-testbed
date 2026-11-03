@@ -1,0 +1,41 @@
+{
+  "id": "msg_good",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5-5",
+  "stop_reason": "tool_use",
+  "content": [
+    {
+      "type": "server_tool_use",
+      "id": "srvtoolu_1",
+      "name": "web_search",
+      "input": { "query": "coffee roasters Rockridge Oakland" }
+    },
+    {
+      "type": "web_search_tool_result",
+      "tool_use_id": "srvtoolu_1",
+      "content": [
+        {
+          "type": "web_search_result",
+          "title": "Highwire Coffee Roasters",
+          "url": "https://example.test/highwire"
+        }
+      ]
+    },
+    { "type": "text", "text": "Highwire Coffee Roasters in Rockridge is open on weekend mornings." },
+    {
+      "type": "tool_use",
+      "id": "toolu_1",
+      "name": "propose_plan",
+      "input": {
+        "format": "coffee",
+        "venue": "Highwire Coffee Roasters",
+        "venue_address": "5700 College Ave, Oakland, CA",
+        "venue_url": "https://example.test/highwire",
+        "date": "2026-11-14",
+        "time": "10:00",
+        "minimum": 3
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import type { Schedule } from '../../src/domain/plan-rules.ts';
+import type { SuggestRequest, SuggestResponse } from '../../src/suggest/suggest.ts';
 
 export function fakeEmail() {
   const calls: { payload: unknown; idempotencyKey: string }[] = [];
@@ -39,12 +40,21 @@ export function fakePlanWorkflows() {
   };
 }
 
-export function fakeSuggest(fixture: unknown = {}) {
-  const calls: unknown[] = [];
+export function fakeSuggest(fixture: SuggestResponse = { stop_reason: 'end_turn', content: [] }) {
+  const calls: { request: SuggestRequest; options: { signal: AbortSignal } }[] = [];
+  let failure: Error | undefined;
   return {
     calls,
-    call: async (request: unknown): Promise<unknown> => {
-      calls.push(request);
+    failWith(error: Error): void {
+      failure = error;
+    },
+    call: async (request: SuggestRequest, options: { signal: AbortSignal }): Promise<SuggestResponse> => {
+      calls.push({ request, options });
+      if (failure) {
+        const error = failure;
+        failure = undefined;
+        throw error;
+      }
       return fixture;
     },
   };
