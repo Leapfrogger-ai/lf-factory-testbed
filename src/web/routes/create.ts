@@ -1,8 +1,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
-import { defaultDeadline } from '../../domain/plan-rules.ts';
+import { deadlineIsStale, defaultDeadline } from '../../domain/plan-rules.ts';
 import { publish } from '../../domain/plans.ts';
-import { loadSuggestion, recordSuggestion } from '../../domain/suggestions.ts';
+import { loadSuggestion, recordSuggestion, type Suggestion } from '../../domain/suggestions.ts';
 import { localToInstant } from '../../domain/time.ts';
 import { log } from '../../log.ts';
 import { suggest } from '../../suggest/suggest.ts';
@@ -80,6 +80,33 @@ function timingInput(values: Record<string, unknown>, invalid: ReadonlySet<strin
   return { date: pick('date'), time: pick('time'), deadlineDate: pick('deadlineDate'), deadlineTime: pick('deadlineTime') };
 }
 
+type OkSuggestion = Extract<Suggestion, { outcome: 'ok' }>;
+
+/** The stored ok suggestion for the id, or undefined for no id, a malformed or unknown one, or a failed row. */
+async function okSuggestion(deps: Pick<AppDeps, 'db'>, id: string | undefined): Promise<OkSuggestion | undefined> {
+  const suggestion = await loadSuggestion(deps.db, id ?? '');
+  return suggestion?.outcome === 'ok' ? suggestion : undefined;
+}
+
+/** R3 rule 3: drops the deadline fields when they are the suggestion's but When changed, so the default applies. */
+function withoutStaleDeadline(input: TimingInput, suggestion: OkSuggestion | undefined): TimingInput {
+  const { date, time, deadlineDate, deadlineTime } = input;
+  if (
+    suggestion === undefined ||
+    date === undefined ||
+    time === undefined ||
+    deadlineDate === undefined ||
+    deadlineTime === undefined
+  ) {
+    return input;
+  }
+  const stale = deadlineIsStale(
+    { gatheringAt: localToInstant(date, time), deadlineAt: localToInstant(deadlineDate, deadlineTime) },
+    suggestion,
+  );
+  return stale ? { date, time } : input;
+}
+
 async function enteredValues(c: Context): Promise<FormValues> {
   const entered = await c.req.parseBody();
   const values: FormValues = {};
@@ -131,14 +158,20 @@ export function createRoutes(deps: AppDeps, config: AppConfig): Hono {
       if (result.success) return undefined;
       const errors = schemaErrors(result.error.issues);
       const raw = await c.req.parseBody();
-      const timing = timingErrors(deps, timingInput(raw, new Set(Object.keys(errors))));
+      const suggestionId = typeof raw.suggestionId === 'string' ? raw.suggestionId.trim() : undefined;
+      const suggestion = await okSuggestion(deps, suggestionId);
+      const timing = timingErrors(
+        deps,
+        withoutStaleDeadline(timingInput(raw, new Set(Object.keys(errors))), suggestion),
+      );
       return rerenderPublish(c, deps, { ...timing, ...errors });
     }),
     async (c) => {
       const form = c.req.valid('form');
-      const errors = timingErrors(deps, form);
+      const suggestion = await okSuggestion(deps, form.suggestionId);
+      const errors = timingErrors(deps, withoutStaleDeadline(form, suggestion));
       if (Object.keys(errors).length > 0) return rerenderPublish(c, deps, errors);
-      const { manageToken } = await publish(deps, form);
+      const { manageToken } = await publish(deps, form, suggestion);
       return c.redirect(`/m/${manageToken}/published`, 303);
     },
   );

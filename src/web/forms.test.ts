@@ -67,6 +67,12 @@ test('a deadline date and time together parse', () => {
   expect(form.deadlineTime).toBe('18:00');
 });
 
+test('a blank suggestionId parses to undefined and a given one is trimmed', () => {
+  expect(publishFormSchema.parse({ ...valid, suggestionId: '  ' }).suggestionId).toBeUndefined();
+  expect(publishFormSchema.parse(valid).suggestionId).toBeUndefined();
+  expect(publishFormSchema.parse({ ...valid, suggestionId: ' abc ' }).suggestionId).toBe('abc');
+});
+
 test('a suggest body is trimmed', () => {
   const form = suggestFormSchema.parse({ city: 'Oakland', area: '  Rockridge ', timeWindow: ' next weekend, morning  ' });
   expect(form).toEqual({ city: 'Oakland', area: 'Rockridge', timeWindow: 'next weekend, morning' });

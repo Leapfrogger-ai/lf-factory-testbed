@@ -308,6 +308,91 @@ function inputTag(body: string, name: string): string {
   return body.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? '';
 }
 
+const cardForm = {
+  format: 'coffee',
+  venue: 'Highwire Coffee Roasters',
+  date: '2026-11-14',
+  time: '10:00',
+  minimum: '3',
+  deadlineDate: '2026-11-11',
+  deadlineTime: '22:00',
+};
+
+describe('POST /plans from a suggestion', () => {
+  it('publishes the card unchanged (AC8)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const suggestionId = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await post(deps, { ...cardForm, suggestionId });
+
+    expect(res.status).toBe(303);
+    const plan = await publishedPlan(res);
+    expect(plan?.suggestionId).toBe(suggestionId);
+    expect(plan?.suggestionEdited).toBe(false);
+  });
+
+  it('a changed venue is edited (AC9)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const suggestionId = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await post(deps, { ...cardForm, venue: 'Peet’s Coffee', suggestionId });
+
+    expect(res.status).toBe(303);
+    expect((await publishedPlan(res))?.suggestionEdited).toBe(true);
+  });
+
+  it('changing When and leaving Decide by takes the default deadline, and does not fail the deadline check (AC10)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const suggestionId = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await post(deps, { ...cardForm, date: '2026-11-11', time: '09:00', suggestionId });
+
+    expect(res.status).toBe(303);
+    const plan = await publishedPlan(res);
+    expect(plan?.commitDeadlineAt).toBe('2026-11-10T17:30:00Z');
+    expect(plan?.suggestionEdited).toBe(true);
+  });
+
+  it('does not report the stale deadline when another field fails (AC10)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const suggestionId = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const res = await post(deps, { ...cardForm, date: '2026-11-11', time: '09:00', venue: '', suggestionId });
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Add where it is.');
+    expect(body).not.toContain('The decide-by time needs to be before the gathering.');
+  });
+
+  it('a plan from the fallback form has no suggestion_id (AC11)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('no-tool-call')).call });
+    await suggestedLocation(deps);
+
+    const res = await post(deps);
+
+    expect(res.status).toBe(303);
+    const plan = await publishedPlan(res);
+    expect(plan?.suggestionId).toBeNull();
+    expect(plan?.suggestionEdited).toBeNull();
+  });
+
+  it('treats a failed, unknown or malformed suggestionId as absent', async () => {
+    const failedDeps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('refusal')).call });
+    const failedId = (await suggestedLocation(failedDeps)).split('=')[1] ?? '';
+    const ids = [failedId, '00000000-0000-4000-8000-000000000000', 'nope'];
+
+    for (const suggestionId of ids) {
+      const res = await post(testDeps(), { suggestionId });
+
+      expect(res.status).toBe(303);
+      const plan = await publishedPlan(res);
+      expect(plan?.suggestionId).toBeNull();
+      expect(plan?.suggestionEdited).toBeNull();
+    }
+  });
+});
+
 describe('GET /', () => {
   it('renders the inputs state linking the stylesheet', async () => {
     const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });

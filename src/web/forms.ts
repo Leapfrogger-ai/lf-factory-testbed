@@ -44,6 +44,7 @@ export const publishFormSchema = z
     minimum,
     deadlineDate: optional(date),
     deadlineTime: optional(time),
+    suggestionId: optional(z.string().trim()),
     name: text(80),
     email: z.string().trim().min(3).max(254).pipe(z.email()),
   })
