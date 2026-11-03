@@ -45,7 +45,11 @@ export function testDeps(overrides: Partial<AppDeps> = {}) {
   return { ...deps, fakes };
 }
 
-export async function publishPlan(deps: ReturnType<typeof testDeps>, overrides: Record<string, string> = {}) {
+export async function publishPlan(
+  deps: ReturnType<typeof testDeps>,
+  overrides: Record<string, string> = {},
+  suggestion?: Parameters<typeof publish>[2],
+) {
   const form = publishFormSchema.parse(planForm(overrides));
-  return publish(deps, form);
+  return publish(deps, form, suggestion);
 }
