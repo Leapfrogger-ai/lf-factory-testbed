@@ -27,6 +27,34 @@ describe('GET /m/:token/published', () => {
     expect(body).toContain("We couldn't email you your private link. Bookmark the link below to manage the plan.");
   });
 
+  it('has the copy and share hooks and the share text (AC6)', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const body = await (await app.request(`/m/${manageToken}/published`)).text();
+
+    expect(body).toContain(
+      'data-share-text="Coffee at Blue Bottle, Sat 14 Nov 10:00 AM — I&#39;m in, who else?"',
+    );
+    expect(body).toMatch(/<button type="button" id="share" hidden[^>]*>Share…<\/button>/);
+    expect(body).toMatch(/id="public-link"/);
+    expect(body).toMatch(/<button type="button" id="copy"/);
+    expect(body).toMatch(/aria-live="polite"/);
+  });
+
+  it('loads create.js under the response nonce', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await app.request(`/m/${manageToken}/published`);
+
+    const nonce = /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy') ?? '')?.[1];
+    expect(nonce).toBeTruthy();
+    expect(await res.text()).toContain(`<script src="/static/create.js" nonce="${nonce}" defer></script>`);
+  });
+
   it('says the link was emailed after publishing through the form (AC2)', async () => {
     const deps = testDeps();
     const app = createApp(deps, { baseUrl: TEST_BASE_URL });

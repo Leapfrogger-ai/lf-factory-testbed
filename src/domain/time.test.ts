@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatDay, formatDeadline, formatWhen, localDateTime } from './time.ts';
+import { formatDay, formatDeadline, formatShareWhen, formatWhen, localDateTime } from './time.ts';
 
 const when = (iso: string) => formatWhen(Temporal.Instant.from(iso));
 const day = (iso: string) => formatDay(Temporal.Instant.from(iso));
@@ -10,6 +10,14 @@ test('formatWhen shows weekday, day, month and 12-hour time in plan time', () =>
 
 test('formatWhen drops the leading zero of the day', () => {
   expect(when('2026-11-09T17:00:00Z')).toBe('Mon 9 Nov · 9:00 AM');
+});
+
+test('formatShareWhen joins the day and the 12-hour clock with a space', () => {
+  expect(formatShareWhen(Temporal.Instant.from('2026-11-14T18:00:00Z'))).toBe('Sat 14 Nov 10:00 AM');
+});
+
+test('formatShareWhen is right on the 2026-11-01 fall-back day', () => {
+  expect(formatShareWhen(Temporal.Instant.from('2026-11-01T09:30:00Z'))).toBe('Sun 1 Nov 1:30 AM');
 });
 
 test('formatDeadline uses a comma before the time', () => {

@@ -39,6 +39,12 @@ export function formatWhen(instant: Temporal.Instant): string {
   return `${day} · ${clock}`;
 }
 
+/** Share-message time, e.g. `Sat 14 Nov 10:00 AM`, in PLAN_TIME_ZONE. */
+export function formatShareWhen(instant: Temporal.Instant): string {
+  const { day, clock } = displayParts(instant);
+  return `${day} ${clock}`;
+}
+
 /** UX §8.8 commit deadline, e.g. `Wed 11 Nov, 10:00 PM`, in PLAN_TIME_ZONE. */
 export function formatDeadline(instant: Temporal.Instant): string {
   const { day, clock } = displayParts(instant);

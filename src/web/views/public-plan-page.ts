@@ -13,7 +13,7 @@ function firstName(fullName: string): string {
   return Array.from(word).slice(0, FIRST_NAME_MAX).join('');
 }
 
-function capitalise(text: string): string {
+export function capitalise(text: string): string {
   const [first = '', ...rest] = Array.from(text);
   return first.toUpperCase() + rest.join('');
 }
