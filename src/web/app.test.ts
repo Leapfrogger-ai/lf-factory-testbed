@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../tests/support/builders.ts';
+import { resetDb, testDb } from '../../tests/support/db.ts';
+import { countPlans } from '../domain/plans.ts';
 import { createApp } from './app.ts';
 import type { AppDeps } from './app.ts';
 
@@ -61,7 +64,7 @@ describe('not-found page', () => {
 describe('routing edge cases', () => {
   it('answers any method on an unknown path with the same 404 page', async () => {
     const app = createApp(buildDeps(), { baseUrl: 'https://calvin.test' });
-    const res = await app.request('/nope', { method: 'POST' });
+    const res = await app.request('/nope', { method: 'POST', headers: sameOrigin });
     expect(res.status).toBe(404);
     expect(decodeEntities(await res.text())).toContain(NOT_FOUND_COPY);
   });
@@ -112,5 +115,97 @@ describe('static files', () => {
     const res = await app.request('/static/nope.css');
     expect(res.status).toBe(404);
     expect(res.headers.get('cache-control') ?? '').not.toContain('public');
+  });
+});
+
+describe('POST protection', () => {
+  const { db, pool } = testDb();
+  beforeEach(() => resetDb(db));
+  afterAll(() => pool.end());
+
+  const COPY = 'Something went wrong. Go back and try again.';
+  const urlencoded = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+  function setup() {
+    const deps = testDeps({ db });
+    return { deps, app: createApp(deps, { baseUrl: TEST_BASE_URL }) };
+  }
+
+  async function expectRejected(res: Response, status: number, deps: ReturnType<typeof testDeps>) {
+    expect(res.status).toBe(status);
+    expect(await res.text()).toContain(COPY);
+    expect(await countPlans(db)).toBe(0);
+    expect(deps.fakes.planWorkflows.startCalls).toEqual([]);
+  }
+
+  it('rejects a POST from another origin with the 403 system-error page', async () => {
+    const { deps, app } = setup();
+    const res = await app.request('/plans', {
+      method: 'POST',
+      headers: { Origin: 'https://evil.test', 'Sec-Fetch-Site': 'cross-site' },
+      body: new URLSearchParams(planForm()),
+    });
+    await expectRejected(res, 403, deps);
+  });
+
+  it('rejects a POST with neither Origin nor Sec-Fetch-Site', async () => {
+    const { deps, app } = setup();
+    const res = await app.request('/plans', { method: 'POST', body: new URLSearchParams(planForm()) });
+    await expectRejected(res, 403, deps);
+  });
+
+  it('accepts Origin equal to BASE_URL', async () => {
+    const { app } = setup();
+    const res = await app.request('/plans', {
+      method: 'POST',
+      headers: { Origin: TEST_BASE_URL },
+      body: new URLSearchParams(planForm()),
+    });
+    expect(res.status).toBe(303);
+  });
+
+  it('accepts Sec-Fetch-Site same-origin', async () => {
+    const { app } = setup();
+    const res = await app.request('/plans', {
+      method: 'POST',
+      headers: sameOrigin,
+      body: new URLSearchParams(planForm()),
+    });
+    expect(res.status).toBe(303);
+  });
+
+  it('rejects a cross-origin multipart POST', async () => {
+    const { deps, app } = setup();
+    const body = new FormData();
+    for (const [k, v] of Object.entries(planForm())) body.set(k, v);
+    const res = await app.request('/plans', {
+      method: 'POST',
+      headers: { Origin: 'https://evil.test', 'Sec-Fetch-Site': 'cross-site' },
+      body,
+    });
+    await expectRejected(res, 403, deps);
+  });
+
+  it('answers 413 with the system-error page for a body over 16 KB', async () => {
+    const { deps, app } = setup();
+    const res = await app.request('/plans', {
+      method: 'POST',
+      headers: { ...sameOrigin, ...urlencoded },
+      body: new URLSearchParams(planForm({ area: 'a'.repeat(16 * 1024 + 1) })).toString(),
+    });
+    await expectRejected(res, 413, deps);
+  });
+
+  it('accepts a body of exactly 16 KB', async () => {
+    const { app } = setup();
+    const base = new URLSearchParams(planForm({ pad: '' })).toString();
+    const body = base + 'a'.repeat(16 * 1024 - base.length);
+    expect(new TextEncoder().encode(body).length).toBe(16 * 1024);
+    const res = await app.request('/plans', {
+      method: 'POST',
+      headers: { ...sameOrigin, ...urlencoded },
+      body,
+    });
+    expect([303, 422]).toContain(res.status);
   });
 });

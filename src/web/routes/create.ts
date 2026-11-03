@@ -28,7 +28,8 @@ type Issue = { path: PropertyKey[]; code: string; message: string; maximum?: unk
 function schemaErrors(issues: readonly Issue[]): FieldErrors {
   const errors: FieldErrors = {};
   for (const issue of issues) {
-    const field = String(issue.path[0] ?? '');
+    const named = String(issue.path[0] ?? '');
+    const field = issue.code === 'custom' && named === 'deadlineTime' ? 'deadlineDate' : named;
     if (field === '' || errors[field] !== undefined) continue;
     errors[field] =
       issue.code === 'too_big' && typeof issue.maximum === 'number' && field !== 'minimum'
