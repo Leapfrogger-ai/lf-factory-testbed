@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { planForm, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
+import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fixedClock } from '../../../tests/support/fakes.ts';
 import { countPlans, loadPlan } from '../../domain/plans.ts';
@@ -12,7 +12,11 @@ afterAll(() => pool.end());
 
 async function post(deps: ReturnType<typeof testDeps>, overrides: Record<string, string> = {}) {
   const app = createApp(deps, { baseUrl: TEST_BASE_URL });
-  return app.request('/plans', { method: 'POST', body: new URLSearchParams(planForm(overrides)) });
+  return app.request('/plans', {
+    method: 'POST',
+    headers: sameOrigin,
+    body: new URLSearchParams(planForm(overrides)),
+  });
 }
 
 async function publishedPlan(res: Response) {
