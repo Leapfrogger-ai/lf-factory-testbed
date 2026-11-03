@@ -83,14 +83,21 @@ describe('POST /plans', () => {
 });
 
 describe('POST /plans validation', () => {
-  async function rejected(overrides: Record<string, string>, message: string) {
+  async function rejected(overrides: Record<string, string>, ...messages: string[]) {
     const deps = testDeps();
     const res = await post(deps, overrides);
     const body = await res.text();
 
     expect(res.status).toBe(422);
-    expect(body).toContain(message);
-    expect(body).toContain('Blue Bottle');
+    for (const message of messages) expect(body).toContain(message);
+    const kept = [
+      ['venue', 'Blue Bottle'],
+      ['format', 'coffee'],
+      ['name', 'Ann'],
+    ] as const;
+    for (const [field, value] of kept) {
+      if (!(field in overrides)) expect(body).toContain(value);
+    }
     expect(await countPlans(db)).toBe(0);
     expect(deps.fakes.planWorkflows.startCalls).toHaveLength(0);
     return body;
@@ -125,6 +132,39 @@ describe('POST /plans validation', () => {
     );
 
     expect(body).toContain('That email doesn&#39;t look right.');
+  });
+
+  it('rejects no city, empty area, empty rough time, each in its own error element', async () => {
+    const body = await rejected({ city: '', area: '', timeWindow: '' }, 'Pick a city.', 'Add a rough area.', 'Add a rough time.');
+
+    expect(body).toMatch(/id="city-error"[^>]*>[^<]*Pick a city\./);
+    expect(body).toMatch(/id="area-error"[^>]*>[^<]*Add a rough area\./);
+    expect(body).toMatch(/id="timeWindow-error"[^>]*>[^<]*Add a rough time\./);
+    expect(body).toContain('coffee');
+    expect(body).toContain('Ann');
+  });
+
+  it('rejects a city that is not in CITIES', async () => {
+    await rejected({ city: 'Gotham' }, 'Pick a city.');
+  });
+
+  it('rejects an empty format and an empty venue', async () => {
+    await rejected({ format: '', venue: '' }, 'Say what it is, like coffee or a walk.', 'Add where it is.');
+  });
+
+  it('rejects a venue of 121 characters and publishes one of exactly 120', async () => {
+    await rejected({ venue: 'v'.repeat(121) }, 'Keep it under 120 characters.');
+
+    const res = await post(testDeps(), { venue: 'v'.repeat(120) });
+    expect(res.status).toBe(303);
+  });
+
+  it('rejects a venue of only spaces', async () => {
+    await rejected({ venue: '     ' }, 'Add where it is.');
+  });
+
+  it('rejects an empty name and the email "ana@"', async () => {
+    await rejected({ name: '', email: 'ana@' }, 'Add your name.', 'That email doesn&#39;t look right.');
   });
 
   it('escapes entered values when re-rendering', async () => {
