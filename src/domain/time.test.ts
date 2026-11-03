@@ -1,7 +1,8 @@
-import { expect, test } from 'vitest';
-import { formatDeadline, formatWhen } from './time.ts';
+import { describe, expect, test } from 'vitest';
+import { formatDay, formatDeadline, formatWhen } from './time.ts';
 
 const when = (iso: string) => formatWhen(Temporal.Instant.from(iso));
+const day = (iso: string) => formatDay(Temporal.Instant.from(iso));
 
 test('formatWhen shows weekday, day, month and 12-hour time in plan time', () => {
   expect(when('2026-11-14T18:00:00Z')).toBe('Sat 14 Nov · 10:00 AM');
@@ -35,6 +36,27 @@ test('formatWhen shows noon as 12:00 PM', () => {
 
 test('formatDeadline shows midnight as 12:00 AM', () => {
   expect(formatDeadline(Temporal.Instant.from('2026-11-12T08:00:00Z'))).toBe('Thu 12 Nov, 12:00 AM');
+});
+
+describe('formatDay', () => {
+  test('shows weekday, day and month in plan time', () => {
+    expect(day('2026-11-14T18:00:00Z')).toBe('Sat 14 Nov');
+  });
+
+  test('is right across the 2026-11-01 fall-back, including the repeated hour', () => {
+    expect([day('2026-11-01T08:30:00Z'), day('2026-11-01T09:30:00Z')]).toEqual([
+      'Sun 1 Nov',
+      'Sun 1 Nov',
+    ]);
+  });
+
+  test('is right across the 2027-03-14 spring-forward', () => {
+    expect(day('2027-03-14T11:00:00Z')).toBe('Sun 14 Mar');
+  });
+
+  test('uses the plan-time date when the UTC date has already rolled over', () => {
+    expect(day('2026-11-15T07:30:00Z')).toBe('Sat 14 Nov');
+  });
 });
 
 test('no output contains a narrow or no-break space', () => {
