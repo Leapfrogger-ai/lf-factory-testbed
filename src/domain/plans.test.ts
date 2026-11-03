@@ -437,3 +437,87 @@ describe('loadWithdrawTarget', () => {
     expect(after?.withdrawn).toBe(true);
   });
 });
+
+describe('commit after withdrawing', () => {
+  const form = (name: string, email: string) => commitFormSchema.parse({ name, email });
+
+  // Ana publishes (the creator); the others commit in order. Returns tokens and each other's withdraw token.
+  async function planWith(deps: ReturnType<typeof testDeps>, minimum: string, others: [string, string][]) {
+    const { publicToken, manageToken } = await publishPlan(deps, { minimum, name: 'Ana', email: 'ana@example.test' });
+    for (const [name, email] of others) await commit(deps, publicToken, form(name, email));
+    const plan = await loadPlan(db, manageToken);
+    const tokens = plan!.commits.filter((c) => !c.isCreator).map((c) => c.withdrawToken);
+    return { publicToken, manageToken, tokens };
+  }
+
+  it('a withdrawn committer who commits again is active with change rejoined', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken, tokens } = await planWith(deps, '3', [
+      ['Raj Patel', 'raj@example.test'],
+      ['Mia Chen', 'mia@example.test'],
+    ]);
+    await withdraw(deps, tokens[1]!);
+
+    const result = await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    expect(result).toMatchObject({ outcome: 'committed', change: 'rejoined', confirmed: false, planConfirmed: true });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.count).toBe(3);
+    expect(plan?.events.at(-1)).toMatchObject({
+      type: 'commit.added',
+      data: { change: 'rejoined', isCreator: false, activeCount: 3 },
+    });
+    expect(plan?.commits.filter((c) => !c.isCreator).map((c) => c.withdrawToken)).toEqual(tokens);
+  });
+
+  it('a rejoin with the email in another case is the same commit', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken, tokens } = await planWith(deps, '3', [
+      ['Raj Patel', 'raj@example.test'],
+      ['Mia Chen', 'mia@example.test'],
+    ]);
+    await withdraw(deps, tokens[1]!);
+    const before = await loadPlan(db, manageToken);
+
+    const result = await commit(deps, publicToken, form('Mia Chen', 'MIA@Example.test'));
+
+    expect(result).toMatchObject({ outcome: 'committed', change: 'rejoined' });
+    const plan = await loadPlan(db, manageToken);
+    expect(before?.count).toBe(2);
+    expect(plan?.count).toBe(3);
+    expect(plan?.commits).toHaveLength(3);
+    expect(before?.commits).toHaveLength(3);
+  });
+
+  it('a rejoin that reaches the minimum on an open plan confirms it', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken, tokens } = await planWith(deps, '4', [
+      ['Raj Patel', 'raj@example.test'],
+      ['Mia Chen', 'mia@example.test'],
+    ]);
+    await withdraw(deps, tokens[1]!);
+    await commit(deps, publicToken, form('Sam Lee', 'sam@example.test'));
+    expect((await loadPlan(db, manageToken))?.state).toBe('open');
+
+    const result = await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    expect(result).toMatchObject({ outcome: 'committed', change: 'rejoined', confirmed: true, planConfirmed: true });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.state).toBe('confirmed');
+    expect(plan?.events.filter((e) => e.type === 'plan.confirmed')).toHaveLength(1);
+    expect(plan?.events.slice(-2)).toMatchObject([
+      { type: 'commit.added', data: { change: 'rejoined', activeCount: 4 } },
+      { type: 'plan.confirmed' },
+    ]);
+  });
+
+  it('a repeat commit by an active committer is still repeat', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await planWith(deps, '4', [['Mia Chen', 'mia@example.test']]);
+
+    const result = await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    expect(result).toMatchObject({ outcome: 'committed', change: 'repeat' });
+    expect((await loadPlan(db, manageToken))?.count).toBe(2);
+  });
+});

@@ -185,7 +185,7 @@ export type CommitResult =
   | { outcome: 'closed' }
   | {
       outcome: 'committed';
-      change: 'new' | 'repeat';
+      change: 'new' | 'repeat' | 'rejoined';
       commitId: string;
       name: string;
       planId: string;
@@ -207,6 +207,10 @@ export async function commit(
     if (plan.state === 'called_off' || (plan.state === 'open' && pastDeadline) || gatheringStarted) {
       return { outcome: 'closed' };
     }
+    const [earlier] = await tx
+      .select({ withdrawnAt: commits.withdrawnAt })
+      .from(commits)
+      .where(and(eq(commits.planId, plan.id), eq(commits.emailNormalized, form.emailNormalized)));
     const [row] = await tx
       .insert(commits)
       .values({
@@ -216,14 +220,14 @@ export async function commit(
         emailNormalized: form.emailNormalized,
         withdrawToken: newToken(),
       })
-      .onConflictDoUpdate({ target: [commits.planId, commits.emailNormalized], set: { name: form.name } })
+      .onConflictDoUpdate({ target: [commits.planId, commits.emailNormalized], set: { name: form.name, withdrawnAt: null } })
       .returning({
         id: commits.id,
         name: commits.name,
         isCreator: commits.isCreator,
         inserted: sql<boolean>`(xmax = 0)`,
       });
-    const change = row!.inserted ? 'new' : 'repeat';
+    const change = row!.inserted ? 'new' : earlier?.withdrawnAt ? 'rejoined' : 'repeat';
     const [active] = await tx
       .select({ value: count() })
       .from(commits)
