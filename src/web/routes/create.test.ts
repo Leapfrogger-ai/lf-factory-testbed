@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fixedClock } from '../../../tests/support/fakes.ts';
-import { countPlans, loadPlan } from '../../domain/plans.ts';
+import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
 import { createApp } from '../app.ts';
 
 const { db, pool } = testDb();
@@ -105,6 +105,34 @@ describe('POST /plans validation', () => {
 
   it('rejects a gathering in the past', async () => {
     await rejected({ date: '2026-11-01' }, 'The gathering needs to be in the future.');
+  });
+
+  it('rejects a missing or malformed date', async () => {
+    for (const date of ['', '2026-13-45', 'tomorrow']) await rejected({ date }, 'Pick a date.');
+  });
+
+  it('rejects a missing or malformed time', async () => {
+    for (const time of ['', '25:00', '10am']) await rejected({ time }, 'Pick a time.');
+  });
+
+  it('rejects a gathering exactly at the current time', async () => {
+    await rejected({ date: '2026-11-09', time: '10:00' }, 'The gathering needs to be in the future.');
+  });
+
+  it('rejects a minimum of 1 and any value that is not a whole number of at least 2, never a 500', async () => {
+    for (const minimum of ['1', '2.5', 'abc', '-3', '', '99999999999']) {
+      const body = await rejected({ minimum }, 'The minimum is at least 2 people, you included.');
+
+      expect(body).not.toContain('Keep it under');
+    }
+  });
+
+  it('publishes a minimum of 40', async () => {
+    const res = await post(testDeps(), { minimum: '40' });
+
+    expect(res.status).toBe(303);
+    const plan = await publishedPlan(res);
+    expect((await loadPublicPlan(db, plan?.publicToken ?? ''))?.minimum).toBe(40);
   });
 
   it('rejects a deadline after the gathering', async () => {
