@@ -2,7 +2,7 @@ import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import { CITIES } from '../../config.ts';
 import type { Suggestion } from '../../domain/suggestions.ts';
-import { localDateTime } from '../../domain/time.ts';
+import { formatDeadline, formatWhen, localDateTime, localToInstant } from '../../domain/time.ts';
 
 export type FormValues = Record<string, string>;
 export type FieldErrors = Record<string, string>;
@@ -94,6 +94,23 @@ export function createPage(
           deadline: localDateTime(state.suggestion.commitDeadlineAt),
         }
       : { format: '', venue: '', date: '', time: '', minimum: '3', deadline: { date: '', time: '' } };
+  const shown = (field: string, fallback: string) => (values[field] ?? fallback).trim();
+  const instantOf = (date: string, time: string) =>
+    DATE.test(date) && TIME.test(time) ? safely(() => localToInstant(date, time)) : undefined;
+  const whenAt = instantOf(shown('date', prefill.date), shown('time', prefill.time));
+  const decideAt = instantOf(shown('deadlineDate', prefill.deadline.date), shown('deadlineTime', prefill.deadline.time));
+  const minimum = shown('minimum', prefill.minimum);
+  const summaries: Record<string, string | undefined> = {
+    where: shown('venue', prefill.venue) || undefined,
+    when: whenAt && formatWhen(whenAt),
+    minimum: /^\d+$/.test(minimum) ? `${Number(minimum)} people, you included` : undefined,
+    decide: decideAt && formatDeadline(decideAt),
+  };
+  const row = (field: string, body: HtmlEscapedString | Promise<HtmlEscapedString>) =>
+    html`<div class="row-field" data-field="${field}"${summaries[field] === undefined ? '' : html` data-summary="${summaries[field]}"`}>
+      ${body}
+    </div>`;
+  const changeId =state.kind === 'card' ? state.suggestion.id : state.previousSuggestionId;
   const contextErrors = CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
@@ -101,9 +118,7 @@ export function createPage(
     ${hasContext
       ? html`<p class="summary">
           ${context.city} · ${context.area} · ${context.timeWindow}
-          ${state.kind === 'card'
-            ? html`<a href="/?suggestion=${state.suggestion.id}&change=1">Change</a>`
-            : ''}
+          ${changeId !== undefined ? html`<a href="/?suggestion=${changeId}&change=1">Change</a>` : ''}
         </p>`
       : ''}
     ${contextErrors.length > 0
@@ -115,21 +130,21 @@ export function createPage(
       ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
       ${state.kind === 'card' ? html`<input type="hidden" name="suggestionId" value="${state.suggestion.id}" />` : ''}
       ${input('format', 'What', prefill.format)}
-      <div class="row-field" data-field="where">${input('venue', 'Where', prefill.venue)}</div>
-      <div class="row-field" data-field="when">
-        <div class="row">
+      ${row('where', input('venue', 'Where', prefill.venue))}
+      ${row(
+        'when',
+        html`<div class="row">
           ${input('date', 'Date', prefill.date, { type: 'date' })} ${input('time', 'Time', prefill.time, { type: 'time' })}
-        </div>
-      </div>
-      <div class="row-field" data-field="minimum">
-        ${input('minimum', 'Minimum, you included', prefill.minimum, { type: 'number' })}
-      </div>
-      <div class="row-field" data-field="decide">
-        <div class="row">
+        </div>`,
+      )}
+      ${row('minimum', input('minimum', 'Minimum, you included', prefill.minimum, { type: 'number' }))}
+      ${row(
+        'decide',
+        html`<div class="row">
           ${input('deadlineDate', 'Decide by', prefill.deadline.date, { type: 'date' })}
           ${input('deadlineTime', 'Time', prefill.deadline.time, { type: 'time' })}
-        </div>
-      </div>
+        </div>`,
+      )}
       <h2>You're the first one in</h2>
       ${input('name', 'Your name', '', { autocomplete: 'name' })}
       ${input('email', 'Your email', '', { type: 'email', autocomplete: 'email' })}
@@ -139,6 +154,18 @@ export function createPage(
     ${state.kind === 'fallback' && state.previousSuggestionId !== undefined
       ? suggestAgain(context, state.previousSuggestionId, 'Try suggesting again')
       : ''}`);
+}
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^\d{2}:\d{2}$/;
+
+/** The value, or undefined when it throws (an impossible date such as 2026-02-30). */
+function safely<T>(make: () => T): T | undefined {
+  try {
+    return make();
+  } catch {
+    return undefined;
+  }
 }
 
 type Context = { city: string; area: string; timeWindow: string };

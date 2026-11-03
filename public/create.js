@@ -68,6 +68,9 @@
   function enhanceRow(row, startOpen) {
     const field = row.dataset.field;
     const name = ROW_NAMES[field] || field;
+    // The server's display text (UX §8.8), shown until this row's inputs change.
+    let serverSummary = row.dataset.summary;
+    const text = () => (serverSummary !== undefined ? serverSummary : summaryOf(edit));
 
     const edit = document.createElement('div');
     edit.className = 'row-edit';
@@ -102,7 +105,7 @@
       if (first) first.focus();
     };
     const close = () => {
-      summary.textContent = summaryOf(edit);
+      summary.textContent = text();
       edit.hidden = true;
       view.hidden = false;
       editButton.focus();
@@ -110,6 +113,7 @@
 
     editButton.addEventListener('click', open);
     done.addEventListener('click', close);
+    edit.addEventListener('input', () => (serverSummary = undefined));
     edit.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -117,11 +121,17 @@
       }
     });
 
-    summary.textContent = summaryOf(edit);
+    summary.textContent = text();
     view.hidden = startOpen;
     edit.hidden = !startOpen;
 
-    return { refresh: () => (summary.textContent = summaryOf(edit)) };
+    // Called after the script set this row's inputs itself, which fires no input event.
+    return {
+      refresh: () => {
+        serverSummary = undefined;
+        summary.textContent = text();
+      },
+    };
   }
 
   // --- Publish form: rows, Decide by recompute, disable on submit ---

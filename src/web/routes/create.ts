@@ -139,7 +139,11 @@ async function rerenderPublish(c: Context, deps: Pick<AppDeps, 'db'>, errors: Fi
 
 async function rerenderInputs(c: Context, errors: FieldErrors) {
   const values = await enteredValues(c);
-  return createLayout(c, createPage({ kind: 'inputs', values }, errors), 422);
+  // Kept as entered so Change still links the next suggestion; it is checked again on the next submit.
+  const previous = values.previousSuggestionId?.trim();
+  const state: CreateState =
+    previous ? { kind: 'inputs', values, previousSuggestionId: previous } : { kind: 'inputs', values };
+  return createLayout(c, createPage(state, errors), 422);
 }
 
 export function createRoutes(deps: AppDeps, config: AppConfig): Hono {

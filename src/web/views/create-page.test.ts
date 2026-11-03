@@ -212,6 +212,16 @@ describe('createPage card state suggest another and change', () => {
     expect(suggestAgainForm(body)).toBe('');
   });
 
+  it('links Change on a fallback back to the inputs prefilled from the previous suggestion', () => {
+    const body = render({ ...fallback({}, NOTICE), previousSuggestionId: ID });
+
+    expect(body).toMatch(new RegExp('<a href="/\\?suggestion=' + ID + '&(amp;)?change=1"[^>]*>Change</a>'));
+  });
+
+  it('has no Change link on a fallback without a previous suggestion', () => {
+    expect(render(fallback({}, NOTICE))).not.toContain('>Change</a>');
+  });
+
   it('keeps the previous suggestion, prefilled values and city in the inputs state', () => {
     const body = render({
       kind: 'inputs',
@@ -233,17 +243,68 @@ describe('createPage card state suggest another and change', () => {
     const body = render({ kind: 'inputs', values: { area: '"><script>' }, previousSuggestionId: ID });
 
     expect(body).not.toContain('<script>');
+    expect(body).toMatch(/<input[^>]*name="area"[^>]*value="&quot;&gt;&lt;script&gt;"/);
   });
 
   it('escapes an area with markup in the fallback Try suggesting again form', () => {
     const body = render({ ...fallback(), area: '"><script>', previousSuggestionId: ID });
 
     expect(body).not.toContain('<script>');
+    expect(hidden(suggestAgainForm(body), 'area')).toBe('&quot;&gt;&lt;script&gt;');
+    expect(body).toMatch(/<input type="hidden" name="area" value="&quot;&gt;&lt;script&gt;" \/>[\s\S]*Publish plan/);
   });
 
   it('escapes an area with markup in the Suggest another form and summary', () => {
     const body = render({ kind: 'card', suggestion: { ...okSuggestion, area: '"><script>' }, values: {} });
 
+    expect(body).not.toContain('<script>');
+    expect(hidden(suggestAgainForm(body), 'area')).toBe('&quot;&gt;&lt;script&gt;');
+    expect(body).toMatch(/<input type="hidden" name="area" value="&quot;&gt;&lt;script&gt;" \/>[\s\S]*Publish plan/);
+    expect(body).toContain('Oakland · &quot;&gt;&lt;script&gt; · next weekend, morning');
+  });
+});
+
+function rowSummaries(body: string): Record<string, string | undefined> {
+  const rows: Record<string, string | undefined> = {};
+  for (const m of body.matchAll(/<div class="row-field" data-field="([a-z]+)"([^>]*)>/g)) {
+    rows[m[1] ?? ''] = /data-summary="([^"]*)"/.exec(m[2] ?? '')?.[1];
+  }
+  return rows;
+}
+
+describe('createPage row summaries for create.js (UX §8.8)', () => {
+  it('gives each card row its display text', () => {
+    expect(rowSummaries(render(card()))).toEqual({
+      where: 'Highwire Coffee Roasters',
+      when: 'Sat 14 Nov · 10:00 AM',
+      minimum: '3 people, you included',
+      decide: 'Wed 11 Nov, 10:00 PM',
+    });
+  });
+
+  it('builds the display text from the entered values on a re-render', () => {
+    const body = render(
+      card({ venue: 'Blue Bottle', date: '2026-11-21', time: '14:30', minimum: '5', deadlineDate: '2026-11-19', deadlineTime: '09:00' }),
+    );
+
+    expect(rowSummaries(body)).toEqual({
+      where: 'Blue Bottle',
+      when: 'Sat 21 Nov · 2:30 PM',
+      minimum: '5 people, you included',
+      decide: 'Thu 19 Nov, 9:00 AM',
+    });
+  });
+
+  it('leaves out the display text for rows that are empty or not a valid value', () => {
+    const body = render(fallback({ date: 'not-a-date', time: '10:00', minimum: 'x' }));
+
+    expect(rowSummaries(body)).toEqual({ where: undefined, when: undefined, minimum: undefined, decide: undefined });
+  });
+
+  it('escapes the display text', () => {
+    const body = render(card({ venue: '"><script>' }));
+
+    expect(rowSummaries(body).where).toBe('&quot;&gt;&lt;script&gt;');
     expect(body).not.toContain('<script>');
   });
 });
@@ -254,7 +315,7 @@ describe('createPage hooks for create.js', () => {
     const body = render(card());
 
     expect(inputs).toMatch(/<form method="post" action="\/suggest" data-suggest-form>/);
-    expect([...body.matchAll(/<div class="row-field" data-field="([a-z]+)">/g)].map((m) => m[1])).toEqual([
+    expect([...body.matchAll(/<div class="row-field" data-field="([a-z]+)"/g)].map((m) => m[1])).toEqual([
       'where',
       'when',
       'minimum',

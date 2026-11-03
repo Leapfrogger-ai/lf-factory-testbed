@@ -433,6 +433,25 @@ describe('POST /suggest with previousSuggestionId', () => {
     expect(await page.text()).toContain('Highwire Coffee Roasters');
   });
 
+  it('keeps the previous suggestion id when it answers 422 after Change', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const previousSuggestionId = (await postSuggest(deps)).headers.get('location')?.split('=')[1] ?? '';
+
+    const res = await postSuggest(deps, { previousSuggestionId, area: '' });
+
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain('Add a rough area.');
+    expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${previousSuggestionId}"`);
+  });
+
+  it('has no previous suggestion id on a 422 without one', async () => {
+    const res = await postSuggest(testDeps(), { area: '' });
+
+    expect(res.status).toBe(422);
+    expect(await res.text()).not.toContain('previousSuggestionId');
+  });
+
   it.each([
     ['an unknown id', '3f2b8c1e-9d4a-4e6b-8a7c-5d1e2f3a4b5c'],
     ['a malformed id', 'not-a-uuid'],
@@ -717,6 +736,19 @@ describe('GET / suggest another, try again and change', () => {
 
     expect(body).toContain('Try suggesting again');
     expect(inputTag(body, 'previousSuggestionId')).toContain(`value="${location.split('=')[1]}"`);
+  });
+
+  it('links Change on the fallback to the inputs prefilled from the failed suggestion', async () => {
+    const deps = failedDeps();
+    const id = (await suggestedLocation(deps)).split('=')[1] ?? '';
+
+    const body = await (await createApp(deps, { baseUrl: TEST_BASE_URL }).request(`/?suggestion=${id}`)).text();
+
+    const href = /<a href="([^"]*)"[^>]*>Change<\/a>/.exec(body)?.[1] ?? '';
+    expect(href.replace('&amp;', '&')).toBe(`/?suggestion=${id}&change=1`);
+    const changed = await (await change(deps, id)).text();
+    expect(inputTag(changed, 'area')).toContain('value="Rockridge"');
+    expect(inputTag(changed, 'previousSuggestionId')).toContain(`value="${id}"`);
   });
 
   it('still shows Suggest another when a card publish fails with 422', async () => {
