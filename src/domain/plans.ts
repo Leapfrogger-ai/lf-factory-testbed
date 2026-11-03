@@ -257,6 +257,70 @@ export async function commit(
   });
 }
 
+export type WithdrawTarget = {
+  state: string;
+  format: string;
+  venue: string;
+  gatheringAt: Temporal.Instant;
+  withdrawn: boolean;
+};
+
+/** What the withdraw page shows; null when no commit has the token, or it is the creator's. */
+export async function loadWithdrawTarget(db: Db, withdrawToken: string): Promise<WithdrawTarget | null> {
+  const [row] = await db
+    .select({
+      state: plans.state,
+      format: plans.format,
+      venue: plans.venue,
+      gatheringAt: plans.gatheringAt,
+      withdrawnAt: commits.withdrawnAt,
+    })
+    .from(commits)
+    .innerJoin(plans, eq(plans.id, commits.planId))
+    .where(and(eq(commits.withdrawToken, withdrawToken), eq(commits.isCreator, false)));
+  if (!row) return null;
+  return {
+    state: row.state,
+    format: row.format,
+    venue: row.venue,
+    gatheringAt: row.gatheringAt.toTemporalInstant(),
+    withdrawn: row.withdrawnAt !== null,
+  };
+}
+
+export type WithdrawResult =
+  | { outcome: 'not_found' }
+  | { outcome: 'unavailable' }
+  | { outcome: 'already_withdrawn' }
+  | { outcome: 'withdrawn'; planId: string; activeCount: number };
+
+export async function withdraw(deps: Pick<AppDeps, 'db' | 'now'>, withdrawToken: string): Promise<WithdrawResult> {
+  return deps.db.transaction(async (tx) => {
+    const [found] = await tx
+      .select({ commitId: commits.id, planId: commits.planId, isCreator: commits.isCreator })
+      .from(commits)
+      .where(eq(commits.withdrawToken, withdrawToken));
+    if (!found || found.isCreator) return { outcome: 'not_found' };
+    const [plan] = await tx.select().from(plans).where(eq(plans.id, found.planId)).for('update');
+    // Re-read under the plan lock: a simultaneous withdraw may have won it.
+    const [row] = await tx.select({ withdrawnAt: commits.withdrawnAt }).from(commits).where(eq(commits.id, found.commitId));
+    if (!plan || !row) return { outcome: 'not_found' };
+    const now = deps.now();
+    if (plan.state === 'called_off' || Temporal.Instant.compare(now, plan.gatheringAt.toTemporalInstant()) >= 0) {
+      return { outcome: 'unavailable' };
+    }
+    if (row.withdrawnAt !== null) return { outcome: 'already_withdrawn' };
+    await tx.update(commits).set({ withdrawnAt: new Date(now.epochMilliseconds) }).where(eq(commits.id, found.commitId));
+    const [active] = await tx
+      .select({ value: count() })
+      .from(commits)
+      .where(and(eq(commits.planId, plan.id), isNull(commits.withdrawnAt)));
+    const activeCount = active!.value;
+    await appendEvent(tx, { planId: plan.id, commitId: found.commitId, type: 'commit.withdrawn', data: { activeCount } });
+    return { outcome: 'withdrawn', planId: plan.id, activeCount };
+  });
+}
+
 export async function countPlans(db: Db): Promise<number> {
   const [row] = await db.select({ value: count() }).from(plans);
   return row!.value;

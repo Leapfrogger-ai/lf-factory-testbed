@@ -5,7 +5,7 @@ import { resetDb, testDb } from '../../tests/support/db.ts';
 import { fixedClock } from '../../tests/support/fakes.ts';
 import { loadFixture } from '../../tests/support/fixtures.ts';
 import { commitFormSchema } from '../web/forms.ts';
-import { commit, countPlans, loadPlan, loadPublicPlan } from './plans.ts';
+import { commit, countPlans, loadPlan, loadPublicPlan, loadWithdrawTarget, withdraw } from './plans.ts';
 import { loadSuggestion, recordSuggestion } from './suggestions.ts';
 import { newToken } from './tokens.ts';
 
@@ -309,5 +309,131 @@ describe('commit', () => {
     expect(plan?.count).toBe(2);
     const changes = plan?.events.flatMap((e) => (e.type === 'commit.added' && e.data.isCreator === false ? [e.data.change] : []));
     expect(changes?.toSorted()).toEqual(['new', 'repeat']);
+  });
+});
+
+describe('withdraw', () => {
+  const form = (name: string, email: string) => commitFormSchema.parse({ name, email });
+
+  // Ana publishes (the creator); the others commit. Returns the non-creator withdraw tokens in commit order.
+  async function planWith(deps: ReturnType<typeof testDeps>, minimum: string, others: [string, string][]) {
+    const { publicToken, manageToken, planId } = await publishPlan(deps, { minimum, name: 'Ana', email: 'ana@example.test' });
+    for (const [name, email] of others) await commit(deps, publicToken, form(name, email));
+    const plan = await loadPlan(db, manageToken);
+    const tokens = plan!.commits.filter((c) => !c.isCreator).map((c) => c.withdrawToken);
+    const creatorToken = plan!.commits.find((c) => c.isCreator)!.withdrawToken;
+    return { planId, manageToken, tokens, creatorToken };
+  }
+
+  it('withdraw lowers the count and records commit.withdrawn with the new count', async () => {
+    const deps = testDeps();
+    const { planId, manageToken, tokens } = await planWith(deps, '4', [['Mia Chen', 'mia@example.test']]);
+
+    const result = await withdraw(deps, tokens[0]!);
+
+    expect(result).toEqual({ outcome: 'withdrawn', activeCount: 1, planId });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.count).toBe(1);
+    expect(plan?.events.at(-1)).toMatchObject({ type: 'commit.withdrawn', data: { activeCount: 1 } });
+    expect(plan?.state).toBe('open');
+  });
+
+  it('withdrawing from a confirmed plan at exactly its minimum leaves it confirmed', async () => {
+    const deps = testDeps();
+    const { planId, manageToken, tokens } = await planWith(deps, '3', [
+      ['Raj Patel', 'raj@example.test'],
+      ['Mia Chen', 'mia@example.test'],
+    ]);
+    expect((await loadPlan(db, manageToken))?.state).toBe('confirmed');
+
+    const result = await withdraw(deps, tokens[1]!);
+
+    expect(result).toEqual({ outcome: 'withdrawn', activeCount: 2, planId });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.state).toBe('confirmed');
+    expect(plan?.events.filter((e) => e.type === 'plan.confirmed')).toHaveLength(1);
+    expect(plan?.events.filter((e) => e.type === 'plan.called_off')).toHaveLength(0);
+  });
+
+  it('a second withdraw writes nothing', async () => {
+    const deps = testDeps();
+    const { manageToken, tokens } = await planWith(deps, '4', [['Mia Chen', 'mia@example.test']]);
+    await withdraw(deps, tokens[0]!);
+    const before = await loadPlan(db, manageToken);
+
+    const result = await withdraw(deps, tokens[0]!);
+
+    expect(result).toEqual({ outcome: 'already_withdrawn' });
+    const after = await loadPlan(db, manageToken);
+    expect(after?.events).toHaveLength(before!.events.length);
+    expect(after?.count).toBe(1);
+  });
+
+  it("the creator's token is not found", async () => {
+    const deps = testDeps();
+    const { manageToken, creatorToken } = await planWith(deps, '4', [['Mia Chen', 'mia@example.test']]);
+
+    expect(await withdraw(deps, creatorToken)).toEqual({ outcome: 'not_found' });
+    expect(await loadWithdrawTarget(db, creatorToken)).toBeNull();
+    expect((await loadPlan(db, manageToken))?.count).toBe(2);
+  });
+
+  it('an unknown token is not found', async () => {
+    const deps = testDeps();
+    await planWith(deps, '4', [['Mia Chen', 'mia@example.test']]);
+
+    expect(await withdraw(deps, newToken())).toEqual({ outcome: 'not_found' });
+  });
+
+  it('withdraw after the gathering started is unavailable and writes nothing', async () => {
+    const deps = testDeps();
+    const { manageToken, tokens } = await planWith(deps, '4', [['Mia Chen', 'mia@example.test']]);
+    const later = testDeps({ now: fixedClock('2026-11-14T18:00:00Z') });
+
+    const result = await withdraw(later, tokens[0]!);
+
+    expect(result).toEqual({ outcome: 'unavailable' });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.count).toBe(2);
+    expect(plan?.events.filter((e) => e.type === 'commit.withdrawn')).toHaveLength(0);
+  });
+
+  // Skipped, no test for withdraw on a called-off plan: domain/plans.ts has no call-off function yet, and a
+  // called-off plan may not be built any other way. Task 3's view test covers called_off.
+
+  it('two simultaneous withdraws of one token write one event', async () => {
+    const deps = testDeps();
+    const { manageToken, tokens } = await planWith(deps, '4', [['Mia Chen', 'mia@example.test']]);
+    // Open a second pooled connection first, so neither withdraw waits on a connect and finishes alone.
+    await Promise.all([loadWithdrawTarget(db, tokens[0]!), loadWithdrawTarget(db, tokens[0]!)]);
+
+    const results = await Promise.all([withdraw(deps, tokens[0]!), withdraw(deps, tokens[0]!)]);
+
+    expect(results.map((r) => r.outcome).toSorted()).toEqual(['already_withdrawn', 'withdrawn']);
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.events.filter((e) => e.type === 'commit.withdrawn')).toHaveLength(1);
+    expect(plan?.count).toBe(1);
+  });
+});
+
+describe('loadWithdrawTarget', () => {
+  it("returns the plan's format, venue and gathering instant and whether the commit is withdrawn", async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, { minimum: '4' });
+    await commit(deps, publicToken, commitFormSchema.parse({ name: 'Mia Chen', email: 'mia@example.test' }));
+    const token = (await loadPlan(db, manageToken))!.commits.find((c) => !c.isCreator)!.withdrawToken;
+
+    const before = await loadWithdrawTarget(db, token);
+    await withdraw(deps, token);
+    const after = await loadWithdrawTarget(db, token);
+
+    expect(before).toEqual({
+      state: 'open',
+      format: 'coffee',
+      venue: 'Blue Bottle',
+      gatheringAt: Temporal.Instant.from('2026-11-14T18:00:00Z'),
+      withdrawn: false,
+    });
+    expect(after?.withdrawn).toBe(true);
   });
 });
