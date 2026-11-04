@@ -20,7 +20,9 @@ test('app code logs only through src/log.ts', () => {
 });
 
 test('only src/main.ts reads the current time', () => {
-  expect(offenders(app, /\bDate\.now\(\)|\bnew Date\(\)/, ['src/main.ts', 'src/db/schema.ts'])).toEqual([]);
+  // src/temporal/workflows.ts: Date.now() inside a workflow is Temporal's deterministic workflow time, not the wall clock.
+  const allowed = ['src/main.ts', 'src/db/schema.ts', 'src/temporal/workflows.ts'];
+  expect(offenders(app, /\bDate\.now\(\)|\bnew Date\(\)/, allowed)).toEqual([]);
 });
 
 test('app code does not use luxon or date-fns-tz', () => {
