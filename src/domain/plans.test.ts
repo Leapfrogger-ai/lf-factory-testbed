@@ -5,7 +5,7 @@ import { resetDb, testDb } from '../../tests/support/db.ts';
 import { fixedClock } from '../../tests/support/fakes.ts';
 import { loadFixture } from '../../tests/support/fixtures.ts';
 import { commitFormSchema } from '../web/forms.ts';
-import { commit, countPlans, loadPlan, loadPublicPlan, loadWithdrawTarget, withdraw } from './plans.ts';
+import { commit, countPlans, loadPlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
 import { loadSuggestion, recordSuggestion } from './suggestions.ts';
 import { newToken } from './tokens.ts';
 
@@ -519,5 +519,102 @@ describe('commit after withdrawing', () => {
 
     expect(result).toMatchObject({ outcome: 'committed', change: 'repeat' });
     expect((await loadPlan(db, manageToken))?.count).toBe(2);
+  });
+});
+
+describe('resolveDeadline', () => {
+  const form = (name: string, email: string) => commitFormSchema.parse({ name, email });
+
+  // Ann publishes (minimum 3); the others commit.
+  async function planWith(deps: ReturnType<typeof testDeps>, others: [string, string][]) {
+    const { publicToken, manageToken, planId } = await publishPlan(deps);
+    for (const [name, email] of others) await commit(deps, publicToken, form(name, email));
+    return { planId, manageToken };
+  }
+
+  it('an open plan below its minimum is called off', async () => {
+    const deps = testDeps();
+    const { planId, manageToken } = await planWith(deps, [['Mia Chen', 'mia@example.test']]);
+
+    const result = await resolveDeadline(db, planId);
+
+    expect(result).toEqual({ state: 'called_off' });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.state).toBe('called_off');
+    expect(plan?.events).toContainEqual({
+      type: 'plan.called_off',
+      data: { reason: 'deadline', wasConfirmed: false, activeCount: 2 },
+    });
+  });
+
+  it('a plan that reached its minimum stays confirmed (AC4)', async () => {
+    const deps = testDeps();
+    const { planId, manageToken } = await planWith(deps, [
+      ['Mia Chen', 'mia@example.test'],
+      ['Raj Patel', 'raj@example.test'],
+    ]);
+
+    const result = await resolveDeadline(db, planId);
+
+    expect(result).toEqual({ state: 'confirmed' });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.state).toBe('confirmed');
+    expect(plan?.events.map((e) => e.type)).not.toContain('plan.called_off');
+  });
+
+  it('counts only active commits', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken, planId } = await publishPlan(deps, { minimum: '4' });
+    await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+    await commit(deps, publicToken, form('Raj Patel', 'raj@example.test'));
+    const plan = await loadPlan(db, manageToken);
+    await withdraw(deps, plan!.commits.find((c) => !c.isCreator)!.withdrawToken);
+
+    await resolveDeadline(db, planId);
+
+    expect((await loadPlan(db, manageToken))?.events).toContainEqual({
+      type: 'plan.called_off',
+      data: { reason: 'deadline', wasConfirmed: false, activeCount: 2 },
+    });
+  });
+
+  it('a creator-only plan is called off with activeCount 1', async () => {
+    const deps = testDeps();
+    const { planId, manageToken } = await planWith(deps, []);
+
+    await resolveDeadline(db, planId);
+
+    expect((await loadPlan(db, manageToken))?.events).toContainEqual({
+      type: 'plan.called_off',
+      data: { reason: 'deadline', wasConfirmed: false, activeCount: 1 },
+    });
+  });
+
+  it('a second call leaves the called-off plan alone', async () => {
+    const deps = testDeps();
+    const { planId, manageToken } = await planWith(deps, [['Mia Chen', 'mia@example.test']]);
+    await resolveDeadline(db, planId);
+
+    const result = await resolveDeadline(db, planId);
+
+    expect(result).toEqual({ state: 'called_off' });
+    const plan = await loadPlan(db, manageToken);
+    expect(plan?.events.filter((e) => e.type === 'plan.called_off')).toHaveLength(1);
+  });
+});
+
+describe('loadSendTargets', () => {
+  it('returns only non-withdrawn commits, creator first', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken, planId } = await publishPlan(deps);
+    await commit(deps, publicToken, commitFormSchema.parse({ name: 'Mia Chen', email: 'mia@example.test' }));
+    await commit(deps, publicToken, commitFormSchema.parse({ name: 'Raj Patel', email: 'raj@example.test' }));
+    const plan = await loadPlan(db, manageToken);
+    await withdraw(deps, plan!.commits.filter((c) => !c.isCreator)[0]!.withdrawToken);
+
+    const targets = await loadSendTargets(db, planId);
+
+    expect(targets.plan.id).toBe(planId);
+    expect(targets.commits.map((c) => c.name)).toEqual(['Ann', 'Raj Patel']);
   });
 });

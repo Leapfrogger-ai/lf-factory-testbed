@@ -110,6 +110,43 @@ export async function loadSendTarget(db: Db, planId: string): Promise<{ plan: Pl
   return { plan, commit };
 }
 
+/** The plan and its active commits, oldest first (the creator's commit comes first), the targets of a call-off email. */
+export async function loadSendTargets(db: Db, planId: string): Promise<{ plan: PlanRow; commits: CommitRow[] }> {
+  const [plan] = await db.select().from(plans).where(eq(plans.id, planId));
+  if (!plan) throw new Error('No plan for that id');
+  const active = await db
+    .select()
+    .from(commits)
+    .where(and(eq(commits.planId, planId), isNull(commits.withdrawnAt)))
+    .orderBy(asc(commits.createdAt));
+  return { plan, commits: active };
+}
+
+/** Called off at its commit deadline when it never reached its minimum; a confirmed or already called-off plan is left alone. */
+export async function resolveDeadline(db: Db, planId: string): Promise<{ state: PlanRow['state'] }> {
+  return db.transaction(async (tx) => {
+    const [plan] = await tx.select().from(plans).where(eq(plans.id, planId)).for('update');
+    if (!plan) throw new Error('No plan for that id');
+    if (plan.state !== 'open') return { state: plan.state };
+    const [active] = await tx
+      .select({ value: count() })
+      .from(commits)
+      .where(and(eq(commits.planId, plan.id), isNull(commits.withdrawnAt)));
+    const activeCount = active!.value;
+    if (activeCount >= plan.minimum) return { state: plan.state };
+    await tx
+      .update(plans)
+      .set({ state: 'called_off', calledOffAt: sql`now()`, calledOffReason: 'deadline' })
+      .where(eq(plans.id, plan.id));
+    await appendEvent(tx, {
+      planId: plan.id,
+      type: 'plan.called_off',
+      data: { reason: 'deadline', wasConfirmed: false, activeCount },
+    });
+    return { state: 'called_off' };
+  });
+}
+
 export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | null> {
   const [plan] = await db.select().from(plans).where(eq(plans.manageToken, manageToken));
   if (!plan) return null;
