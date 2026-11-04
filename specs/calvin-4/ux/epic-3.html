@@ -6,153 +6,348 @@
 <!-- Visual reference for Epic 3 (stories 3.1-3.6), drawn before it starts. Static mockups at 360px; not production code. -->
 <title>calvin Epic 3 screens</title>
 <style>
-/* Layout: a sheet of 360px phone frames, grouped by story, each labelled with its route and the story's ACs it shows. */
-/* Tokens: copied from calvin's public/app.css (testbed main f64c055), so the frames match what's built. */
+/* ===== Proposed app.css (everything inside .app). Scoped here only so the sheet's own chrome can't leak in. ===== */
 :root {
-  --bg: #FBF7F2; --surface: #FFFFFF; --text: #2B2420; --text-2: #5E534B; --muted: #766A61;
-  --border: #D9CFC4; --border-strong: #918275;
-  --accent: #B4502B; --accent-hover: #97411F; --accent-tint: #F6E4DA;
-  --on: #2F6B47; --on-tint: #E6F0E8; --error: #A8321E; --on-accent: #FFFFFF;
-  --sheet: #ECE5DD; --sheet-ink: #4A403A; --mail: #FFFFFF; --new: #2F5D8A;
-  --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --paper: #F5F3F8; --surface: #FFFFFF; --ink: #24202E; --ink-2: #4E4760; --muted: #645C75;
+  --line: #DDD8E5; --line-strong: #8A8199;
+  --berry: #8A2F6F; --berry-press: #6F2459; --berry-tint: #F6E3EF; --on-accent: #FFFFFF;
+  --on: #2B6A45; --on-tint: #E2F0E6; --off-tint: #E8E5ED; --error: #A8321E;
+  --strip: #24202E; --strip-text: #F5F3F8;
+  --serif: "Iowan Old Style", Charter, "Bitstream Charter", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --sans: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --desk: #E7E4EC; --desk-ink: #24202E; --desk-2: #4E4760; --mark: #8A2F6F; --mark-tint: #F6E3EF;
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #1E1A17; --surface: #2A2420; --text: #F3ECE4; --text-2: #CFC4BA; --muted: #A99D93;
-  --border: #40372F; --border-strong: #7A6E64;
-  --accent: #E58A62; --accent-hover: #EFA584; --accent-tint: #3A2A22;
-  --on: #8FC7A3; --on-tint: #22332A; --error: #F08B76; --on-accent: #1E1A17;
-  --sheet: #121010; --sheet-ink: #CFC4BA; --mail: #2A2420; --new: #8DB7E0; color-scheme: dark; } }
+  --paper: #1A1720; --surface: #24202B; --ink: #F2EFF6; --ink-2: #CBC4D8; --muted: #A79FB5;
+  --line: #3A3445; --line-strong: #7F7792;
+  --berry: #E59BCB; --berry-press: #F0B8DB; --berry-tint: #3B2434; --on-accent: #1A1720;
+  --on: #8FCBA5; --on-tint: #1F3329; --off-tint: #332E3C; --error: #F08B76;
+  --strip: #F2EFF6; --strip-text: #1A1720;
+  --desk: #110F15; --desk-ink: #F2EFF6; --desk-2: #CBC4D8; --mark: #E59BCB; --mark-tint: #3B2434;
+  color-scheme: dark;
+} }
 :root[data-theme="dark"] {
-  --bg: #1E1A17; --surface: #2A2420; --text: #F3ECE4; --text-2: #CFC4BA; --muted: #A99D93;
-  --border: #40372F; --border-strong: #7A6E64;
-  --accent: #E58A62; --accent-hover: #EFA584; --accent-tint: #3A2A22;
-  --on: #8FC7A3; --on-tint: #22332A; --error: #F08B76; --on-accent: #1E1A17;
-  --sheet: #121010; --sheet-ink: #CFC4BA; --mail: #2A2420; --new: #8DB7E0; color-scheme: dark; }
+  --paper: #1A1720; --surface: #24202B; --ink: #F2EFF6; --ink-2: #CBC4D8; --muted: #A79FB5;
+  --line: #3A3445; --line-strong: #7F7792;
+  --berry: #E59BCB; --berry-press: #F0B8DB; --berry-tint: #3B2434; --on-accent: #1A1720;
+  --on: #8FCBA5; --on-tint: #1F3329; --off-tint: #332E3C; --error: #F08B76;
+  --strip: #F2EFF6; --strip-text: #1A1720;
+  --desk: #110F15; --desk-ink: #F2EFF6; --desk-2: #CBC4D8; --mark: #E59BCB; --mark-tint: #3B2434;
+  color-scheme: dark;
+}
 
+.app { background: var(--paper); color: var(--ink); font: 16px/1.5 var(--sans); padding: 16px 16px 24px; text-align: left; }
+.app * { box-sizing: border-box; }
+.app p, .app h1, .app h2, .app ul { margin: 0; }
+.app a { color: var(--berry); text-underline-offset: 3px; }
+.app :focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+
+.app .brand { font: italic 600 21px/1 var(--serif); color: var(--berry); margin-bottom: 20px; }
+.app .private { margin: -16px -16px 16px; padding: 10px 16px; background: var(--strip); color: var(--strip-text); font-size: 14px; line-height: 1.4; }
+
+.app .state { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; line-height: 1.3; margin-bottom: 16px; }
+.app .state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.app .state-open { background: var(--berry-tint); color: var(--berry); }
+.app .state-on { background: var(--on-tint); color: var(--on); }
+.app .state-off { background: var(--off-tint); color: var(--ink-2); }
+.app .state-off::before { display: none; }
+.app .state-now { background: transparent; color: var(--on); box-shadow: inset 0 0 0 1.5px var(--on); }
+
+.app .kind { font-size: 15px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px; }
+.app h1 { font: 600 24px/1.25 var(--serif); letter-spacing: -0.005em; margin-bottom: 16px; text-wrap: balance; }
+.app h1.venue { font-size: 36px; line-height: 1.08; letter-spacing: -0.015em; margin-bottom: 12px; }
+.app h1.venue-off { color: var(--ink-2); }
+.app h2 { font: 600 18px/1.3 var(--sans); margin: 24px 0 12px; }
+.app .when { font-size: 18px; font-weight: 600; line-height: 1.3; }
+.app .where { color: var(--muted); margin-bottom: 20px; }
+.app .meta { color: var(--muted); font-size: 14px; line-height: 1.45; margin-bottom: 20px; }
+.app .copy { margin-bottom: 16px; }
+.app .help { color: var(--muted); font-size: 14px; line-height: 1.4; margin-top: 4px; }
+
+/* Seat row: one token per person; the row joins up when it's on. */
+.app .seats { display: flex; flex-wrap: wrap; gap: 12px 8px; padding: 0; margin: 4px 0 14px; list-style: none; overflow: hidden; }
+.app .seat { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 52px; max-width: 96px; font-size: 13px; font-weight: 600; line-height: 1.2; }
+.app .seat > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app .token { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--berry); color: var(--on-accent); font: 600 18px/1 var(--serif); position: relative; z-index: 1; }
+.app .seat-empty .token { background: transparent; border: 2px dashed var(--line-strong); }
+.app .seat-you .token { background: var(--berry-tint); border: 2px dashed var(--berry); }
+.app .seats-on .token { background: var(--on); }
+.app .seats-on .seat:not(:last-child)::after { content: ""; position: absolute; top: 19px; left: 50%; width: calc(100% + 8px); height: 2px; background: var(--on); transform-origin: left; }
+@media (prefers-reduced-motion: no-preference) {
+  .app .seats-on.just-on .seat:not(:last-child)::after { animation: join 480ms cubic-bezier(.2, .7, .2, 1) both; }
+  .app .seats-on.just-on .seat:nth-child(2)::after { animation-delay: 120ms; }
+  .app .seats-on.just-on .seat:nth-child(3)::after { animation-delay: 240ms; }
+}
+@keyframes join { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Manage page: the same tokens, as a list with full names. */
+.app .count { font: 600 24px/1.2 var(--serif); margin: 4px 0 8px; }
+.app .names { list-style: none; padding: 0; margin: 0 0 20px; }
+.app .names li { display: flex; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.app .names .token { width: 32px; height: 32px; font-size: 15px; }
+.app .names .seat-empty .token { border-width: 1.5px; }
+.app .names-off .token { background: var(--off-tint); color: var(--ink-2); }
+.app .names-on .token { background: var(--on); }
+
+/* Controls */
+.app .field { margin-bottom: 16px; }
+.app .row { display: flex; gap: 12px; }
+.app .row .field { flex: 1; min-width: 0; }
+.app label { display: block; margin-bottom: 4px; color: var(--ink-2); font-size: 14px; font-weight: 600; line-height: 1.3; }
+.app input, .app select { width: 100%; min-height: 48px; padding: 8px 12px; border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: 16px var(--sans); }
+.app input[aria-invalid="true"] { border-color: var(--error); }
+.app .error { color: var(--error); font-size: 14px; line-height: 1.4; margin-top: 4px; }
+
+.app .btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; padding: 0 20px; border: 0; border-radius: 999px; font: 600 16px/1.2 var(--sans); text-decoration: none; cursor: pointer; }
+.app .btn-primary { background: var(--berry); color: var(--on-accent); }
+.app .btn-primary:hover { background: var(--berry-press); }
+.app .btn-secondary { background: transparent; color: var(--berry); box-shadow: inset 0 0 0 1.5px var(--berry); }
+.app .btn-dim { background: var(--ink-2); color: var(--on-accent); width: auto; }
+.app .quiet { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; background: none; border: 0; color: var(--ink-2); font: 600 16px var(--sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.app .stack > * + * { margin-top: 12px; }
+
+.app .linkbox { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border: 1.5px solid var(--line-strong); border-radius: 999px; background: var(--surface); margin-bottom: 12px; }
+.app .linkbox input { border: 0; min-height: 44px; padding: 0; background: transparent; text-overflow: ellipsis; color: var(--ink-2); }
+.app .linkbox .btn { width: auto; min-height: 44px; flex: none; }
+
+.app .notice { padding: 12px 16px; border-radius: 12px; background: var(--off-tint); color: var(--ink); line-height: 1.4; margin-bottom: 16px; }
+.app .notice-on { background: var(--on-tint); color: var(--on); font-weight: 600; }
+
+.app .calloff summary { list-style: none; }
+.app .calloff summary::-webkit-details-marker { display: none; }
+.app .calloff[open] summary { display: none; }
+.app .confirm { padding: 14px 16px; border-radius: 12px; background: var(--off-tint); }
+.app .confirm .row { align-items: center; justify-content: space-between; margin-top: 10px; }
+
+.app .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+.app .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 4px 16px; margin-bottom: 16px; }
+.app .card .kind { padding-top: 12px; }
+.app .card-row { display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 8px; min-height: 52px; border-top: 1px solid var(--line); }
+.app .card-row:first-of-type { border-top: 0; }
+.app .card-row dt { color: var(--ink-2); font-size: 14px; font-weight: 600; }
+.app .card-row dd { margin: 0; }
+.app .card dl { margin: 0; }
+/* ===== end of proposed app.css ===== */
+
+/* ===== The sheet around the frames (not part of the app) ===== */
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family: var(--font); font-size: 15px; line-height: 1.5; }
-.sheet { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; }
-.sheet-head h1 { margin: 0 0 6px; font-size: 22px; line-height: 1.2; color: var(--text); text-wrap: balance; }
-.sheet-head p { margin: 0 0 10px; max-width: 68ch; }
-.sheet-head .src { font-size: 13px; color: var(--muted); }
-.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; }
-.legend li { display: flex; align-items: center; gap: 6px; }
-.tag-new { display: inline-block; padding: 0 6px; border: 1px solid var(--new); border-radius: 4px; color: var(--new); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.tag-built { display: inline-block; padding: 0 6px; border: 1px solid var(--muted); border-radius: 4px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-
-.group { margin-top: 36px; }
-.group > h2 { margin: 0 0 4px; font-size: 17px; color: var(--text); }
-.group > .why { margin: 0 0 16px; max-width: 72ch; font-size: 14px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 360px)); gap: 24px; }
-.frame { min-width: 0; }
-.frame-label { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--sheet-ink); }
-.frame-label .route { display: block; margin-top: 2px; font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); overflow-wrap: anywhere; }
-.frame-note { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--sheet-ink); }
-
-/* ---- One phone = calvin's <main> at 360px, rules as in public/app.css ---- */
-.phone { background: var(--bg); color: var(--text); border-radius: 20px; padding: var(--s5) var(--s4); min-height: 520px; box-shadow: 0 1px 3px rgba(0,0,0,.14); font-size: 16px; }
-.phone .brand { margin: 0 0 var(--s4); font-weight: 700; color: var(--accent); }
-.phone h1 { margin: 0 0 var(--s4); font-size: 26px; font-weight: 700; line-height: 1.2; text-wrap: balance; }
-.phone h2 { margin: var(--s5) 0 var(--s3); font-size: 18px; font-weight: 600; line-height: 1.3; }
-.phone p { margin: 0 0 var(--s3); }
-.phone a { color: var(--accent); }
-.phone .pill { display: inline-block; margin: 0 0 var(--s3); padding: var(--s1) var(--s3); border-radius: 999px; background: var(--accent-tint); color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.3; }
-.phone .eyebrow { margin: 0 0 var(--s1); color: var(--muted); font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.phone .meta { margin: 0 0 var(--s5); color: var(--text-2); }
-.phone .seats { display: flex; flex-wrap: wrap; gap: var(--s3); margin: 0 0 var(--s4); padding: 0; list-style: none; }
-.phone .seat { display: flex; align-items: center; gap: var(--s2); }
-.phone .dot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }
-.phone .dot-on { background: var(--on); }
-.phone .notice { margin: var(--s4) 0; padding: var(--s3) var(--s4); border-radius: 8px; background: var(--accent-tint); line-height: 1.4; }
-.phone .field { margin-bottom: var(--s4); }
-.phone .row { display: flex; gap: var(--s3); }
-.phone .row .field { flex: 1; min-width: 0; }
-.phone label { display: block; margin-bottom: var(--s1); color: var(--text-2); font-size: 14px; font-weight: 600; line-height: 1.3; }
-.phone input { width: 100%; min-height: 48px; padding: var(--s2) var(--s3); border: 1.5px solid var(--border-strong); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; }
-.phone input[aria-invalid="true"] { border-color: var(--error); }
-.phone .error { margin: var(--s1) 0 0; color: var(--error); font-size: 14px; line-height: 1.4; }
-.phone .summary { margin: 0 0 var(--s4); color: var(--text-2); }
-.phone .btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; border: 0; border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
-.phone .btn-primary { background: var(--accent); color: var(--on-accent); }
-.phone .btn:focus-visible, .phone summary:focus-visible, .phone a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* ---- New for Epic 3 (not in app.css yet): ux-spec §7–8 styles the built app never needed ---- */
-.phone .pill-on { background: var(--on-tint); color: var(--on); }
-.phone .pill-off { background: var(--border); color: var(--text-2); }
-.phone .venue-off { color: var(--text-2); }
-.phone .notice-on { background: var(--on-tint); }
-.phone .btn-secondary { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
-.phone .btn-dim { background: var(--text-2); color: var(--bg); }
-.phone .quiet { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-2); text-decoration: underline; cursor: pointer; font-weight: 600; }
-.phone .private { margin: 0 0 var(--s3); color: var(--muted); font-size: 14px; }
-.phone .count { margin: 0 0 var(--s2); font-weight: 700; font-variant-numeric: tabular-nums; }
-.phone .names { margin: 0 0 var(--s4); padding: 0; list-style: none; }
-.phone .names li { padding: var(--s2) 0; border-bottom: 1px solid var(--border); }
-.phone .names li:last-child { border-bottom: 0; }
-.phone .linkbox { display: flex; gap: var(--s2); align-items: center; margin: 0 0 var(--s5); }
-.phone .linkbox input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 14px; text-overflow: ellipsis; }
-.phone .linkbox .btn { width: auto; flex: none; padding: 0 var(--s4); }
-.phone .actions { display: grid; gap: var(--s3); }
-.phone details.calloff > summary { list-style: none; }
-.phone details.calloff > summary::-webkit-details-marker { display: none; }
-.phone .confirm { margin-top: var(--s2); padding: var(--s3) var(--s4); border: 1px solid var(--border-strong); border-radius: 12px; }
-.phone .confirm .row { align-items: center; }
-.phone .confirm .row > * { flex: 1; justify-content: center; }
-.phone .readonly { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s2) 0; border-bottom: 1px dashed var(--border); }
-.phone .readonly span:first-child { color: var(--text-2); font-size: 14px; font-weight: 600; }
-
-/* ---- Emails: plain text, single column ---- */
-.mail { background: var(--mail); color: var(--text); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.mail-head { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; display: grid; gap: 2px; }
-.mail-head b { color: var(--text-2); font-weight: 600; display: inline-block; min-width: 56px; }
-.mail-subject { font-size: 15px; font-weight: 700; color: var(--text); }
-.mail-body { margin: 0; padding: 14px; font-family: var(--font); font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
-.mail-body a { color: var(--accent); }
-
-/* ---- Timeline of the example plan ---- */
-.timeline { margin: 0; padding: 0; list-style: none; display: grid; gap: 0; max-width: 640px; }
-.timeline li { display: grid; grid-template-columns: 9.5rem 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
-.timeline time { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
-.questions { max-width: 72ch; padding-left: 1.2em; }
-.questions li { margin-bottom: 10px; }
-.questions b { color: var(--text); }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 16px/1.5 var(--sans); }
+.sheet { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+.sheet-head { max-width: 760px; margin-bottom: 40px; }
+.sheet-head h1 { font: 600 34px/1.1 var(--serif); margin: 0 0 12px; }
+.sheet-head p { margin: 0 0 12px; color: var(--desk-2); }
+.sheet code { font-size: 0.9em; }
+.theme { display: inline-flex; gap: 4px; margin: 8px 0 0; padding: 4px; border-radius: 999px; background: var(--paper); }
+.theme button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--desk-ink); font: 600 14px var(--sans); cursor: pointer; }
+.theme button[aria-pressed="true"] { background: var(--berry); color: var(--on-accent); }
+.theme button:focus-visible, .sheet a:focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+.sheet a { color: var(--mark); }
+.group { margin-top: 48px; }
+.group > h2 { font: 600 24px/1.2 var(--serif); margin: 0 0 6px; }
+.why { max-width: 760px; margin: 0 0 20px; color: var(--desk-2); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr)); gap: 32px 24px; align-items: start; }
+.frame { margin: 0; min-width: 0; }
+.frame-label { margin: 0 0 8px; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.route { display: block; font-weight: 400; color: var(--desk-2); }
+.tag { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.tag-new { background: var(--mark); color: var(--on-accent); }
+.tag-built { background: var(--paper); color: var(--desk-ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.phone { width: 100%; max-width: 360px; border-radius: 20px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.frame-note { max-width: 360px; margin: 10px 0 0; font-size: 14px; line-height: 1.45; color: var(--desk-2); }
+.changes { max-width: 360px; margin: 10px 0 0; padding: 10px 12px 10px 28px; border-radius: 12px; background: var(--mark-tint); font-size: 14px; line-height: 1.45; }
+.changes b:first-child { display: block; margin-left: -16px; }
+.mail { max-width: 360px; border-radius: 12px; overflow: hidden; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.mail-head { padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14px; display: grid; gap: 2px; }
+.mail-head b { display: inline-block; width: 40px; color: var(--muted); font-weight: 600; }
+.mail-subject { font-weight: 700; margin-top: 4px; }
+.mail-body { margin: 0; padding: 14px; white-space: pre-wrap; font: 15px/1.5 var(--sans); }
+.mail-body a { color: var(--berry); }
+.timeline { list-style: none; padding: 0; margin: 0; max-width: 760px; }
+.timeline li { display: grid; grid-template-columns: 180px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.timeline time { font-weight: 700; }
+.table { width: 100%; max-width: 980px; border-collapse: collapse; font-size: 15px; }
+.table th, .table td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-top: 1px solid var(--line); }
+.table th { font-weight: 700; white-space: nowrap; }
+.swatches { display: flex; flex-wrap: wrap; gap: 12px; padding: 0; margin: 0 0 16px; list-style: none; }
+.swatches li { width: 120px; font-size: 13px; line-height: 1.35; }
+.swatches span { display: block; height: 44px; border-radius: 10px; margin-bottom: 6px; box-shadow: inset 0 0 0 1px var(--line); }
+.questions { max-width: 820px; padding-left: 22px; }
+.questions li { margin-bottom: 12px; }
+.answer { display: block; margin-top: 2px; color: var(--desk-2); }
+@media (max-width: 520px) { .timeline li { grid-template-columns: 1fr; gap: 2px; } .table th { white-space: normal; } }
 </style>
 </head>
 <body>
 <div class="sheet">
 
 <header class="sheet-head">
-  <h1>calvin · Epic 3 screens at 360px</h1>
-  <p>Epic 3 is "Confirm, remind and call off". These frames are what its six stories will build, drawn before any of them starts, so the operator can approve or change them first. The copy is the intended copy: quoted from Epic 3's acceptance criteria where they fix it, otherwise from ux-spec.md, otherwise marked as proposed.</p>
-  <p class="src">Example plan throughout, as in the stories: Coffee at Blue Bottle, Oakland · Rockridge, Sat 14 Nov · 10:00 AM, minimum 3, decide by Wed 11 Nov, 10:00 PM. Ana Ruiz made it. Styles are calvin's public/app.css from testbed main (f64c055).</p>
-  <ul class="legend">
-    <li><span class="tag-new">New</span> a screen or state Epic 3 adds</li>
-    <li><span class="tag-built">Built</span> already in the app from Epic 1–2, shown for context</li>
-  </ul>
+  <h1>calvin, Epic 3 screens: a visual design</h1>
+  <p>Epic 3 is "Confirm, remind and call off". This sheet shows its six stories' screens at 360px, drawn before any of them starts. It also proposes a look for the whole app, so the built screens are shown too, restyled, with what would change in each one listed under it.</p>
+  <p>The frames and copy are the same as the first version of this PR. Copy is quoted from Epic 3's acceptance criteria where they fix it, otherwise from ux-spec.md, otherwise marked as proposed. What changed is the visual design: it starts from ux-spec.md's emotional goals (low stakes, easy yes, no blame), 360px first, and WCAG 2.2 AA, not from today's app.css.</p>
+  <p>Made with the frontend-design skill (Anthropic's plugin skill, followed from its SKILL.md). design-orchestrator wasn't used, because the 29 skills it routes to aren't installed here. Accessibility was checked by hand; the results are at the bottom.</p>
+  <p>Example plan throughout, as in the stories: Coffee at Blue Bottle, Oakland · Rockridge, Sat 14 Nov · 10:00 AM, minimum 3, decide by Wed 11 Nov, 10:00 PM. Ana Ruiz made it.</p>
+  <div class="theme" role="group" aria-label="Colour theme for the frames">
+    <button type="button" data-set-theme="auto" aria-pressed="true">Match device</button>
+    <button type="button" data-set-theme="light" aria-pressed="false">Light</button>
+    <button type="button" data-set-theme="dark" aria-pressed="false">Dark</button>
+  </div>
+  <p style="margin-top:16px"><span class="tag tag-new">New</span>a screen or state Epic 3 adds &nbsp; <span class="tag tag-built">Built</span>already in the app, shown restyled</p>
 </header>
 
-<section class="group" aria-labelledby="g-manage">
-  <h2 id="g-manage">Manage page: Stories 3.4 and 3.5</h2>
-  <p class="why">The creator's private link. Today <code>/m/&lt;token&gt;</code> is a 404; only the "ready to share" screen exists. 3.4 draws the page, and 3.5 makes <b>Call it off</b> work.</p>
+<section class="group" aria-labelledby="g-dir">
+  <h2 id="g-dir">The direction</h2>
+  <p class="why">A plan passed around a group chat should feel like a note in a friend's handwriting, not a form from a booking site. Three choices carry that, and everything else stays quiet.</p>
+  <ul class="questions" style="list-style:disc">
+    <li><b>The seat row is the one bold element.</b> Each person is a round token with their initial, and the empty seats are dashed, with the first one asking "you?". When the minimum is reached, the tokens turn green and a line joins them, like a table filling up. It's the only celebration in the app, as ux-spec asks, and the only thing that moves (once, and not with reduced motion on).</li>
+    <li><b>A serif for the plan, a rounded sans for everything else.</b> The venue is set large in the phone's own book serif (Iowan Old Style or Charter on iPhone and Mac, Georgia elsewhere), so the plan reads like something written down. The rest stays in ux-spec's system rounded sans. No web font is downloaded, so the public page keeps its ≤ 2s budget.</li>
+    <li><b>Berry instead of terracotta.</b> The warm off-white and terracotta in ux-spec §4.1 is the most common look of generated pages right now. A soft lilac-grey paper with one berry accent keeps it warm and casual but specific to calvin, and berry stays well clear of the error red, so "Not this time" can never read as a failure.</li>
+  </ul>
+  <ul class="swatches" aria-label="Palette, light theme">
+    <li><span style="background:#F5F3F8"></span><b>Paper</b> #F5F3F8<br>page</li>
+    <li><span style="background:#24202E"></span><b>Ink</b> #24202E<br>text, 14.4:1</li>
+    <li><span style="background:#8A2F6F"></span><b>Berry</b> #8A2F6F<br>buttons, links, open seats, 7.0:1</li>
+    <li><span style="background:#2B6A45"></span><b>On</b> #2B6A45<br>it's on, 5.9:1</li>
+    <li><span style="background:#E8E5ED"></span><b>Off</b> #E8E5ED<br>not this time, with ink-2 7.0:1</li>
+    <li><span style="background:#A8321E"></span><b>Error</b> #A8321E<br>field errors only, 6.1:1</li>
+  </ul>
+  <p class="why">Dark theme tokens follow <code>prefers-color-scheme</code>, as ux-spec asks; use the buttons above to see every frame in dark. The proposed stylesheet is the <code>.app</code> block at the top of this file's CSS, about 9 KB unminified, under ux-spec's 10 KB target.</p>
+
+  <table class="table">
+    <caption style="text-align:left;font-weight:700;padding-bottom:8px">What changes in the built screens</caption>
+    <tr><th scope="row">Colours</th><td>New palette in both themes (above). The token names change, so app.css is rewritten, not patched. No copy changes.</td></tr>
+    <tr><th scope="row">Type</th><td>Venue and page titles move to the system serif. The venue grows from 26px to 36px. Body text is unchanged.</td></tr>
+    <tr><th scope="row">State pill</th><td>Each state gets its own style: berry "Needs N more", green "It's on", grey "Not this time", green outline "Happening now". Today every pill is orange.</td></tr>
+    <tr><th scope="row">Seat row</th><td>14px dots become 40px tokens with the person's initial (the initial is hidden from screen readers; the list label is unchanged).</td></tr>
+    <tr><th scope="row">Where and when</th><td>"Oakland · Sat 14 Nov · 10:00 AM" splits into two lines: the time in bold, the city under it. Same words.</td></tr>
+    <tr><th scope="row">Wordmark</th><td>"calvin" appears at the top of every page, as ux-spec §5 says. Today only the create page has it.</td></tr>
+    <tr><th scope="row">Notices</th><td>Notices move to the top of the content (ux-spec §8.2). Today the public page puts them under the seats.</td></tr>
+    <tr><th scope="row">Ready to share</th><td>Copy and Share stop being unstyled browser buttons: a link box with Copy inside it, Share as a secondary button, and Manage your plan as a quiet link.</td></tr>
+    <tr><th scope="row">Kept as is</th><td>All copy, the order of things on each page, the 440px single column, no images or web fonts, flat surfaces with no shadows, 48px controls, the focus ring.</td></tr>
+  </table>
+</section>
+
+<section class="group" aria-labelledby="g-built">
+  <h2 id="g-built">Built screens, restyled</h2>
+  <p class="why">Epics 1 and 2 built these. They're here so the operator sees one app: the Epic 3 screens below use the same parts.</p>
   <div class="grid">
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> M1 · Open, below minimum <span class="route">GET /m/&lt;manageToken&gt; · 3.4 AC1</span></p>
-      <div class="phone">
+      <p class="frame-label"><span class="tag tag-built">Built</span>B1 · Create, with a suggestion <span class="route">GET / after Suggest a plan · mockup 1b</span></p>
+      <div class="phone"><div class="app">
         <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <p class="summary"><span>Oakland · Rockridge · next weekend, morning</span><a class="quiet" href="#b1">Change</a></p>
+        <div class="card">
+          <p class="kind">Coffee</p>
+          <dl>
+            <div class="card-row"><dt>Where</dt><dd>Blue Bottle</dd><button class="quiet" type="button" aria-label="Edit where">Edit</button></div>
+            <div class="card-row"><dt>When</dt><dd>Sat 14 Nov · 10:00 AM</dd><button class="quiet" type="button" aria-label="Edit when">Edit</button></div>
+            <div class="card-row"><dt>Minimum</dt><dd>3 people, you included</dd><button class="quiet" type="button" aria-label="Edit minimum">Edit</button></div>
+            <div class="card-row"><dt>Decide by</dt><dd>Wed 11 Nov, 10:00 PM</dd><button class="quiet" type="button" aria-label="Edit decide by">Edit</button></div>
+          </dl>
+        </div>
+        <h2>You're the first one in</h2>
+        <div class="field"><label for="b1-name">Your name</label><input id="b1-name" type="text" autocomplete="name"></div>
+        <div class="field"><label for="b1-email">Your email</label><input id="b1-email" type="email" autocomplete="email"></div>
+        <div class="stack"><button class="btn btn-primary" type="button">Publish plan</button><button class="btn btn-secondary" type="button">Suggest another</button></div>
+      </div></div>
+      <div class="changes"><b>What changes</b>The suggestion becomes one white card with ruled rows. Edit and Change become quiet underlined text, 44px tall. Suggest another becomes a secondary outline button (today it's an unstyled button).</div>
+    </article>
+
+    <article class="frame">
+      <p class="frame-label"><span class="tag tag-built">Built</span>B2 · Ready to share <span class="route">after POST /plans · mockup 2</span></p>
+      <div class="phone"><div class="app">
+        <p class="brand">calvin</p>
+        <h1>Your plan is ready to share</h1>
+        <label for="b2-link">Link to share</label>
+        <div class="linkbox"><input id="b2-link" type="text" readonly value="https://calvin.example/p/k3Jq9xT2vRmN8sLq"><button class="btn btn-primary" type="button">Copy</button></div>
+        <button class="btn btn-secondary" type="button">Share…</button>
+        <p class="meta" style="margin-top:16px">We've emailed you a private link to manage the plan. Keep it to yourself.</p>
+        <a class="quiet" href="#b2">Manage your plan</a>
+      </div></div>
+      <div class="changes"><b>What changes</b>A link box with Copy inside it, Share as a secondary button, and Manage your plan as a quiet link. The wordmark is added. The link's label becomes visible ("Link to share"); today it's only an aria-label.</div>
+    </article>
+
+    <article class="frame">
+      <p class="frame-label"><span class="tag tag-built">Built</span>B3 · Public page, open <span class="route">GET /p/&lt;publicToken&gt; · mockup 3a</span></p>
+      <div class="phone"><div class="app">
+        <p class="brand">calvin</p>
+        <p class="state state-open">Needs 1 more</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats" aria-label="2 of 3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat seat-you"><span class="token" aria-hidden="true"></span><span>you?</span></li>
+        </ul>
+        <p class="meta">Goes ahead with a minimum of 3. Decide by Wed 11 Nov, 10:00 PM.</p>
+        <div class="field"><label for="b3-name">Your name</label><input id="b3-name" type="text" autocomplete="name"></div>
+        <div class="field"><label for="b3-email">Email</label><input id="b3-email" type="email" inputmode="email" autocomplete="email"><p class="help">Only used to tell you if it's on. Never shown to anyone.</p></div>
+        <button class="btn btn-primary" type="button">I'm in</button>
+      </div></div>
+      <div class="changes"><b>What changes</b>Berry pill, seat tokens, the venue at 36px in serif, and time and city on two lines. The wordmark is added. The plan, seats and I'm in still fit in 360×640.</div>
+    </article>
+
+    <article class="frame">
+      <p class="frame-label"><span class="tag tag-built">Built</span>B4 · The commit that makes it happen <span class="route">POST /p/&lt;token&gt;/commit → ?notice=on · mockup 3b</span></p>
+      <div class="phone"><div class="app">
+        <p class="brand">calvin</p>
+        <p class="notice notice-on" role="status">You're in, Raj. It's on! We've emailed you the details and we'll remind you the day before.</p>
+        <p class="state state-on">It's on</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats seats-on just-on" aria-label="3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">R</span><span>Raj</span></li>
+        </ul>
+        <p class="meta">More people are welcome until it starts.</p>
+      </div></div>
+      <div class="changes"><b>What changes</b>The notice moves above the plan. The pill turns green, the seats turn green, and the line joining them draws in once (not with reduced motion on). Today the pill stays orange.</div>
+    </article>
+
+    <article class="frame">
+      <p class="frame-label"><span class="tag tag-built">Built</span>B5 · Withdraw <span class="route">GET /w/&lt;withdrawToken&gt; · mockup 5</span></p>
+      <div class="phone"><div class="app">
+        <p class="brand">calvin</p>
+        <h1>Withdraw from Coffee at Blue Bottle on Sat 14 Nov?</h1>
+        <button class="btn btn-primary" type="button">Withdraw</button>
+      </div></div>
+      <div class="changes"><b>What changes</b>The wordmark is added, and the question is set in the page-title serif at 24px instead of a 26px bold heading. The "You're out." result page gets the same treatment.</div>
+    </article>
+
+  </div>
+</section>
+
+<section class="group" aria-labelledby="g-manage">
+  <h2 id="g-manage">Manage page: Stories 3.4 and 3.5</h2>
+  <p class="why">The creator's private link. Today <code>/m/&lt;token&gt;</code> is a 404; only the "ready to share" screen exists. 3.4 draws the page, and 3.5 makes <b>Call it off</b> work. A dark strip at the top marks it as the private page, so it can't be mistaken for the one in the chat.</p>
+  <div class="grid">
+
+    <article class="frame">
+      <p class="frame-label"><span class="tag tag-new">New</span>M1 · Open, below minimum <span class="route">GET /m/&lt;manageToken&gt; · 3.4 AC1</span></p>
+      <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
-        <p class="pill">Needs 1 more · decide by Wed 11 Nov, 10:00 PM</p>
-        <p class="eyebrow">Coffee</p>
-        <h1>Blue Bottle</h1>
-        <p class="meta">Oakland · Sat 14 Nov · 10:00 AM</p>
+        <p class="brand">calvin</p>
+        <p class="state state-open">Needs 1 more · decide by Wed 11 Nov, 10:00 PM</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
         <p class="count">2 of 3</p>
-        <ul class="names" aria-label="Who's in"><li>Ana Ruiz</li><li>Mia Chen</li></ul>
+        <ul class="names" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li class="seat-empty" aria-hidden="true"><span class="token"></span></li>
+        </ul>
         <label for="m1-link">Link to share</label>
         <div class="linkbox"><input id="m1-link" type="text" readonly value="https://calvin.example/p/k3Jq9xT2vRmN8sLq"><button class="btn btn-primary" type="button">Copy</button></div>
-        <div class="actions">
+        <div class="stack">
           <a class="btn btn-secondary" href="#m1">Start a new plan from this</a>
           <details class="calloff"><summary class="quiet">Call it off</summary>
             <div class="confirm">
@@ -161,22 +356,27 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
             </div>
           </details>
         </div>
-      </div>
-      <p class="frame-note">Full names in a plain list, never emails (3.4). Mockup 4 from shaping showed first-name seats instead; this follows 3.4's acceptance criteria. <b>Call it off</b> is a native <code>&lt;details&gt;</code>; tap it here to open it.</p>
+      </div></div>
+      <p class="frame-note">Full names, never emails (3.4), shown with the same tokens as the public page's seats, as a list so long names fit. The empty dashed row is decoration only and hidden from screen readers. <b>Call it off</b> is a native <code>&lt;details&gt;</code>; tap it to open it.</p>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> M2 · Call it off, opened <span class="route">same page, &lt;details open&gt; · 3.4 AC2</span></p>
-      <div class="phone">
-        <p class="brand">calvin</p>
+      <p class="frame-label"><span class="tag tag-new">New</span>M2 · Call it off, opened <span class="route">same page, &lt;details open&gt; · 3.4 AC2</span></p>
+      <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
-        <p class="pill">Needs 1 more · decide by Wed 11 Nov, 10:00 PM</p>
-        <p class="eyebrow">Coffee</p>
-        <h1>Blue Bottle</h1>
-        <p class="meta">Oakland · Sat 14 Nov · 10:00 AM</p>
+        <p class="brand">calvin</p>
+        <p class="state state-open">Needs 1 more · decide by Wed 11 Nov, 10:00 PM</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
         <p class="count">2 of 3</p>
-        <ul class="names" aria-label="Who's in"><li>Ana Ruiz</li><li>Mia Chen</li></ul>
-        <div class="actions">
+        <ul class="names" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li class="seat-empty" aria-hidden="true"><span class="token"></span></li>
+        </ul>
+        <div class="stack">
           <a class="btn btn-secondary" href="#m2">Start a new plan from this</a>
           <details class="calloff" open><summary class="quiet">Call it off</summary>
             <div class="confirm">
@@ -185,24 +385,29 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
             </div>
           </details>
         </div>
-      </div>
-      <p class="frame-note"><b>Keep it</b> is a link back to <code>/m/&lt;token&gt;</code>, so it closes without JS. <b>Call it off</b> POSTs to <code>/m/&lt;token&gt;/call-off</code> with no fields (3.5). No red anywhere; the confirm button uses the dimmed ink colour (ux-spec §7.2).</p>
+      </div></div>
+      <p class="frame-note"><b>Keep it</b> is a link back to <code>/m/&lt;token&gt;</code>, so it closes without JS. <b>Call it off</b> POSTs to <code>/m/&lt;token&gt;/call-off</code> with no fields (3.5). The confirm sits on the grey "off" tint and its button is filled ink, not red (ux-spec §7.2).</p>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> M3 · Confirmed <span class="route">GET /m/&lt;manageToken&gt; · 3.4, 3.5 AC2</span></p>
-      <div class="phone">
-        <p class="brand">calvin</p>
+      <p class="frame-label"><span class="tag tag-new">New</span>M3 · Confirmed <span class="route">GET /m/&lt;manageToken&gt; · 3.4, 3.5 AC2</span></p>
+      <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
-        <p class="pill pill-on">It's on</p>
-        <p class="eyebrow">Coffee</p>
-        <h1>Blue Bottle</h1>
-        <p class="meta">Oakland · Sat 14 Nov · 10:00 AM</p>
+        <p class="brand">calvin</p>
+        <p class="state state-on">It's on</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
         <p class="count">3 of 3</p>
-        <ul class="names" aria-label="Who's in"><li>Ana Ruiz</li><li>Mia Chen</li><li>Raj Rao</li></ul>
+        <ul class="names names-on" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li><span class="token" aria-hidden="true">R</span>Raj Rao</li>
+        </ul>
         <label for="m3-link">Link to share</label>
         <div class="linkbox"><input id="m3-link" type="text" readonly value="https://calvin.example/p/k3Jq9xT2vRmN8sLq"><button class="btn btn-primary" type="button">Copy</button></div>
-        <div class="actions">
+        <div class="stack">
           <a class="btn btn-secondary" href="#m3">Start a new plan from this</a>
           <details class="calloff"><summary class="quiet">Call it off</summary>
             <div class="confirm">
@@ -211,44 +416,49 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
             </div>
           </details>
         </div>
-      </div>
+      </div></div>
       <p class="frame-note">A confirmed plan can still be called off until it starts (3.5). Everyone who's in then gets "Not this time", and no reminder follows.</p>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> M4 · Started, after a late call-off <span class="route">GET /m/&lt;manageToken&gt;?notice=too-late · 3.4 AC4, 3.5 AC4</span></p>
-      <div class="phone">
-        <p class="brand">calvin</p>
+      <p class="frame-label"><span class="tag tag-new">New</span>M4 · Started, after a late call-off <span class="route">GET /m/&lt;manageToken&gt;?notice=too-late · 3.4 AC4, 3.5 AC4</span></p>
+      <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
+        <p class="brand">calvin</p>
         <p class="notice" role="status">It's already started, so it can't be called off.</p>
-        <p class="pill pill-off">Happening now</p>
-        <p class="eyebrow">Coffee</p>
-        <h1>Blue Bottle</h1>
-        <p class="meta">Oakland · Sat 14 Nov · 10:00 AM</p>
+        <p class="state state-now">Happening now</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
         <p class="count">3 of 3</p>
-        <ul class="names" aria-label="Who's in"><li>Ana Ruiz</li><li>Mia Chen</li><li>Raj Rao</li></ul>
-        <div class="actions">
-          <a class="btn btn-secondary" href="#m4">Start a new plan from this</a>
-        </div>
-      </div>
+        <ul class="names names-on" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li><span class="token" aria-hidden="true">R</span>Raj Rao</li>
+        </ul>
+        <a class="btn btn-secondary" href="#m4">Start a new plan from this</a>
+      </div></div>
       <p class="frame-note">Once the gathering starts there's no <b>Call it off</b>. The notice appears only when a call-off was posted too late (an old tab, say). Without <code>?notice</code> it's the same page with no notice.</p>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> M5 · Called off <span class="route">GET /m/&lt;manageToken&gt; · 3.4 AC3</span></p>
-      <div class="phone">
-        <p class="brand">calvin</p>
+      <p class="frame-label"><span class="tag tag-new">New</span>M5 · Called off <span class="route">GET /m/&lt;manageToken&gt; · 3.4 AC3</span></p>
+      <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
-        <p class="pill pill-off">Not this time</p>
-        <p class="eyebrow">Coffee</p>
-        <h1 class="venue-off">Blue Bottle</h1>
-        <p class="meta">Oakland · Sat 14 Nov · 10:00 AM</p>
-        <ul class="names" aria-label="Who was in"><li>Ana Ruiz</li><li>Mia Chen</li></ul>
-        <div class="actions">
-          <a class="btn btn-primary" href="#m5">Start a new plan from this</a>
-        </div>
-      </div>
-      <p class="frame-note">Names are a plain list with no count (ux-spec: never count who didn't come). Starting again is the one primary action. The same page shows whether the deadline passed (3.1) or Ana called it off (3.5).</p>
+        <p class="brand">calvin</p>
+        <p class="state state-off">Not this time</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue venue-off">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="names names-off" aria-label="Who was in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+        </ul>
+        <a class="btn btn-primary" href="#m5">Start a new plan from this</a>
+      </div></div>
+      <p class="frame-note">Grey tokens, no count and no empty seats (ux-spec: never count who didn't come). Starting again is the one primary action. The same page shows whether the deadline passed (3.1) or Ana called it off (3.5).</p>
     </article>
 
   </div>
@@ -260,38 +470,43 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
   <div class="grid">
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-built">Built</span> P1 · Public page, not this time <span class="route">GET /p/&lt;publicToken&gt; · 3.1 AC6</span></p>
-      <div class="phone">
-        <p class="pill pill-off">Not this time</p>
-        <p class="eyebrow">Coffee</p>
-        <h1 class="venue-off">Blue Bottle</h1>
-        <p class="meta">Oakland · Sat 14 Nov · 10:00 AM</p>
-        <p>This one isn't going ahead. No harm done. Maybe next time.</p>
-        <p><a href="#p1">Suggest a plan</a></p>
-      </div>
-      <p class="frame-note">No form, no seats, no count. The chat preview's <code>og:description</code> reads "Not this time" (3.1 AC6). Today the built pill uses the orange "open" colour in every state; this frame shows ux-spec's grey "off" pill.</p>
+      <p class="frame-label"><span class="tag tag-built">Built</span>P1 · Public page, not this time <span class="route">GET /p/&lt;publicToken&gt; · 3.1 AC6</span></p>
+      <div class="phone"><div class="app">
+        <p class="brand">calvin</p>
+        <p class="state state-off">Not this time</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue venue-off">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="copy">This one isn't going ahead. No harm done. Maybe next time.</p>
+        <a class="quiet" href="#p1">Suggest a plan</a>
+      </div></div>
+      <div class="changes"><b>What changes</b>Grey pill and a grey venue (today the pill is orange). The wordmark is added, and Suggest a plan gets a 44px tap area. No form, no seats, no count, as built. The chat preview's <code>og:description</code> still reads "Not this time" (3.1 AC6).</div>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-built">Built</span> P2 · Someone commits anyway <span class="route">POST /p/&lt;token&gt;/commit → ?notice=closed · 3.1 AC7</span></p>
-      <div class="phone">
-        <p class="pill pill-off">Not this time</p>
-        <p class="eyebrow">Coffee</p>
-        <h1 class="venue-off">Blue Bottle</h1>
-        <p class="meta">Oakland · Sat 14 Nov · 10:00 AM</p>
-        <p>This one isn't going ahead. No harm done. Maybe next time.</p>
-        <p><a href="#p2">Suggest a plan</a></p>
+      <p class="frame-label"><span class="tag tag-built">Built</span>P2 · Someone commits anyway <span class="route">POST /p/&lt;token&gt;/commit → ?notice=closed · 3.1 AC7</span></p>
+      <div class="phone"><div class="app">
+        <p class="brand">calvin</p>
         <p class="notice" role="status">This one isn't taking commits any more.</p>
-      </div>
-      <p class="frame-note">Shown when a form was open in an old tab. Nothing is stored.</p>
+        <p class="state state-off">Not this time</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue venue-off">Blue Bottle</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="copy">This one isn't going ahead. No harm done. Maybe next time.</p>
+        <a class="quiet" href="#p2">Suggest a plan</a>
+      </div></div>
+      <div class="changes"><b>What changes</b>The notice moves to the top, where the person who just tapped I'm in will see it first. Today it's at the bottom. Shown when a form was open in an old tab; nothing is stored.</div>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-built">Built</span> W1 · Withdraw link, called off <span class="route">GET /w/&lt;withdrawToken&gt; · 3.1 AC8</span></p>
-      <div class="phone">
+      <p class="frame-label"><span class="tag tag-built">Built</span>W1 · Withdraw link, called off <span class="route">GET /w/&lt;withdrawToken&gt; · 3.1 AC8</span></p>
+      <div class="phone"><div class="app">
+        <p class="brand">calvin</p>
         <h1>This one isn't going ahead, so there's nothing to withdraw from.</h1>
-      </div>
-      <p class="frame-note">There's no button. This is where the withdraw link in the "Not this time" email lands (E2), so it's the most likely way anyone sees this page.</p>
+      </div></div>
+      <div class="changes"><b>What changes</b>The wordmark is added, and the sentence is set in the page-title serif. There's still no button. This is where the withdraw link in the "Not this time" email lands (E2), so it's the most likely way anyone sees this page.</div>
     </article>
 
   </div>
@@ -299,15 +514,15 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
 
 <section class="group" aria-labelledby="g-new">
   <h2 id="g-new">Start a new plan from an old one: Story 3.6</h2>
-  <p class="why">From the manage page's "Start a new plan from this". It's the create page's card, pre-filled, with no <b>Suggest another</b> or <b>Change</b>, since leaving would lose the link to the old plan.</p>
+  <p class="why">From the manage page's "Start a new plan from this". It's the create page's card with every row open for editing, pre-filled, with no <b>Suggest another</b> or <b>Change</b>, since leaving would lose the link to the old plan.</p>
   <div class="grid">
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> N1 · Pre-filled from the old plan <span class="route">GET /m/&lt;manageToken&gt;/new · 3.6 AC1</span></p>
-      <div class="phone">
+      <p class="frame-label"><span class="tag tag-new">New</span>N1 · Pre-filled from the old plan <span class="route">GET /m/&lt;manageToken&gt;/new · 3.6 AC1</span></p>
+      <div class="phone"><div class="app">
         <p class="brand">calvin</p>
         <h1>Suggest a plan</h1>
-        <p class="summary">Oakland · Rockridge · next weekend, morning</p>
+        <p class="summary"><span>Oakland · Rockridge · next weekend, morning</span></p>
         <div class="field"><label for="n1-what">What</label><input id="n1-what" type="text" value="Coffee"></div>
         <div class="field"><label for="n1-where">Where</label><input id="n1-where" type="text" value="Blue Bottle"></div>
         <div class="row">
@@ -323,16 +538,16 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
         <div class="field"><label for="n1-name">Your name</label><input id="n1-name" type="text" value="Ana Ruiz"></div>
         <div class="field"><label for="n1-email">Your email</label><input id="n1-email" type="email" value="ana@example.test"></div>
         <button class="btn btn-primary" type="button">Publish plan</button>
-      </div>
-      <p class="frame-note">Date, time and Decide by start empty. Leaving Decide by empty gets the default. Publishing makes a new plan with new links, and the old committers aren't emailed. The heading follows the built create page ("Suggest a plan"). <b>Proposed:</b> "Same again, new date" reads better here. Your call.</p>
+      </div></div>
+      <p class="frame-note">Date, time and Decide by start empty. Leaving Decide by empty gets the default. Publishing makes a new plan with new links, and the old committers aren't emailed. The heading follows the built create page; see question 6.</p>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> N2 · Published with no date <span class="route">POST /plans with fromManageToken → 422 · 3.6 AC7</span></p>
-      <div class="phone">
+      <p class="frame-label"><span class="tag tag-new">New</span>N2 · Published with no date <span class="route">POST /plans with fromManageToken → 422 · 3.6 AC7</span></p>
+      <div class="phone"><div class="app">
         <p class="brand">calvin</p>
         <h1>Suggest a plan</h1>
-        <p class="summary">Oakland · Rockridge · next weekend, morning</p>
+        <p class="summary"><span>Oakland · Rockridge · next weekend, morning</span></p>
         <div class="field"><label for="n2-what">What</label><input id="n2-what" type="text" value="Coffee"></div>
         <div class="field"><label for="n2-where">Where</label><input id="n2-where" type="text" value="Blue Bottle"></div>
         <div class="row">
@@ -343,8 +558,8 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
         <h2>You're the first one in</h2>
         <div class="field"><label for="n2-name">Your name</label><input id="n2-name" type="text" value="Ana Ruiz"></div>
         <button class="btn btn-primary" type="button">Publish plan</button>
-      </div>
-      <p class="frame-note">The page comes back with what was entered kept and the error under the field. (Cropped: the Decide by and email rows sit where they do in N1.)</p>
+      </div></div>
+      <p class="frame-note">The page comes back with what was entered kept, the error under the field, and focus on it. (Cropped: the Decide by and email rows sit where they do in N1.)</p>
     </article>
 
   </div>
@@ -352,11 +567,11 @@ body { margin: 0; background: var(--sheet); color: var(--sheet-ink); font-family
 
 <section class="group" aria-labelledby="g-mail">
   <h2 id="g-mail">The four emails: Stories 3.1, 3.2 and 3.3</h2>
-  <p class="why">Plain text, one column. Subjects are quoted from the acceptance criteria; body lines quoted from the ACs are noted under each email, and the rest is <b>proposed</b> copy. Every email to someone other than the creator ends with the withdraw link. Ana's copies have none.</p>
+  <p class="why">Plain text, one column, so the design doesn't restyle them. Subjects are quoted from the acceptance criteria; body lines quoted from the ACs are noted under each email, and the rest is <b>proposed</b> copy. Every email to someone other than the creator ends with the withdraw link. Ana's copies have none.</p>
   <div class="grid">
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> E1 · It's on <span class="route">kind confirmed · 3.2</span></p>
+      <p class="frame-label"><span class="tag tag-new">New</span>E1 · It's on <span class="route">kind confirmed · 3.2</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM</span></div>
 <pre class="mail-body">It's on. Ana, Mia, Raj are in.
@@ -373,18 +588,18 @@ Can't make it? Withdraw: <a href="#e1">calvin.example/w/Qm7…</a></pre>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> E2 · Not this time <span class="route">kind not_this_time · 3.1, 3.5</span></p>
+      <p class="frame-label"><span class="tag tag-new">New</span>E2 · Not this time <span class="route">kind not_this_time · 3.1, 3.5</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Not this time: Coffee on Sat 14 Nov</span></div>
 <pre class="mail-body">This one didn't come together, and that's fine. Nobody's going, so there's nothing to do.
 
 Can't make it? Withdraw: <a href="#e2">calvin.example/w/Qm7…</a></pre>
       </div>
-      <p class="frame-note">Fixed by 3.1 AC2: the sentence, no names, no count, and the withdraw link. It's the same email whether the deadline passed or Ana called it off. <b>Question:</b> the withdraw link lands on W1, "nothing to withdraw from". Drop it from this one email?</p>
+      <p class="frame-note">Fixed by 3.1 AC2: the sentence, no names, no count, and the withdraw link. It's the same email whether the deadline passed or Ana called it off. See question 2.</p>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> E3 · Tomorrow <span class="route">24h reminder · 3.3 · sent Fri 13 Nov, 10:00 AM</span></p>
+      <p class="frame-label"><span class="tag tag-new">New</span>E3 · Tomorrow <span class="route">24h reminder · 3.3 · sent Fri 13 Nov, 10:00 AM</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Tomorrow: Coffee at Blue Bottle, 10:00 AM</span></div>
 <pre class="mail-body">Tomorrow at 10:00 AM: Coffee at Blue Bottle, Oakland.
@@ -398,7 +613,7 @@ Can't make it? Withdraw: <a href="#e3">calvin.example/w/Qm7…</a></pre>
     </article>
 
     <article class="frame">
-      <p class="frame-label"><span class="tag-new">New</span> E4 · Today <span class="route">morning reminder · 3.3 · sent Sat 14 Nov, 8:00 AM</span></p>
+      <p class="frame-label"><span class="tag tag-new">New</span>E4 · Today <span class="route">morning reminder · 3.3 · sent Sat 14 Nov, 8:00 AM</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Today: Coffee at Blue Bottle, 10:00 AM</span></div>
 <pre class="mail-body">Today at 10:00 AM: Coffee at Blue Bottle, Oakland.
@@ -425,18 +640,46 @@ Can't make it? Withdraw: <a href="#e4">calvin.example/w/Qm7…</a></pre>
   </ol>
 </section>
 
+<section class="group" aria-labelledby="g-a11y">
+  <h2 id="g-a11y">Accessibility, checked by hand</h2>
+  <p class="why">Against ux-spec §9.2 (WCAG 2.2 AA), on this sheet's frames.</p>
+  <table class="table">
+    <tr><th scope="row">Contrast</th><td>All 24 text and boundary pairs pass in both themes (48 checks, computed from the hex values). The lowest text pair is "It's on" green on its tint, 5.5:1 in light; the lowest boundary is input borders on the page, 3.35:1 against a 3:1 floor.</td></tr>
+    <tr><th scope="row">Colour alone</th><td>Every state is also named in words ("Needs 1 more", "It's on", "Not this time"). Open and on pills also differ by a dot; the off pill has none.</td></tr>
+    <tr><th scope="row">Tap targets</th><td>Buttons and inputs are at least 48px tall; Copy inside the link box, Edit, Change, Keep it, Call it off and Suggest a plan are at least 44px.</td></tr>
+    <tr><th scope="row">Keyboard and focus</th><td>Every control is a native link, button, input or <code>&lt;details&gt;</code>, in reading order, with a 2px berry ring at 2px offset (7.0:1 on paper).</td></tr>
+    <tr><th scope="row">Screen readers</th><td>Seat initials and the decorative empty row are <code>aria-hidden</code>; the lists keep ux-spec's labels ("2 of 3 people in", "Who's in"). Notices keep <code>role="status"</code>. One <code>&lt;h1&gt;</code> per screen.</td></tr>
+    <tr><th scope="row">Motion</th><td>One animation: the seat line drawing in on "It's on". It runs only under <code>prefers-reduced-motion: no-preference</code>.</td></tr>
+    <tr><th scope="row">360px</th><td>No frame scrolls sideways at 360px; long names ellipsise in seats and wrap in the manage list.</td></tr>
+  </table>
+</section>
+
 <section class="group" aria-labelledby="g-q">
   <h2 id="g-q">For the operator to decide before Epic 3 starts</h2>
   <ol class="questions">
-    <li><b>Manage page names.</b> M1 follows 3.4: a full-name list and "2 of 3". Shaping's mockup 4 showed first-name seats and "You". Keep the list?</li>
-    <li><b>Withdraw link in "Not this time" (E2).</b> 3.1 requires it, but it lands on "nothing to withdraw from" (W1). Drop it from E2 only?</li>
-    <li><b>Pill colours.</b> The built app shows every pill in the orange "open" colour, including "It's on". These frames use ux-spec's green "on" and grey "off" pills. Should Epic 3 add them? (It's a small CSS change; 3.4 would carry it.)</li>
-    <li><b>Buttons and link box.</b> The built "ready to share" page uses unstyled Copy and Share buttons. The manage page needs ux-spec's secondary button, quiet link and link box (marked "New" in the CSS). Should 3.4 add them and restyle "ready to share" to match?</li>
-    <li><b>Email bodies.</b> Lines not fixed by the ACs are proposed (E1's "We'll remind you…", and E3 and E4 entirely). Approve them, or edit them here before 3.2 and 3.3 start.</li>
-    <li><b>3.6 heading.</b> "Suggest a plan" (as built) or "Same again, new date"?</li>
+    <li><b>Manage page names.</b> M1 follows 3.4: full names and "2 of 3". Shaping's mockup 4 showed first-name seats. <span class="answer">The design answers this: full names in a list, with the same tokens as the public seats, so it follows 3.4 and still looks like the same app. Approve?</span></li>
+    <li><b>Withdraw link in "Not this time" (E2).</b> 3.1 requires it, but it lands on "nothing to withdraw from" (W1). Drop it from E2 only? <span class="answer">Not a design question; still open.</span></li>
+    <li><b>Colours and pills.</b> The built app shows every pill in orange, including "It's on". <span class="answer">The design adds green "on" and grey "off" pills, and goes further: a new palette (berry on lilac-grey) and a serif for the venue, replacing ux-spec §4.1 and §4.2. Approve the new look, or keep ux-spec's terracotta and take only the pill colours?</span></li>
+    <li><b>Buttons and link box.</b> The manage page needs a secondary button, quiet links and a link box that app.css doesn't have. <span class="answer">The design draws them, and restyles every built screen to match (B1–B5, P1, P2, W1). Should 3.4 carry the whole restyle, or should it be a separate story ahead of 3.4?</span></li>
+    <li><b>Email bodies.</b> Lines not fixed by the ACs are proposed (E1's "We'll remind you…", and E3 and E4 entirely). Approve them, or edit them here before 3.2 and 3.3 start. <span class="answer">Not a design question; still open.</span></li>
+    <li><b>3.6 heading.</b> "Suggest a plan" (as built) or "Same again, new date"? <span class="answer">Still yours. From the design side, "Same again, new date" says what the page is for, since it isn't suggesting anything.</span></li>
   </ol>
+  <p class="why">Answers that change a story go into spec/calvin-4's epics.md before init, and an approved look goes into ux-spec.md §4.</p>
 </section>
 
 </div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll('[data-set-theme]');
+  function apply(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.setTheme === t)); });
+  }
+  buttons.forEach(function (b) { b.addEventListener('click', function () { apply(b.dataset.setTheme); }); });
+  var q = new URLSearchParams(location.search).get('theme');
+  if (q === 'light' || q === 'dark') apply(q);
+})();
+</script>
 </body>
 </html>
