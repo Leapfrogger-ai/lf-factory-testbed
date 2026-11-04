@@ -617,4 +617,8 @@ describe('loadSendTargets', () => {
     expect(targets.plan.id).toBe(planId);
     expect(targets.commits.map((c) => c.name)).toEqual(['Ann', 'Raj Patel']);
   });
+
+  it('throws when there is no plan for the id', async () => {
+    await expect(loadSendTargets(db, '00000000-0000-0000-0000-000000000000')).rejects.toThrow('No plan for that id');
+  });
 });

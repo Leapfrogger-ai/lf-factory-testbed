@@ -133,6 +133,7 @@ export async function resolveDeadline(db: Db, planId: string): Promise<{ state: 
       .from(commits)
       .where(and(eq(commits.planId, plan.id), isNull(commits.withdrawnAt)));
     const activeCount = active!.value;
+    // Defensive and untestable through the domain: commit() confirms an open plan the moment it reaches its minimum.
     if (activeCount >= plan.minimum) return { state: plan.state };
     await tx
       .update(plans)
