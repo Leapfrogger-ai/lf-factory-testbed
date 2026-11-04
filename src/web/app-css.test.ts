@@ -32,7 +32,7 @@ function declares(block: string, token: string, hex: string): boolean {
 }
 
 /** Returns each animation/transition declaration not inside a top-level reduced-motion block. */
-export function unguardedMotion(source: string): string[] {
+function unguardedMotion(source: string): string[] {
   const text = source.replace(/\/\*[\s\S]*?\*\//g, '');
   const bad: string[] = [];
   // For each match, find its enclosing top-level block prelude with a depth counter.
