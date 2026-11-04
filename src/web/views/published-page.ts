@@ -1,3 +1,4 @@
+import { brand } from './layout.ts';
 import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 
@@ -8,6 +9,7 @@ const notEmailedCopy = html`<p>We couldn't email you your private link. Bookmark
 
 export function publishedPage({ publicLink, manageLink, emailed, shareText }: PublishedLinks): HtmlEscapedString {
   return html`<main>
+    ${brand}
     <h1>Your plan is ready to share</h1>
     <p>
       <input type="text" id="public-link" readonly aria-label="Link to share" value="${publicLink}" />

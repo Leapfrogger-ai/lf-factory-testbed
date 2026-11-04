@@ -1,3 +1,4 @@
+import { brand } from './layout.ts';
 import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import type { DisplayState } from '../../domain/plan-rules.ts';
@@ -117,6 +118,7 @@ export function publicPlanPage({
             Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)}.
           </p>`;
   return html`<main>
+    ${brand}
     <p class="pill">${pillText(plan, state)}</p>
     <p class="eyebrow">${capitalise(plan.format)}</p>
     <h1>${plan.venue}</h1>

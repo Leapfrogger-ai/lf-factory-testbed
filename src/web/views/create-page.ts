@@ -1,3 +1,4 @@
+import { brand } from './layout.ts';
 import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import { CITIES } from '../../config.ts';
@@ -59,7 +60,7 @@ export function createPage(
 
   const main = (body: HtmlEscapedString | Promise<HtmlEscapedString>) =>
     html`<main>
-      <p class="brand">calvin</p>
+      ${brand}
       <h1>Suggest a plan</h1>
       ${state.kind === 'inputs' && state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
       ${body}
