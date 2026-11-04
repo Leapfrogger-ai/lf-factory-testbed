@@ -175,6 +175,35 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
 .questions { max-width: 820px; padding-left: 22px; }
 .questions li { margin-bottom: 12px; }
 .answer { display: block; margin-top: 2px; color: var(--desk-2); }
+/* Flow map: phases down the page, three lanes across; one column on phones. */
+.flow { list-style: none; padding: 0; margin: 0; max-width: 1100px; counter-reset: phase; }
+.lanes-head { display: grid; grid-template-columns: 150px repeat(3, 1fr); gap: 12px; margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--desk-2); max-width: 1100px; }
+.phase { display: grid; grid-template-columns: 150px repeat(3, 1fr); gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); counter-increment: phase; }
+.phase-name { margin: 0; font: 600 18px/1.25 var(--serif); }
+.phase-name::before { content: counter(phase) ". "; color: var(--mark); }
+.phase-when { display: block; margin-top: 4px; font: 400 13px/1.35 var(--sans); color: var(--desk-2); }
+.lane { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lane-label { display: none; font-size: 13px; font-weight: 700; color: var(--desk-2); }
+.node { display: block; padding: 8px 12px; border-radius: 12px; background: var(--paper); color: var(--desk-ink); text-decoration: none; box-shadow: inset 0 0 0 1.5px var(--line-strong); line-height: 1.35; }
+.sheet a.node { color: var(--desk-ink); }
+.node:hover { box-shadow: inset 0 0 0 2px var(--mark); }
+.node-new { background: var(--mark-tint); box-shadow: none; outline: 1.5px dashed var(--mark); outline-offset: -1.5px; }
+.node-new:focus-visible, .node:focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+.node b { display: block; font-size: 15px; }
+.node > span { display: block; font-size: 13px; color: var(--desk-2); }
+.node .frame-ref { font-weight: 700; color: var(--mark); }
+.node-plain { cursor: default; }
+.legend-flow { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 16px; padding: 0; list-style: none; font-size: 14px; }
+.legend-flow li { display: flex; align-items: center; gap: 8px; }
+.legend-flow i { width: 28px; height: 18px; border-radius: 6px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.legend-flow i.new { background: var(--mark-tint); box-shadow: none; outline: 1.5px dashed var(--mark); outline-offset: -1.5px; }
+.frame:target .phone, .frame:target .mail { box-shadow: 0 0 0 3px var(--mark); }
+@media (max-width: 760px) {
+  .lanes-head { display: none; }
+  .phase { grid-template-columns: 1fr; gap: 8px; }
+  .lane-label { display: block; margin-top: 4px; }
+  .lane:empty { display: none; }
+}
 @media (max-width: 520px) { .timeline li { grid-template-columns: 1fr; gap: 2px; } .table th { white-space: normal; } }
 </style>
 </head>
@@ -194,6 +223,125 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
   </div>
   <p style="margin-top:16px"><span class="tag tag-new">New</span>a screen or state Epic 3 adds &nbsp; <span class="tag tag-built">Built</span>already in the app, shown restyled</p>
 </header>
+
+<section class="group" aria-labelledby="g-flow">
+  <h2 id="g-flow">How people move through calvin</h2>
+  <p class="why">Epics 1–3 from start to finish, for the creator (Ana) and everyone who commits (Mia, Raj). Each step links to its frame below. Steps run top to bottom; within a step, the three columns happen at about the same time.</p>
+  <ul class="legend-flow">
+    <li><i aria-hidden="true"></i>Built in Epics 1–2</li>
+    <li><i class="new" aria-hidden="true"></i>Added by Epic 3 (story number on the step)</li>
+  </ul>
+  <div class="lanes-head" aria-hidden="true"><span></span><span>Creator</span><span>calvin and its emails</span><span>Everyone who commits</span></div>
+  <ol class="flow">
+
+    <li class="phase">
+      <h3 class="phase-name">Make a plan<span class="phase-when">Any time</span></h3>
+      <div class="lane"><span class="lane-label">Creator</span>
+        <a class="node" href="#f-b1"><b>Create, with a suggestion</b><span>Built · <span class="frame-ref">B1</span></span></a>
+        <a class="node" href="#f-b2"><b>Publish, then ready to share</b><span>Built · <span class="frame-ref">B2</span></span></a>
+      </div>
+      <div class="lane"><span class="lane-label">calvin and its emails</span>
+        <div class="node node-plain"><b>Emails Ana her private manage link</b><span>Built · no frame, Epic 3 doesn't change it</span></div>
+      </div>
+      <div class="lane"></div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">Share and commit<span class="phase-when">Until the decide-by time</span></h3>
+      <div class="lane"><span class="lane-label">Creator</span>
+        <div class="node node-plain"><b>Pastes the link in the group chat</b><span>Outside calvin</span></div>
+      </div>
+      <div class="lane"></div>
+      <div class="lane"><span class="lane-label">Everyone who commits</span>
+        <a class="node" href="#f-b3"><b>Opens the plan, taps I'm in</b><span>Built · <span class="frame-ref">B3</span> · "You're in, Mia."</span></a>
+      </div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">It's on<span class="phase-when">The commit that reaches the minimum</span></h3>
+      <div class="lane"><span class="lane-label">Creator</span>
+        <a class="node node-new" href="#f-m3"><b>Manage page: It's on</b><span>Epic 3 · 3.4 · <span class="frame-ref">M3</span></span></a>
+      </div>
+      <div class="lane"><span class="lane-label">calvin and its emails</span>
+        <a class="node node-new" href="#f-e1"><b>"It's on" email to everyone in</b><span>Epic 3 · 3.2 · <span class="frame-ref">E1</span> · later joiners get it straight away</span></a>
+      </div>
+      <div class="lane"><span class="lane-label">Everyone who commits</span>
+        <a class="node" href="#f-b4"><b>Raj's commit: It's on!</b><span>Built · <span class="frame-ref">B4</span></span></a>
+      </div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">Change of mind<span class="phase-when">Any time before it starts</span></h3>
+      <div class="lane"></div>
+      <div class="lane"></div>
+      <div class="lane"><span class="lane-label">Everyone who commits</span>
+        <a class="node" href="#f-b5"><b>Withdraw, from the link in any email</b><span>Built · <span class="frame-ref">B5</span> · Epic 3's emails are the first to carry the link</span></a>
+        <a class="node" href="#f-b3"><b>Rejoin: commit again on the plan page</b><span>Built · <span class="frame-ref">B3</span> · same email just updates the name</span></a>
+      </div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">Manage and call off<span class="phase-when">Any time before it starts</span></h3>
+      <div class="lane"><span class="lane-label">Creator</span>
+        <a class="node node-new" href="#f-m1"><b>Opens the manage link</b><span>Epic 3 · 3.4 · <span class="frame-ref">M1</span></span></a>
+        <a class="node node-new" href="#f-m2"><b>Call it off, then confirm</b><span>Epic 3 · 3.5 · <span class="frame-ref">M2</span>, then <span class="frame-ref">M5</span></span></a>
+      </div>
+      <div class="lane"><span class="lane-label">calvin and its emails</span>
+        <a class="node node-new" href="#f-e2"><b>"Not this time" email to everyone in</b><span>Epic 3 · 3.5 · <span class="frame-ref">E2</span></span></a>
+      </div>
+      <div class="lane"><span class="lane-label">Everyone who commits</span>
+        <a class="node" href="#f-p1"><b>Plan page: Not this time</b><span>Built · <span class="frame-ref">P1</span>, <span class="frame-ref">P2</span> if a form was open</span></a>
+        <a class="node" href="#f-w1"><b>Withdraw link: nothing to withdraw from</b><span>Built · <span class="frame-ref">W1</span></span></a>
+      </div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">Decide by<span class="phase-when">Wed 11 Nov, 10:00 PM</span></h3>
+      <div class="lane"><span class="lane-label">Creator</span>
+        <a class="node node-new" href="#f-m5"><b>Below 3: manage page shows Not this time</b><span>Epic 3 · 3.4 · <span class="frame-ref">M5</span></span></a>
+      </div>
+      <div class="lane"><span class="lane-label">calvin and its emails</span>
+        <a class="node node-new" href="#f-e2"><b>Below 3: calls it off, "Not this time" to everyone</b><span>Epic 3 · 3.1 · <span class="frame-ref">E2</span></span></a>
+        <a class="node node-new" href="#f-e1"><b>3 or more: "It's on" to anyone who hasn't had it</b><span>Epic 3 · 3.2 · <span class="frame-ref">E1</span></span></a>
+      </div>
+      <div class="lane"><span class="lane-label">Everyone who commits</span>
+        <a class="node" href="#f-p1"><b>Below 3: plan page shows Not this time</b><span>Built, first reachable in 3.1 · <span class="frame-ref">P1</span></span></a>
+      </div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">Reminders<span class="phase-when">Only if it's on</span></h3>
+      <div class="lane"></div>
+      <div class="lane"><span class="lane-label">calvin and its emails</span>
+        <a class="node node-new" href="#f-e3"><b>"Tomorrow" email</b><span>Epic 3 · 3.3 · <span class="frame-ref">E3</span> · Fri 13 Nov, 10:00 AM</span></a>
+        <a class="node node-new" href="#f-e4"><b>"Today" email</b><span>Epic 3 · 3.3 · <span class="frame-ref">E4</span> · Sat 14 Nov, 8:00 AM</span></a>
+      </div>
+      <div class="lane"></div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">It starts<span class="phase-when">Sat 14 Nov, 10:00 AM</span></h3>
+      <div class="lane"><span class="lane-label">Creator</span>
+        <a class="node node-new" href="#f-m4"><b>Manage page: Happening now, no Call it off</b><span>Epic 3 · 3.4, 3.5 · <span class="frame-ref">M4</span></span></a>
+      </div>
+      <div class="lane"></div>
+      <div class="lane"><span class="lane-label">Everyone who commits</span>
+        <div class="node node-plain"><b>Withdraw link: "This one has already started."</b><span>Built · no frame</span></div>
+      </div>
+    </li>
+
+    <li class="phase">
+      <h3 class="phase-name">Same again<span class="phase-when">After a plan that didn't happen, or any time</span></h3>
+      <div class="lane"><span class="lane-label">Creator</span>
+        <a class="node node-new" href="#f-n1"><b>Start a new plan from this, pre-filled</b><span>Epic 3 · 3.6 · <span class="frame-ref">N1</span>, <span class="frame-ref">N2</span> if there's no date</span></a>
+        <a class="node" href="#f-b2"><b>Publish: new links, back to step 2</b><span>Built · <span class="frame-ref">B2</span> · the old committers aren't emailed</span></a>
+      </div>
+      <div class="lane"></div>
+      <div class="lane"></div>
+    </li>
+
+  </ol>
+</section>
 
 <section class="group" aria-labelledby="g-dir">
   <h2 id="g-dir">The direction</h2>
@@ -232,7 +380,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
   <p class="why">Epics 1 and 2 built these. They're here so the operator sees one app: the Epic 3 screens below use the same parts.</p>
   <div class="grid">
 
-    <article class="frame">
+    <article class="frame" id="f-b1">
       <p class="frame-label"><span class="tag tag-built">Built</span>B1 · Create, with a suggestion <span class="route">GET / after Suggest a plan · mockup 1b</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -255,7 +403,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <div class="changes"><b>What changes</b>The suggestion becomes one white card with ruled rows. Edit and Change become quiet underlined text, 44px tall. Suggest another becomes a secondary outline button (today it's an unstyled button).</div>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-b2">
       <p class="frame-label"><span class="tag tag-built">Built</span>B2 · Ready to share <span class="route">after POST /plans · mockup 2</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -269,7 +417,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <div class="changes"><b>What changes</b>A link box with Copy inside it, Share as a secondary button, and Manage your plan as a quiet link. The wordmark is added. The link's label becomes visible ("Link to share"); today it's only an aria-label.</div>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-b3">
       <p class="frame-label"><span class="tag tag-built">Built</span>B3 · Public page, open <span class="route">GET /p/&lt;publicToken&gt; · mockup 3a</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -291,7 +439,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <div class="changes"><b>What changes</b>Berry pill, seat tokens, the venue at 36px in serif, and time and city on two lines. The wordmark is added. The plan, seats and I'm in still fit in 360×640.</div>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-b4">
       <p class="frame-label"><span class="tag tag-built">Built</span>B4 · The commit that makes it happen <span class="route">POST /p/&lt;token&gt;/commit → ?notice=on · mockup 3b</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -311,7 +459,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <div class="changes"><b>What changes</b>The notice moves above the plan. The pill turns green, the seats turn green, and the line joining them draws in once (not with reduced motion on). Today the pill stays orange.</div>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-b5">
       <p class="frame-label"><span class="tag tag-built">Built</span>B5 · Withdraw <span class="route">GET /w/&lt;withdrawToken&gt; · mockup 5</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -329,7 +477,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
   <p class="why">The creator's private link. Today <code>/m/&lt;token&gt;</code> is a 404; only the "ready to share" screen exists. 3.4 draws the page, and 3.5 makes <b>Call it off</b> work. A dark strip at the top marks it as the private page, so it can't be mistaken for the one in the chat.</p>
   <div class="grid">
 
-    <article class="frame">
+    <article class="frame" id="f-m1">
       <p class="frame-label"><span class="tag tag-new">New</span>M1 · Open, below minimum <span class="route">GET /m/&lt;manageToken&gt; · 3.4 AC1</span></p>
       <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
@@ -360,7 +508,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <p class="frame-note">Full names, never emails (3.4), shown with the same tokens as the public page's seats, as a list so long names fit. The empty dashed row is decoration only and hidden from screen readers. <b>Call it off</b> is a native <code>&lt;details&gt;</code>; tap it to open it.</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-m2">
       <p class="frame-label"><span class="tag tag-new">New</span>M2 · Call it off, opened <span class="route">same page, &lt;details open&gt; · 3.4 AC2</span></p>
       <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
@@ -389,7 +537,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <p class="frame-note"><b>Keep it</b> is a link back to <code>/m/&lt;token&gt;</code>, so it closes without JS. <b>Call it off</b> POSTs to <code>/m/&lt;token&gt;/call-off</code> with no fields (3.5). The confirm sits on the grey "off" tint and its button is filled ink, not red (ux-spec §7.2).</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-m3">
       <p class="frame-label"><span class="tag tag-new">New</span>M3 · Confirmed <span class="route">GET /m/&lt;manageToken&gt; · 3.4, 3.5 AC2</span></p>
       <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
@@ -420,7 +568,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <p class="frame-note">A confirmed plan can still be called off until it starts (3.5). Everyone who's in then gets "Not this time", and no reminder follows.</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-m4">
       <p class="frame-label"><span class="tag tag-new">New</span>M4 · Started, after a late call-off <span class="route">GET /m/&lt;manageToken&gt;?notice=too-late · 3.4 AC4, 3.5 AC4</span></p>
       <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
@@ -442,7 +590,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <p class="frame-note">Once the gathering starts there's no <b>Call it off</b>. The notice appears only when a call-off was posted too late (an old tab, say). Without <code>?notice</code> it's the same page with no notice.</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-m5">
       <p class="frame-label"><span class="tag tag-new">New</span>M5 · Called off <span class="route">GET /m/&lt;manageToken&gt; · 3.4 AC3</span></p>
       <div class="phone"><div class="app">
         <p class="private">Your plan. Only you can see this page.</p>
@@ -469,7 +617,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
   <p class="why">These views exist in code since Epic 2, but nothing can call a plan off yet, so no one has seen them. 3.1 adds the deadline call-off that reaches them.</p>
   <div class="grid">
 
-    <article class="frame">
+    <article class="frame" id="f-p1">
       <p class="frame-label"><span class="tag tag-built">Built</span>P1 · Public page, not this time <span class="route">GET /p/&lt;publicToken&gt; · 3.1 AC6</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -484,7 +632,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <div class="changes"><b>What changes</b>Grey pill and a grey venue (today the pill is orange). The wordmark is added, and Suggest a plan gets a 44px tap area. No form, no seats, no count, as built. The chat preview's <code>og:description</code> still reads "Not this time" (3.1 AC6).</div>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-p2">
       <p class="frame-label"><span class="tag tag-built">Built</span>P2 · Someone commits anyway <span class="route">POST /p/&lt;token&gt;/commit → ?notice=closed · 3.1 AC7</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -500,7 +648,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <div class="changes"><b>What changes</b>The notice moves to the top, where the person who just tapped I'm in will see it first. Today it's at the bottom. Shown when a form was open in an old tab; nothing is stored.</div>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-w1">
       <p class="frame-label"><span class="tag tag-built">Built</span>W1 · Withdraw link, called off <span class="route">GET /w/&lt;withdrawToken&gt; · 3.1 AC8</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -517,7 +665,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
   <p class="why">From the manage page's "Start a new plan from this". It's the create page's card with every row open for editing, pre-filled, with no <b>Suggest another</b> or <b>Change</b>, since leaving would lose the link to the old plan.</p>
   <div class="grid">
 
-    <article class="frame">
+    <article class="frame" id="f-n1">
       <p class="frame-label"><span class="tag tag-new">New</span>N1 · Pre-filled from the old plan <span class="route">GET /m/&lt;manageToken&gt;/new · 3.6 AC1</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -542,7 +690,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
       <p class="frame-note">Date, time and Decide by start empty. Leaving Decide by empty gets the default. Publishing makes a new plan with new links, and the old committers aren't emailed. The heading follows the built create page; see question 6.</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-n2">
       <p class="frame-label"><span class="tag tag-new">New</span>N2 · Published with no date <span class="route">POST /plans with fromManageToken → 422 · 3.6 AC7</span></p>
       <div class="phone"><div class="app">
         <p class="brand">calvin</p>
@@ -570,7 +718,7 @@ html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 1
   <p class="why">Plain text, one column, so the design doesn't restyle them. Subjects are quoted from the acceptance criteria; body lines quoted from the ACs are noted under each email, and the rest is <b>proposed</b> copy. Every email to someone other than the creator ends with the withdraw link. Ana's copies have none.</p>
   <div class="grid">
 
-    <article class="frame">
+    <article class="frame" id="f-e1">
       <p class="frame-label"><span class="tag tag-new">New</span>E1 · It's on <span class="route">kind confirmed · 3.2</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM</span></div>
@@ -587,7 +735,7 @@ Can't make it? Withdraw: <a href="#e1">calvin.example/w/Qm7…</a></pre>
       <p class="frame-note">Fixed by the ACs: the names "Ana, Mia, Raj", the venue, the time, and a map link for "Blue Bottle Oakland". Sent to each person once, even if they withdraw and rejoin. Someone who joins a plan that's already on gets it straight away.</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-e2">
       <p class="frame-label"><span class="tag tag-new">New</span>E2 · Not this time <span class="route">kind not_this_time · 3.1, 3.5</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Not this time: Coffee on Sat 14 Nov</span></div>
@@ -598,7 +746,7 @@ Can't make it? Withdraw: <a href="#e2">calvin.example/w/Qm7…</a></pre>
       <p class="frame-note">Fixed by 3.1 AC2: the sentence, no names, no count, and the withdraw link. It's the same email whether the deadline passed or Ana called it off. See question 2.</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-e3">
       <p class="frame-label"><span class="tag tag-new">New</span>E3 · Tomorrow <span class="route">24h reminder · 3.3 · sent Fri 13 Nov, 10:00 AM</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Tomorrow: Coffee at Blue Bottle, 10:00 AM</span></div>
@@ -612,7 +760,7 @@ Can't make it? Withdraw: <a href="#e3">calvin.example/w/Qm7…</a></pre>
       <p class="frame-note">Where, when and who's in (ux-spec §8.9). It goes to whoever is in at that moment. If the plan was confirmed less than 24h before, it's skipped.</p>
     </article>
 
-    <article class="frame">
+    <article class="frame" id="f-e4">
       <p class="frame-label"><span class="tag tag-new">New</span>E4 · Today <span class="route">morning reminder · 3.3 · sent Sat 14 Nov, 8:00 AM</span></p>
       <div class="mail">
         <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Today: Coffee at Blue Bottle, 10:00 AM</span></div>
