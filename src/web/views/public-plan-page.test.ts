@@ -30,8 +30,9 @@ describe('publicPlanPage', () => {
 
     expect(body).toContain('Needs 2 more');
     expect(body).toContain('Coffee');
-    expect(body).toContain('<h1>Blue Bottle</h1>');
-    expect(body).toContain('Oakland · Sat 14 Nov · 10:00 AM');
+    expect(body).toContain('<h1 class="venue">Blue Bottle</h1>');
+    expect(body).toContain('<p class="when">Sat 14 Nov · 10:00 AM</p>');
+    expect(body).toContain('<p class="where">Oakland</p>');
     expect(body).toContain('Ana');
     expect(body).not.toContain('Ruiz');
     expect(body.match(/you\?/g)).toHaveLength(1);
@@ -85,7 +86,7 @@ describe('publicPlanPage', () => {
     expect(body).toMatch(/It(&#39;|')s on/);
     expect(body).toContain('More people are welcome until it starts.');
     expect(body).not.toContain('you?');
-    expect(body).not.toContain('dot-empty');
+    expect(body).not.toContain('seat-empty');
     expect(body).not.toContain('Goes ahead with a minimum');
     expect(body).toContain('name="email"');
   });
@@ -94,7 +95,7 @@ describe('publicPlanPage', () => {
     const body = render(plan({ state: 'confirmed', names: ['A', 'B', 'C', 'D'] }), 'on');
 
     expect(body.match(/<li class="seat"/g)).toHaveLength(4);
-    expect(body.match(/dot-on/g)).toHaveLength(4);
+    expect(body.match(/class="token"/g)).toHaveLength(4);
     expect(body).not.toContain('Needs');
     expect(body).not.toContain('you?');
     expect(body).not.toContain('-1');
@@ -146,7 +147,7 @@ describe('publicPlanPage', () => {
 
     expect(body).toContain('Not this time');
     expect(body).toContain("This one isn't going ahead. No harm done. Maybe next time.");
-    expect(body).toContain('<a href="/">Suggest a plan</a>');
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
     expect(body).not.toContain('<ul');
     expect(body).not.toContain('Ana');
     expect(body).not.toMatch(/\d of \d/);
@@ -268,6 +269,67 @@ describe('publicPlanPage commit form', () => {
     expect(body).toMatch(/<p[^>]*role="status"[^>]*>\s*You(&#39;|')re in, Mia\. We(&#39;|')ll email you if it(&#39;|')s on\.\s*<\/p>/);
     expect(body).not.toContain('<form');
     expect(body).not.toContain('name="email"');
+  });
+});
+
+describe('publicPlanPage frame markup', () => {
+  it('AC4: the open plan uses the state, venue, when, where and seat-row markup', () => {
+    const body = render(plan({ names: ['Ana Ruiz', 'Mia Chen'], minimum: 3 }));
+
+    expect(body).toContain('<p class="state state-open">Needs 1 more</p>');
+    expect(body).toContain('<h1 class="venue">Blue Bottle</h1>');
+    expect(body).toContain('<p class="when">Sat 14 Nov · 10:00 AM</p>');
+    expect(body).toContain('<p class="where">Oakland</p>');
+    expect(body).toContain('<ul class="seats" aria-label="2 of 3 people in">');
+    expect(body).toContain('<span class="token" aria-hidden="true">A</span>');
+    expect(body).toContain('<span class="token" aria-hidden="true">M</span>');
+    expect(body.match(/seat seat-you/g)).toHaveLength(1);
+    expect(body.match(/<li class="seat seat-you">[\s\S]*?<\/li>/)?.[0]).toContain('you?');
+  });
+
+  it('AC5: on and happening_now take the on and now state classes and the seats-on row', () => {
+    const on = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'on');
+    expect(on).toContain('state state-on');
+    expect(on).toMatch(/It(&#39;|')s on/);
+    expect(on).toContain('class="seats seats-on"');
+    expect(on).not.toContain('just-on');
+
+    const fresh = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'on', { notice: { code: 'on', n: 'Raj' } });
+    expect(fresh).toContain('seats seats-on just-on');
+
+    const now = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'happening_now');
+    expect(now).toContain('state state-now');
+    expect(now).toContain('Happening now');
+    expect(now).toContain('class="seats seats-on"');
+  });
+
+  it('was_on uses state-off and no seats-on on needs_more', () => {
+    const was = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'was_on');
+    expect(was).toContain('state state-off');
+    expect(was).toContain('This was on Sat 14 Nov');
+    expect(was).toContain('class="seats seats-on"');
+    expect(render(plan(), 'not_this_time')).toContain('state state-off');
+    expect(render(plan())).not.toContain('seats-on');
+  });
+
+  it('AC6: the notice sits after the brand and before the state and heading', () => {
+    const on = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'on', { notice: { code: 'on', n: 'Raj' } });
+    const closed = render(plan(), 'not_this_time', { notice: { code: 'closed' } });
+    for (const body of [on, closed]) {
+      const at = body.indexOf('role="status"');
+      expect(at).toBeGreaterThan(body.indexOf('class="brand"'));
+      expect(at).toBeLessThan(body.indexOf('class="state'));
+      expect(at).toBeLessThan(body.indexOf('<h1'));
+    }
+    expect(on).toContain('notice notice-on');
+  });
+
+  it('builds tokens from the first code point and trims leading space', () => {
+    expect(render(plan({ names: ['\u{1F600}'.repeat(20)] }))).toContain('<span class="token" aria-hidden="true">\u{1F600}</span>');
+    expect(render(plan({ names: ['  mia chen'] }))).toContain('aria-hidden="true">M</span>');
+    const full = render(plan({ names: ['A', 'B', 'C', 'D'], minimum: 3 }));
+    expect(full).not.toContain('seat-you');
+    expect(full).not.toContain('seat-empty');
   });
 });
 

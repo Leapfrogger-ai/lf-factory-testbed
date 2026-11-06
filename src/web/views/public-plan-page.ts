@@ -27,11 +27,24 @@ function pillText(plan: PublicPlan, state: DisplayState): string {
   return `Needs ${Math.max(plan.minimum - plan.names.length, 0)} more`;
 }
 
-function filledSeats(plan: PublicPlan): HtmlEscapedString {
-  return html`<ul class="seats" aria-label="${plan.names.length} people in">
-    ${plan.names.map(
-      (name) => html`<li class="seat"><span class="dot dot-on" aria-hidden="true"></span>${firstName(name)}</li>`,
-    )}
+function initial(name: string): string {
+  return Array.from(firstName(name))[0]?.toUpperCase() ?? '';
+}
+
+function seat(name: string): HtmlEscapedString {
+  return html`<li class="seat"><span class="token" aria-hidden="true">${initial(name)}</span><span>${firstName(name)}</span></li>` as HtmlEscapedString;
+}
+
+function pillClass(state: DisplayState): string {
+  if (state === 'on') return 'state-on';
+  if (state === 'happening_now') return 'state-now';
+  if (state === 'not_this_time' || state === 'was_on') return 'state-off';
+  return 'state-open';
+}
+
+function filledSeats(plan: PublicPlan, justOn: boolean): HtmlEscapedString {
+  return html`<ul class="${justOn ? 'seats seats-on just-on' : 'seats seats-on'}" aria-label="${plan.names.length} people in">
+    ${plan.names.map(seat)}
   </ul>` as HtmlEscapedString;
 }
 
@@ -39,13 +52,11 @@ function seats(plan: PublicPlan): HtmlEscapedString {
   const empty = Math.max(plan.minimum - plan.names.length, 0);
   const emptySeats = Array.from({ length: empty }, (_, i) =>
     i === 0
-      ? html`<li class="seat"><span class="dot dot-empty" aria-hidden="true"></span>you?</li>`
-      : html`<li class="seat"><span class="dot dot-empty" aria-hidden="true"></span></li>`,
+      ? html`<li class="seat seat-you"><span class="token" aria-hidden="true"></span><span>you?</span></li>`
+      : html`<li class="seat seat-empty"><span class="token" aria-hidden="true"></span><span></span></li>`,
   );
   return html`<ul class="seats" aria-label="${plan.names.length} of ${plan.minimum} people in">
-    ${plan.names.map(
-      (name) => html`<li class="seat"><span class="dot" aria-hidden="true"></span>${firstName(name)}</li>`,
-    )}
+    ${plan.names.map(seat)}
     ${emptySeats}
   </ul>` as HtmlEscapedString;
 }
@@ -103,28 +114,30 @@ export function publicPlanPage({
   form?: CommitFormState;
 }): HtmlEscapedString {
   const noticeCopy = notice === undefined ? undefined : noticeText(notice);
+  const justOn = notice?.code === 'on';
   const replacesForm = notice?.code === 'in' || notice?.code === 'updated' || notice?.code === 'on';
   const body =
     state === 'not_this_time'
-      ? html`<p>This one isn't going ahead. No harm done. Maybe next time.</p>
-          <p><a href="/">Suggest a plan</a></p>`
+      ? html`<p class="copy">This one isn't going ahead. No harm done. Maybe next time.</p>
+          <p><a class="quiet" href="/">Suggest a plan</a></p>`
       : state === 'happening_now' || state === 'was_on'
-        ? filledSeats(plan)
+        ? filledSeats(plan, justOn)
         : state === 'on'
-          ? html`${filledSeats(plan)}
-          <p>More people are welcome until it starts.</p>`
+          ? html`${filledSeats(plan, justOn)}
+          <p class="meta">More people are welcome until it starts.</p>`
         : html`${seats(plan)}
-          <p>
+          <p class="meta">
             Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)}.
           </p>`;
   return html`<main>
     ${brand}
-    <p class="pill">${pillText(plan, state)}</p>
-    <p class="eyebrow">${capitalise(plan.format)}</p>
-    <h1>${plan.venue}</h1>
-    <p class="meta">${plan.city} · ${formatWhen(plan.gatheringAt)}</p>
-    ${body}
     ${noticeCopy === undefined ? '' : html`<p class="${notice?.code === 'on' ? 'notice notice-on' : 'notice'}" role="status">${noticeCopy}</p>`}
+    <p class="state ${pillClass(state)}">${pillText(plan, state)}</p>
+    <p class="kind">${capitalise(plan.format)}</p>
+    <h1 class="${state === 'not_this_time' ? 'venue venue-off' : 'venue'}">${plan.venue}</h1>
+    <p class="when">${formatWhen(plan.gatheringAt)}</p>
+    <p class="where">${plan.city}</p>
+    ${body}
     ${state === 'not_this_time' || state === 'happening_now' || state === 'was_on' || replacesForm ? '' : commitForm(publicToken, form)}
   </main>` as HtmlEscapedString;
 }
