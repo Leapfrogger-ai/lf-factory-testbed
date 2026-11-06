@@ -7,7 +7,7 @@ import { resetDb, testDb } from '../../tests/support/db.ts';
 import { fixedClock } from '../../tests/support/fakes.ts';
 import { loadFixture } from '../../tests/support/fixtures.ts';
 import { commitFormSchema } from '../web/forms.ts';
-import { commit, countPlans, loadFromPlan, loadPlan, loadManagePlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
+import { callOff, commit, countPlans, loadFromPlan, loadPlan, loadManagePlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
 import { loadSuggestion, recordSuggestion } from './suggestions.ts';
 import { newToken } from './tokens.ts';
 
@@ -747,5 +747,79 @@ describe('publish from an old plan', () => {
     const [row] = await db.select({ fromPlanId: plans.fromPlanId }).from(plans).where(eq(plans.id, planId));
     expect(row?.fromPlanId).toBeNull();
     expect(plan?.events[0]).toEqual({ type: 'plan.published', data: { fromPlanId: null } });
+  });
+});
+
+describe('callOff', () => {
+  it('callOff calls an open plan off', async () => {
+    const deps = testDeps();
+    const { planId, manageToken } = await publishPlan(deps);
+
+    const result = await callOff(deps, manageToken);
+
+    expect(result).toEqual({ outcome: 'called_off', planId });
+    const [row] = await db.select().from(plans).where(eq(plans.id, planId));
+    expect(row).toMatchObject({ state: 'called_off', calledOffReason: 'creator' });
+    expect(row?.calledOffAt).not.toBeNull();
+    const view = await loadPlan(db, manageToken);
+    const calledOff = view!.events.filter((e) => e.type === 'plan.called_off');
+    expect(calledOff).toEqual([{ type: 'plan.called_off', data: { reason: 'creator', wasConfirmed: false, activeCount: 1 } }]);
+  });
+
+  const calledOffEvents = async (manageToken: string) =>
+    (await loadPlan(db, manageToken))!.events.filter((e) => e.type === 'plan.called_off');
+
+  it('records wasConfirmed true for a confirmed plan', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, { minimum: '2' });
+    await commit(deps, publicToken, commitFormSchema.parse({ name: 'Mia Chen', email: 'mia@example.test' }));
+
+    await callOff(deps, manageToken);
+
+    expect(await calledOffEvents(manageToken)).toEqual([
+      { type: 'plan.called_off', data: { reason: 'creator', wasConfirmed: true, activeCount: 2 } },
+    ]);
+  });
+
+  it('counts only active commits', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps);
+    await commit(deps, publicToken, commitFormSchema.parse({ name: 'Mia Chen', email: 'mia@example.test' }));
+    const view = await loadPlan(db, manageToken);
+    await withdraw(deps, view!.commits.find((c) => !c.isCreator)!.withdrawToken);
+
+    await callOff(deps, manageToken);
+
+    expect(await calledOffEvents(manageToken)).toEqual([
+      { type: 'plan.called_off', data: { reason: 'creator', wasConfirmed: false, activeCount: 1 } },
+    ]);
+  });
+
+  it('writes nothing for a plan already called off', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps);
+    await callOff(deps, manageToken);
+
+    const result = await callOff(deps, manageToken);
+
+    expect(result).toEqual({ outcome: 'already_called_off' });
+    expect(await calledOffEvents(manageToken)).toHaveLength(1);
+  });
+
+  it('writes nothing once the gathering started', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps);
+
+    const result = await callOff({ ...deps, now: fixedClock('2026-11-14T18:00:00Z') }, manageToken);
+
+    expect(result).toEqual({ outcome: 'too_late' });
+    expect((await loadPlan(db, manageToken))?.state).toBe('open');
+    expect(await calledOffEvents(manageToken)).toHaveLength(0);
+  });
+
+  it('returns not_found for an unknown token', async () => {
+    const deps = testDeps();
+
+    expect(await callOff(deps, newToken())).toEqual({ outcome: 'not_found' });
   });
 });
