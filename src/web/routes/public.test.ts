@@ -55,6 +55,7 @@ describe('GET /p/:token', () => {
     expect(body).toContain('Needs 2 more');
     expect(body).toContain('<h1 class="venue">Blue Bottle</h1>');
     expect(body).toContain('<p class="when">Sat 14 Nov · 10:00 AM</p>');
+    expect(body).toContain('<p class="where">Oakland</p>');
     expect(body).toContain('Ana');
     expect(body).not.toContain('Ruiz');
     expect(body).toContain('you?');
