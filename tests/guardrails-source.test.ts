@@ -32,3 +32,13 @@ test('app code does not use luxon or date-fns-tz', () => {
 test('no test mocks a project file', () => {
   expect(offenders(tests, /\bvi\.mock\(/, ['tests/guardrails-source.test.ts'])).toEqual([]);
 });
+
+test('every patched() id in the plan workflow has a recorded-history replay test', () => {
+  const patches = app
+    .filter(({ file }) => file.endsWith('workflows.ts'))
+    .flatMap(({ text }) => [...text.matchAll(/patched\('([^']+)'\)/g)].map((m) => m[1]));
+  const replays = tests
+    .filter(({ file }) => file.startsWith('tests/workflow/'))
+    .flatMap(({ text }) => [...text.matchAll(/runReplayHistory\(/g)]);
+  expect(replays.length).toBeGreaterThanOrEqual(new Set(patches).size);
+});
