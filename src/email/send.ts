@@ -14,6 +14,7 @@ export async function sendOnce(
   kind: EmailKind,
   plan: PlanRow,
   commit: CommitRow,
+  activeCommits: CommitRow[] = [],
 ): Promise<void> {
   const { db } = deps;
   await db.insert(emailSends).values({ commitId: commit.id, kind }).onConflictDoNothing();
@@ -23,7 +24,7 @@ export async function sendOnce(
     .where(and(eq(emailSends.commitId, commit.id), eq(emailSends.kind, kind)));
   if (row?.sentAt) return;
 
-  const payload = buildEmail(kind, plan, commit, deps.baseUrl);
+  const payload = buildEmail(kind, plan, commit, deps.baseUrl, activeCommits);
   const { id: resendId } = await deps.sendEmail(payload, `${kind}/${plan.id}/${commit.id}`);
 
   await db.transaction(async (tx) => {

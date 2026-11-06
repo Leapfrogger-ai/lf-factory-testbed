@@ -99,7 +99,7 @@ describe('sendOnce manage_link', () => {
     const { deps, plan, commit } = await setup();
 
     await expect(
-      sendOnce({ db, sendEmail: deps.sendEmail, baseUrl: TEST_BASE_URL }, 'confirmed', plan, commit),
-    ).rejects.toThrow('No email template for confirmed');
+      sendOnce({ db, sendEmail: deps.sendEmail, baseUrl: TEST_BASE_URL }, 'check_in', plan, commit),
+    ).rejects.toThrow('No email template for check_in');
   });
 });
