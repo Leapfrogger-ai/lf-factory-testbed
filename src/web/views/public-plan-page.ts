@@ -19,7 +19,7 @@ export function capitalise(text: string): string {
   return first.toUpperCase() + rest.join('');
 }
 
-function pillText(plan: PublicPlan, state: DisplayState): string {
+export function pillText(plan: PublicPlan, state: DisplayState): string {
   if (state === 'not_this_time') return 'Not this time';
   if (state === 'on') return "It's on";
   if (state === 'happening_now') return 'Happening now';
@@ -27,7 +27,7 @@ function pillText(plan: PublicPlan, state: DisplayState): string {
   return `Needs ${Math.max(plan.minimum - plan.names.length, 0)} more`;
 }
 
-function initial(name: string): string {
+export function initial(name: string): string {
   return Array.from(firstName(name))[0]?.toUpperCase() ?? '';
 }
 
@@ -35,7 +35,7 @@ function seat(name: string): HtmlEscapedString {
   return html`<li class="seat"><span class="token" aria-hidden="true">${initial(name)}</span><span>${firstName(name)}</span></li>` as HtmlEscapedString;
 }
 
-function pillClass(state: DisplayState): string {
+export function pillClass(state: DisplayState): string {
   if (state === 'on') return 'state-on';
   if (state === 'happening_now') return 'state-now';
   if (state === 'not_this_time' || state === 'was_on') return 'state-off';
