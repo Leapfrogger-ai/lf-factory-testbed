@@ -9,6 +9,8 @@ export type Activities = ReturnType<typeof createActivities>;
 const REQUIRED_STATE: Partial<Record<EmailKind, string>> = {
   not_this_time: 'called_off',
   confirmed: 'confirmed',
+  reminder_24h: 'confirmed',
+  reminder_morning: 'confirmed',
 };
 
 function requiredState(kind: EmailKind): string {

@@ -123,3 +123,70 @@ describe('buildEmail confirmed', () => {
     expect(text.split('\n')[0]).toBe("It's on. Ana are in.");
   });
 });
+
+describe('buildEmail reminders', () => {
+  const base = 'https://example.test';
+  const reminderPlan: PlanRow = { ...plan, state: 'confirmed', city: 'Oakland' };
+
+  function named(name: string, isCreator: boolean): CommitRow {
+    const email = `${name.toLowerCase()}@example.test`;
+    return {
+      ...commit(isCreator),
+      id: `id-${name}`,
+      name,
+      email,
+      emailNormalized: email,
+      withdrawToken: `withdraw-${name}`,
+    };
+  }
+
+  const ann = named('Ann', true);
+  const mia = named('Mia', false);
+  const raj = named('Raj', false);
+  const active = [ann, mia, raj];
+
+  const body = (lead: string, withdraw: boolean) =>
+    [
+      `${lead} at 10:00 AM: Coffee at Blue Bottle, Oakland.`,
+      'Map: https://maps.google.com/?q=Blue+Bottle+Oakland',
+      "Who's in: Ann, Mia, Raj.",
+      ...(withdraw ? ["Can't make it? Withdraw: https://example.test/w/withdraw-Mia"] : []),
+    ].join('\n');
+
+  it('reminder_24h for a joiner', () => {
+    const payload = buildEmail('reminder_24h', reminderPlan, mia, base, active);
+    expect(payload.to).toBe('mia@example.test');
+    expect(payload.subject).toBe('Tomorrow: Coffee at Blue Bottle, 10:00 AM');
+    expect(payload.text).toBe(body('Tomorrow', true));
+    expect(payload.tags).toEqual([{ name: 'kind', value: 'reminder_24h' }]);
+  });
+
+  it('reminder_morning for a joiner', () => {
+    const payload = buildEmail('reminder_morning', reminderPlan, mia, base, active);
+    expect(payload.subject).toBe('Today: Coffee at Blue Bottle, 10:00 AM');
+    expect(payload.text).toBe(body('Today', true));
+    expect(payload.tags).toEqual([{ name: 'kind', value: 'reminder_morning' }]);
+  });
+
+  it.each([
+    ['reminder_24h', 'Tomorrow'],
+    ['reminder_morning', 'Today'],
+  ] as const)('%s for the creator has no withdraw line', (kind, lead) => {
+    const { text } = buildEmail(kind, reminderPlan, ann, base, active);
+    expect(text).toBe(body(lead, false));
+    expect(text).not.toContain("Can't make it?");
+    expect(text).not.toContain('/w/');
+  });
+
+  it('lists a single active person without a comma', () => {
+    const { text } = buildEmail('reminder_24h', reminderPlan, ann, base, [ann]);
+    expect(text).toContain("Who's in: Ann.");
+    expect(text).not.toContain("Who's in: Ann,");
+  });
+
+  it('encodes the map link', () => {
+    const odd: PlanRow = { ...reminderPlan, venue: 'Joe & Co', city: 'San Francisco' };
+    const { text } = buildEmail('reminder_morning', odd, mia, base, active);
+    expect(text).toContain('Map: https://maps.google.com/?q=Joe+%26+Co+San+Francisco\n');
+  });
+});

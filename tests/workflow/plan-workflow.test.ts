@@ -1,17 +1,28 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { WorkflowHandle } from '@temporalio/client';
+import proto from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { computeSchedule, type Schedule } from '../../src/domain/plan-rules.ts';
 import { commit, loadPlan, withdraw } from '../../src/domain/plans.ts';
+import type { SendEmail } from '../../src/email/send-email.ts';
 import { createActivities } from '../../src/temporal/activities.ts';
 import { committed, confirmed, planWorkflow, type PlanWorkflowInput } from '../../src/temporal/workflows.ts';
 import { commitFormSchema } from '../../src/web/forms.ts';
 import { publishPlan, TEST_BASE_URL, testDeps } from '../support/builders.ts';
+import { fixedClock } from '../support/fakes.ts';
 import { resetDb, testDb } from '../support/db.ts';
 
 const { db, pool } = testDb();
 const workflowsPath = fileURLToPath(new URL('../../src/temporal/workflows.ts', import.meta.url));
+// A recorded history, stored as protobufjs toObject JSON (longs, enums and bytes as strings). The SDK's
+// historyFromJSON fails here ("type must be a Type"): @temporalio/common and @temporalio/proto each get
+// their own copy of protobufjs 8.8.1 in this install.
+const loadHistory = (path: string) =>
+  proto.temporal.api.history.v1.History.fromObject(JSON.parse(readFileSync(path, 'utf8')));
+const confirmed32Path = fileURLToPath(new URL('../fixtures/workflow/confirmed-3-2.json', import.meta.url));
 
 let env: TestWorkflowEnvironment;
 let queueCount = 0;
@@ -37,7 +48,8 @@ async function run(
   const input: PlanWorkflowInput = {
     planId,
     deadlineAt: now + deadlineOffsetMs,
-    reminder24At: now + 7_200_000,
+    // Already past, so these tests see only the open phase and the confirmed emails, no reminders.
+    reminder24At: now - 1,
     reminderMorningAt: null,
     checkInAt: now + 10_800_000,
   };
@@ -153,9 +165,10 @@ const E1_HEAD = [
   '',
 ];
 
-async function confirmedPlan() {
-  const deps = testDeps();
-  const published = await publishPlan(deps, { minimum: '3' });
+/** Ann's plan with Mia and Raj in (minimum 3); `now` is the fixed clock the plan is published and joined at. */
+async function confirmedPlan(overrides: Record<string, string> = {}, now?: string) {
+  const deps = testDeps(now === undefined ? {} : { now: fixedClock(now) });
+  const published = await publishPlan(deps, { minimum: '3', ...overrides });
   await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
   await commit(deps, published.publicToken, form('Raj', 'raj@example.test'));
   const plan = await loadPlan(db, published.manageToken);
@@ -256,5 +269,285 @@ describe('planWorkflow confirmed phase', () => {
     });
 
     expect(deps.fakes.email.calls).toHaveLength(3);
+  });
+});
+
+type Deps = ReturnType<typeof testDeps>;
+type TimedSend = { to: string; subject: string; text: string; at: number };
+
+/** The example plan's schedule (plan-rules.test.ts values); checkInAt only needs to be after the morning. */
+const EXAMPLE: Schedule = {
+  deadlineAt: '2026-11-12T06:00:00Z',
+  reminder24At: '2026-11-13T18:00:00Z',
+  reminderMorningAt: '2026-11-14T16:00:00Z',
+  checkInAt: '2026-11-14T18:01:00Z',
+};
+
+/**
+ * Records each successful send with the test server's time, then delegates to the fake mailbox. While the
+ * server's time is before `failUntil` (absolute server ms, settable once the shift is known), sends that
+ * `failWhen` picks throw instead.
+ */
+function timedEmail(deps: Deps, failWhen: (payload: Sent) => boolean = () => true) {
+  const mail = {
+    records: [] as TimedSend[],
+    failUntil: undefined as number | undefined,
+    send: (async (payload, idempotencyKey) => {
+      const at = await env.currentTimeMs();
+      if (mail.failUntil !== undefined && at < mail.failUntil && failWhen(payload)) {
+        throw new Error('email send failed');
+      }
+      const result = await deps.fakes.email.send(payload, idempotencyKey);
+      mail.records.push({ to: payload.to, subject: payload.subject, text: payload.text, at });
+      return result;
+    }) as SendEmail,
+  };
+  return mail;
+}
+
+/**
+ * Like run(), but the workflow's input is `schedule` shifted so that `confirmAt` is the test server's "now".
+ * Signals `confirmed` right after start; `act` runs after that and may move time with env.sleep.
+ */
+async function runSchedule(
+  deps: Deps,
+  planId: string,
+  options: {
+    schedule: Schedule;
+    confirmAt: string;
+    sendEmail?: SendEmail;
+    act?: (handle: WorkflowHandle, shift: number) => Promise<void>;
+  },
+): Promise<number> {
+  const { schedule } = options;
+  const shift = (await env.currentTimeMs()) - Date.parse(options.confirmAt);
+  const input: PlanWorkflowInput = {
+    planId,
+    deadlineAt: Date.parse(schedule.deadlineAt) + shift,
+    reminder24At: Date.parse(schedule.reminder24At) + shift,
+    reminderMorningAt: schedule.reminderMorningAt === null ? null : Date.parse(schedule.reminderMorningAt) + shift,
+    checkInAt: Date.parse(schedule.checkInAt) + shift,
+  };
+  queueCount += 1;
+  const taskQueue = `plan-workflow-test-${queueCount}`;
+  const worker = await Worker.create({
+    connection: env.nativeConnection,
+    taskQueue,
+    workflowsPath,
+    activities: createActivities({ db, sendEmail: options.sendEmail ?? deps.sendEmail, baseUrl: TEST_BASE_URL }),
+  });
+  await worker.runUntil(async () => {
+    // With the start, so the open phase never starts its (already past) deadline timer: the time-skipping
+    // server fails the workflow task that cancels a zero-length timer started in an earlier task.
+    const handle = await env.client.workflow.signalWithStart(planWorkflow, {
+      workflowId: `plan-${planId}-${taskQueue}`,
+      taskQueue,
+      args: [input],
+      signal: confirmed,
+      signalArgs: [],
+    });
+    await options.act?.(handle, shift);
+    await handle.result();
+  });
+  return shift;
+}
+
+/** Expects `at` to be the ISO instant moved by `shift`, within 2s. */
+const expectAt = (at: number, iso: string, shift: number) =>
+  expect(Math.abs(at - (Date.parse(iso) + shift))).toBeLessThanOrEqual(2000);
+
+const startingWith = (records: TimedSend[], prefix: string) => records.filter((r) => r.subject.startsWith(prefix));
+
+describe('planWorkflow reminders', () => {
+  it('sends the 24h and morning reminders to everyone at the example instants', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+    });
+
+    const subjects = mail.records.map((r) => r.subject);
+    expect(subjects).toHaveLength(9);
+    for (const s of subjects.slice(0, 3)) expect(s).toMatch(/^It's on: /);
+    const tomorrow = mail.records.slice(3, 6);
+    const today = mail.records.slice(6, 9);
+    for (const r of tomorrow) {
+      expect(r.subject).toBe('Tomorrow: Coffee at Blue Bottle, 10:00 AM');
+      expectAt(r.at, '2026-11-13T18:00:00Z', shift);
+    }
+    for (const r of today) {
+      expect(r.subject).toBe('Today: Coffee at Blue Bottle, 10:00 AM');
+      expectAt(r.at, '2026-11-14T16:00:00Z', shift);
+    }
+    const everyone = ['ann@example.test', 'mia@example.test', 'raj@example.test'];
+    expect(tomorrow.map((r) => r.to).sort()).toEqual(everyone);
+    expect(today.map((r) => r.to).sort()).toEqual(everyone);
+  });
+
+  it('sends only the 24h reminder for a gathering before 10:00', async () => {
+    const { deps, published, plan } = await confirmedPlan({ time: '09:30' });
+    const schedule = computeSchedule(Temporal.Instant.from(plan.gatheringAt), Temporal.Instant.from(plan.commitDeadlineAt));
+    expect(schedule).toEqual({
+      deadlineAt: '2026-11-12T05:45:00Z',
+      reminder24At: '2026-11-13T17:30:00Z',
+      reminderMorningAt: null,
+      checkInAt: '2026-11-15T18:00:00Z', // FR027: 10:00 the day after
+    });
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule,
+      confirmAt: '2026-11-11T18:00:00Z',
+      sendEmail: mail.send,
+    });
+
+    const tomorrow = startingWith(mail.records, 'Tomorrow:');
+    expect(tomorrow.map((r) => r.to).sort()).toEqual(['ann@example.test', 'mia@example.test', 'raj@example.test']);
+    for (const r of tomorrow) expectAt(r.at, '2026-11-13T17:30:00Z', shift);
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+  });
+
+  it('skips a 24h reminder already past at confirmation and sends the morning one', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: { ...EXAMPLE, deadlineAt: '2026-11-14T14:00:00Z' },
+      confirmAt: '2026-11-14T04:00:00Z',
+      sendEmail: mail.send,
+    });
+
+    expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
+    const today = startingWith(mail.records, 'Today:');
+    expect(today).toHaveLength(3);
+    for (const r of today) expectAt(r.at, '2026-11-14T16:00:00Z', shift);
+  });
+
+  it('sends no reminders for a plan confirmed after the morning reminder time', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: { ...EXAMPLE, deadlineAt: '2026-11-14T17:30:00Z' },
+      confirmAt: '2026-11-14T17:00:00Z',
+      sendEmail: mail.send,
+    });
+
+    expect(mail.records.map((r) => r.subject.split(':')[0])).toEqual(["It's on", "It's on", "It's on"]);
+  });
+
+  it('gives a committer who joins after the 24h reminder the confirmation and the morning one only', async () => {
+    const { deps, published } = await confirmedPlan();
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      act: async (h) => {
+        await env.sleep(Date.parse('2026-11-13T18:00:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000);
+        await vi.waitFor(() => expect(sent(deps).filter((e) => e.subject.startsWith('Tomorrow:'))).toHaveLength(3), {
+          timeout: 10_000,
+          interval: 20,
+        });
+        const lee = await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+        if (lee.outcome !== 'committed') throw new Error('Lee should commit');
+        await h.signal(committed, lee.commitId);
+      },
+    });
+
+    const lee = sent(deps).filter((e) => e.to === 'lee@example.test').map((e) => e.subject);
+    expect(lee).toHaveLength(2);
+    expect(lee.filter((s) => s.startsWith("It's on:"))).toHaveLength(1);
+    expect(lee.filter((s) => s.startsWith('Today:'))).toHaveLength(1);
+  });
+
+  it('skips the morning reminder when the 24h one only went out at 3:00 AM', { timeout: 120_000 }, async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps, (p) => p.subject.startsWith('Tomorrow:'));
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (_h, shift) => {
+        mail.failUntil = Date.parse('2026-11-14T11:00:00Z') + shift;
+      },
+    });
+
+    expect(startingWith(mail.records, "It's on:")).toHaveLength(3);
+    const tomorrow = startingWith(mail.records, 'Tomorrow:');
+    expect(tomorrow).toHaveLength(3);
+    for (const r of tomorrow) expect(r.at).toBeGreaterThanOrEqual(mail.failUntil!);
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+  });
+
+  it('leaves a committer who withdrew after the 24h reminder out of the morning one', async () => {
+    const { deps, published, plan } = await confirmedPlan();
+    const raj = plan.commits.filter((c) => !c.isCreator)[1]!;
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      act: async () => {
+        await env.sleep(Date.parse('2026-11-13T18:00:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000);
+        await vi.waitFor(() => expect(sent(deps).filter((e) => e.subject.startsWith('Tomorrow:'))).toHaveLength(3), {
+          timeout: 10_000,
+          interval: 20,
+        });
+        await withdraw(deps, raj.withdrawToken);
+      },
+    });
+
+    const today = sent(deps).filter((e) => e.subject.startsWith('Today:'));
+    expect(today.map((e) => e.to).sort()).toEqual(['ann@example.test', 'mia@example.test']);
+    for (const e of today) expect(e.text).not.toContain('Raj');
+  });
+
+  it('replays a history recorded before the reminders patch', async () => {
+    const { deps, published } = await confirmedPlan();
+    let handle: WorkflowHandle | undefined;
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      act: async (h) => {
+        handle = h;
+      },
+    });
+    await Worker.runReplayHistory({ workflowsPath }, await handle!.fetchHistory());
+
+    // Recorded once from the 3.2-era planWorkflow (git 2fc774d): confirmed signal, then a late commit's signal.
+    await expect(Worker.runReplayHistory({ workflowsPath }, loadHistory(confirmed32Path))).resolves.toBeUndefined();
+  });
+
+  it.each([
+    {
+      date: '2026-11-01',
+      now: '2026-10-25T18:00:00Z',
+      confirmAt: '2026-10-30T18:00:00Z',
+      tomorrowAt: '2026-10-31T18:00:00Z',
+      todayAt: '2026-11-01T16:00:00Z',
+    },
+    {
+      date: '2027-03-14',
+      now: '2027-03-07T18:00:00Z',
+      confirmAt: '2027-03-12T18:00:00Z',
+      tomorrowAt: '2027-03-13T17:00:00Z',
+      todayAt: '2027-03-14T15:00:00Z',
+    },
+  ])('sends the reminders at the schedule instants for a gathering at 10:00 on $date', async (c) => {
+    const { deps, published, plan } = await confirmedPlan({ date: c.date, time: '10:00' }, c.now);
+    const schedule = computeSchedule(Temporal.Instant.from(plan.gatheringAt), Temporal.Instant.from(plan.commitDeadlineAt));
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, { schedule, confirmAt: c.confirmAt, sendEmail: mail.send });
+
+    const tomorrow = startingWith(mail.records, 'Tomorrow:');
+    const today = startingWith(mail.records, 'Today:');
+    expect(tomorrow).toHaveLength(3);
+    expect(today).toHaveLength(3);
+    for (const r of tomorrow) expectAt(r.at, c.tomorrowAt, shift);
+    for (const r of today) expectAt(r.at, c.todayAt, shift);
   });
 });

@@ -214,6 +214,70 @@ describe('sendToOne', () => {
   });
 });
 
+describe('reminders', () => {
+  const threeIn = () =>
+    setup([
+      ['Mia', 'mia@example.test'],
+      ['Raj', 'raj@example.test'],
+    ]);
+
+  it('sends the 24h reminder to every active committer, once', async () => {
+    const { deps, published, activities } = await threeIn();
+
+    await activities.sendToCommitters(published.planId, 'reminder_24h');
+    await activities.sendToCommitters(published.planId, 'reminder_24h');
+
+    const payloads = sent(deps);
+    expect(payloads).toHaveLength(3);
+    for (const p of payloads) expect(p.text).toContain("Who's in: Ann, Mia, Raj.");
+  });
+
+  it('leaves a withdrawn committer out of the morning reminder and the list', async () => {
+    const { deps, published, withdrawTokens, activities } = await threeIn();
+    await withdraw(deps, withdrawTokens[1]!);
+
+    await activities.sendToCommitters(published.planId, 'reminder_morning');
+
+    expect(recipients(deps)).toEqual(['ann@example.test', 'mia@example.test']);
+    for (const p of sent(deps)) {
+      expect(p.text).toContain("Who's in: Ann, Mia.");
+      expect(p.text).not.toContain('Raj');
+    }
+  });
+
+  it('sends nothing while the plan is open or called off', async () => {
+    const open = await setup([['Mia', 'mia@example.test']]);
+    await open.activities.sendToCommitters(open.published.planId, 'reminder_24h');
+    expect(open.deps.fakes.email.calls).toHaveLength(0);
+
+    const off = await setup([['Mia', 'mia@example.test']]);
+    await off.activities.resolveDeadline(off.published.planId);
+    await off.activities.sendToCommitters(off.published.planId, 'reminder_24h');
+    expect(off.deps.fakes.email.calls).toHaveLength(0);
+  });
+
+  it('sendToOne sends the reminder only to the named committer', async () => {
+    const { deps, published, activities } = await threeIn();
+    const mia = (await loadSendTargets(db, published.planId)).commits[1]!;
+
+    await activities.sendToOne(published.planId, 'reminder_morning', mia.id);
+
+    expect(recipients(deps)).toEqual(['mia@example.test']);
+  });
+
+  it('a committer who withdraws and rejoins gets exactly one 24h reminder', async () => {
+    const { deps, published, withdrawTokens, activities } = await threeIn();
+    await activities.sendToCommitters(published.planId, 'reminder_24h');
+    await withdraw(deps, withdrawTokens[0]!);
+    const rejoin = await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
+    if (rejoin.outcome !== 'committed') throw new Error('Mia should rejoin');
+
+    await activities.sendToCommitters(published.planId, 'reminder_24h');
+
+    expect(recipients(deps).filter((to) => to === 'mia@example.test')).toHaveLength(1);
+  });
+});
+
 describe('resolveDeadline', () => {
   it('returns called_off for a plan below its minimum', async () => {
     const { published, activities } = await setup([['Mia', 'mia@example.test']]);
