@@ -149,10 +149,8 @@ describe('buildEmail reminders', () => {
     [
       `${lead} at 10:00 AM: Coffee at Blue Bottle, Oakland.`,
       'Map: https://maps.google.com/?q=Blue+Bottle+Oakland',
-      '',
       "Who's in: Ann, Mia, Raj.",
-      '',
-      ...(withdraw ? ["Can't make it? Withdraw: https://example.test/w/withdraw-Mia", ''] : []),
+      ...(withdraw ? ["Can't make it? Withdraw: https://example.test/w/withdraw-Mia"] : []),
     ].join('\n');
 
   it('reminder_24h for a joiner', () => {

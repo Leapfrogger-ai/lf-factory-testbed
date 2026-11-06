@@ -31,11 +31,9 @@ export function buildEmail(
     const lines = [
       `${lead} at ${clock}: ${format} at ${plan.venue}, ${plan.city}.`,
       mapLine(),
-      '',
       `Who's in: ${names()}.`,
-      '',
     ];
-    if (!commit.isCreator) lines.push(`Can't make it? Withdraw: ${baseUrl}/w/${commit.withdrawToken}`, '');
+    if (!commit.isCreator) lines.push(`Can't make it? Withdraw: ${baseUrl}/w/${commit.withdrawToken}`);
     return {
       to: commit.email,
       subject: `${lead}: ${format} at ${plan.venue}, ${clock}`,
