@@ -2,6 +2,7 @@ import { brand } from './layout.ts';
 import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import { CITIES } from '../../config.ts';
+import type { FromPlan } from '../../domain/plans.ts';
 import type { Suggestion } from '../../domain/suggestions.ts';
 import { formatDeadline, formatWhen, localDateTime, localToInstant } from '../../domain/time.ts';
 
@@ -19,7 +20,10 @@ export type CreateState =
       area: string;
       timeWindow: string;
       previousSuggestionId?: string;
-    };
+    }
+  | { kind: 'again'; from: FromPlan; values: FormValues; notice?: string };
+
+export const AGAIN_HEADING = 'Same again, new date';
 
 export const SUGGEST_LIMIT_NOTICE = 'Lots of suggestions just now. Fill in your own below, or try again in a few minutes.';
 export const PUBLISH_LIMIT_NOTICE = 'Lots of plans from here just now. Try again in a little while.';
@@ -61,7 +65,7 @@ export function createPage(
   const main = (body: HtmlEscapedString | Promise<HtmlEscapedString>) =>
     html`<main>
       ${brand}
-      <h1>Suggest a plan</h1>
+      <h1>${state.kind === 'again' ? AGAIN_HEADING : 'Suggest a plan'}</h1>
       ${state.kind === 'inputs' && state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
       ${body}
     </main>` as HtmlEscapedString;
@@ -88,7 +92,9 @@ export function createPage(
   const context =
     state.kind === 'card'
       ? { city: state.suggestion.city, area: state.suggestion.area, timeWindow: state.suggestion.timeWindow }
-      : { city: state.city, area: state.area, timeWindow: state.timeWindow };
+      : state.kind === 'again'
+        ? { city: state.from.city, area: state.from.area, timeWindow: state.from.timeWindow }
+        : { city: state.city, area: state.area, timeWindow: state.timeWindow };
   const prefill =
     state.kind === 'card'
       ? {
@@ -98,7 +104,17 @@ export function createPage(
           minimum: String(state.suggestion.minimum),
           deadline: localDateTime(state.suggestion.commitDeadlineAt),
         }
-      : { format: '', venue: '', date: '', time: '', minimum: '3', deadline: { date: '', time: '' } };
+      : state.kind === 'again'
+        ? {
+            format: state.from.format,
+            venue: state.from.venue,
+            date: '',
+            time: '',
+            minimum: String(state.from.minimum),
+            deadline: { date: '', time: '' },
+          }
+        : { format: '', venue: '', date: '', time: '', minimum: '3', deadline: { date: '', time: '' } };
+  const person = state.kind === 'again' ? { name: state.from.name, email: state.from.email } : { name: '', email: '' };
   const shown = (field: string, fallback: string) => (values[field] ?? fallback).trim();
   const instantOf = (date: string, time: string) =>
     DATE.test(date) && TIME.test(time) ? safely(() => localToInstant(date, time)) : undefined;
@@ -115,7 +131,8 @@ export function createPage(
     html`<div class="row-field" data-field="${field}"${summaries[field] === undefined ? '' : html` data-summary="${summaries[field]}"`}>
       ${body}
     </div>`;
-  const changeId =state.kind === 'card' ? state.suggestion.id : state.previousSuggestionId;
+  const changeId =
+    state.kind === 'card' ? state.suggestion.id : state.kind === 'again' ? undefined : state.previousSuggestionId;
   const contextErrors = CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
@@ -134,6 +151,7 @@ export function createPage(
     <form method="post" action="/plans" data-publish-form="${state.kind}">
       ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
       ${state.kind === 'card' ? html`<input type="hidden" name="suggestionId" value="${state.suggestion.id}" />` : ''}
+      ${state.kind === 'again' ? html`<input type="hidden" name="fromManageToken" value="${state.from.manageToken}" />` : ''}
       <div class="card">
       ${input('format', 'What', prefill.format)}
       ${row('where', input('venue', 'Where', prefill.venue))}
@@ -153,8 +171,8 @@ export function createPage(
       )}
       </div>
       <h2>You're the first one in</h2>
-      ${input('name', 'Your name', '', { autocomplete: 'name' })}
-      ${input('email', 'Your email', '', { type: 'email', autocomplete: 'email' })}
+      ${input('name', 'Your name', person.name, { autocomplete: 'name' })}
+      ${input('email', 'Your email', person.email, { type: 'email', autocomplete: 'email' })}
       <button type="submit" class="btn btn-primary">Publish plan</button>
     </form>
     ${state.kind === 'card' ? suggestAgain(context, state.suggestion.id, 'Suggest another') : ''}

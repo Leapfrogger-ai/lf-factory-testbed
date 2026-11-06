@@ -1,15 +1,16 @@
 import { ApplicationFailure } from '@temporalio/activity';
 import { eq } from 'drizzle-orm';
 import { afterAll,afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
+import { planForm, publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fakeSuggest, fixedClock } from '../../../tests/support/fakes.ts';
+import { newToken } from '../../domain/tokens.ts';
 import { loadFixture } from '../../../tests/support/fixtures.ts';
-import { suggestions } from '../../db/schema.ts';
-import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
+import { plans, suggestions } from '../../db/schema.ts';
+import { commit, countPlans, loadPlan, loadPublicPlan, resolveDeadline, withdraw } from '../../domain/plans.ts';
 import { countSuggestions, loadSuggestion } from '../../domain/suggestions.ts';
 import { createApp } from '../app.ts';
-import { PUBLISH_LIMIT_NOTICE, SUGGEST_LIMIT_NOTICE } from '../views/create-page.ts';
+import { AGAIN_HEADING, PUBLISH_LIMIT_NOTICE, SUGGEST_LIMIT_NOTICE } from '../views/create-page.ts';
 
 const { db, pool } = testDb();
 
@@ -1080,5 +1081,218 @@ describe('rate limited requests log', () => {
 
     expect(res.status).toBe(429);
     expectOneWarnWithoutIp('publish');
+  });
+});
+
+describe('POST /plans with fromManageToken', () => {
+  async function oldPlan(deps: ReturnType<typeof testDeps>) {
+    const old = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, old.publicToken, {
+      name: 'Mia Chen',
+      email: 'mia@example.test',
+      emailNormalized: 'mia@example.test',
+    });
+    return old;
+  }
+
+  async function fromPlanIdOf(planId: string) {
+    const [row] = await db.select({ fromPlanId: plans.fromPlanId }).from(plans).where(eq(plans.id, planId));
+    return row?.fromPlanId;
+  }
+
+  const again = { date: '2026-11-21', time: '10:00', name: 'Ana Ruiz', email: 'ana@example.test' };
+
+  it('publishes a new plan from the old one (AC2)', async () => {
+    const deps = testDeps();
+    const old = await oldPlan(deps);
+
+    const res = await post(deps, { ...again, fromManageToken: old.manageToken });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toMatch(/^\/m\/[A-Za-z0-9_-]{43}\/published$/);
+    expect(location).not.toContain(old.manageToken);
+    const plan = await publishedPlan(res);
+    expect(await fromPlanIdOf(plan!.id)).toBe(old.planId);
+    expect(plan?.commits).toHaveLength(1);
+    expect(deps.fakes.planWorkflows.startCalls.at(-1)?.planId).toBe(plan!.id);
+    expect((await loadPlan(db, old.manageToken))?.commits).toHaveLength(2);
+  });
+
+  it('emails only the creator of the new plan (AC3)', async () => {
+    const deps = testDeps();
+    const old = await oldPlan(deps);
+
+    const res = await post(deps, { ...again, fromManageToken: old.manageToken });
+
+    const newToken = (res.headers.get('location') ?? '').split('/')[2];
+    const calls = deps.fakes.email.calls as { payload: { to: string; text: string } }[];
+    expect(calls.filter((call) => call.payload.to === 'ana@example.test')).toHaveLength(1);
+    expect(calls.filter((call) => call.payload.to === 'mia@example.test')).toHaveLength(0);
+    expect(calls.at(-1)?.payload.text).toContain('https://calvin.test/m/' + newToken);
+  });
+
+  it('an unknown or malformed fromManageToken publishes with no from_plan_id (AC5)', async () => {
+    for (const fromManageToken of [newToken(), 'abc']) {
+      const deps = testDeps();
+
+      const res = await post(deps, { ...again, fromManageToken });
+
+      expect(res.status).toBe(303);
+      const plan = await publishedPlan(res);
+      expect(await fromPlanIdOf(plan!.id)).toBeNull();
+      expect(plan?.events[0]).toMatchObject({ type: 'plan.published', data: { fromPlanId: null } });
+    }
+  });
+
+  it('a valid fromManageToken beats a suggestionId (AC6)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const suggestionId = (await suggestedLocation(deps)).split('=')[1] ?? '';
+    const old = await oldPlan(deps);
+
+    const res = await post(deps, { ...cardForm, suggestionId, fromManageToken: old.manageToken });
+
+    expect(res.status).toBe(303);
+    const plan = await publishedPlan(res);
+    expect(await fromPlanIdOf(plan!.id)).toBe(old.planId);
+    expect(plan?.suggestionId).toBeNull();
+  });
+});
+
+describe('GET /m/:token/new', () => {
+  const ana = { name: 'Ana Ruiz', email: 'ana@example.test' };
+
+  it('on a called-off plan renders the pre-filled page (AC1)', async () => {
+    const deps = testDeps();
+    const old = await publishPlan(deps, { ...ana, venue: 'Blue Bottle', timeWindow: 'next weekend' });
+    await resolveDeadline(db, old.planId);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(`/m/${old.manageToken}/new`);
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('<h1>Same again, new date</h1>');
+    expect(body).toContain('<title>Same again, new date</title>');
+    expect(body).toContain('<meta name="robots" content="noindex"');
+    expect(body).toContain('Oakland · Rockridge · next weekend');
+    expect(inputTag(body, 'format')).toContain('value="coffee"');
+    expect(inputTag(body, 'venue')).toContain('value="Blue Bottle"');
+    expect(inputTag(body, 'minimum')).toContain('value="3"');
+    expect(inputTag(body, 'name')).toContain('value="Ana Ruiz"');
+    expect(inputTag(body, 'fromManageToken')).toContain(`value="${old.manageToken}"`);
+    expect(body).not.toContain('Suggest another');
+    expect(body).not.toContain('>Change<');
+  });
+
+  it.each(['open', 'confirmed', 'called off'] as const)('renders for a %s plan (AC4)', async (state) => {
+    const deps = testDeps();
+    const old = await publishPlan(deps, ana);
+    if (state === 'confirmed') {
+      for (const name of ['Mia Chen', 'Lee Park']) {
+        const email = `${name.slice(0, 3).toLowerCase()}@example.test`;
+        await commit(deps, old.publicToken, { name, email, emailNormalized: email });
+      }
+      await resolveDeadline(db, old.planId);
+    }
+    if (state === 'called off') await resolveDeadline(db, old.planId);
+    expect((await loadPlan(db, old.manageToken))?.state).toBe(state === 'called off' ? 'called_off' : state);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(`/m/${old.manageToken}/new`);
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<h1>Same again, new date</h1>');
+  });
+
+  it('is the not-found page with 404 for a malformed or unknown manage token (Review Focus)', async () => {
+    const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+    const expected = await (await app.request('/m/abc')).text();
+
+    for (const token of ['abc', newToken()]) {
+      const res = await app.request(`/m/${token}/new`);
+
+      expect(res.status).toBe(404);
+      expect(await res.text()).toBe(expected);
+    }
+  });
+
+  it('still renders from the creator commit when another commit has withdrawn (Review Focus)', async () => {
+    // The domain gives the creator no way to withdraw or rename: withdraw() answers not_found for the
+    // creator's commit and nothing updates a commit's name. What is reachable is another commit
+    // withdrawing, which must not change whose name and email the page uses.
+    const deps = testDeps();
+    const old = await publishPlan(deps, ana);
+    await commit(deps, old.publicToken, { name: 'Mia Chen', email: 'mia@example.test', emailNormalized: 'mia@example.test' });
+    const tokens = (await loadPlan(db, old.manageToken))?.commits ?? [];
+    const miaToken = tokens.find((row) => !row.isCreator)?.withdrawToken ?? '';
+    const anaToken = tokens.find((row) => row.isCreator)?.withdrawToken ?? '';
+    expect(await withdraw(deps, miaToken)).toMatchObject({ outcome: 'withdrawn' });
+    expect(await withdraw(deps, anaToken)).toEqual({ outcome: 'not_found' });
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(`/m/${old.manageToken}/new`);
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(inputTag(body, 'name')).toContain('value="Ana Ruiz"');
+    expect(inputTag(body, 'email')).toContain('value="ana@example.test"');
+  });
+
+  describe('the again page on a failed publish', () => {
+    const entered = { time: '10:00', name: 'Ana Ruiz', email: 'ana@example.test', format: 'Coffee' };
+
+    it('re-renders with 422 and keeps what was entered when there is no date (AC7)', async () => {
+      const deps = testDeps();
+      const old = await publishPlan(deps, ana);
+      const before = await countPlans(db);
+
+      const res = await post(deps, { ...entered, date: '', fromManageToken: old.manageToken });
+
+      expect(res.status).toBe(422);
+      const body = await res.text();
+      expect(body).toContain('<h1>Same again, new date</h1>');
+      expect(body).toContain('<title>Same again, new date</title>');
+      expect(body).toContain('<meta name="robots" content="noindex"');
+      expect(body).toContain('<p class="error" id="date-error">Pick a date.</p>');
+      expect(inputTag(body, 'time')).toContain('value="10:00"');
+      expect(inputTag(body, 'format')).toContain('value="Coffee"');
+      expect(inputTag(body, 'venue')).toContain('value="Blue Bottle"');
+      expect(inputTag(body, 'fromManageToken')).toContain(`value="${old.manageToken}"`);
+      expect(await countPlans(db)).toBe(before);
+    });
+
+    it('re-renders with the notice on a 429 for a valid fromManageToken (Review Focus)', async () => {
+      const deps = testDeps();
+      const old = await publishPlan(deps, ana);
+      const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+      const submit = (email: string) =>
+        app.request('/plans', {
+          method: 'POST',
+          headers: { ...sameOrigin, 'Fly-Client-IP': '203.0.113.9' },
+          body: new URLSearchParams(
+            planForm({ date: '2026-11-21', name: 'Ana Ruiz', email, fromManageToken: old.manageToken }),
+          ),
+        });
+      for (const n of [1, 2, 3]) expect((await submit(`ana${n}@example.test`)).status).toBe(303);
+
+      const res = await submit('ana4@example.test');
+
+      expect(res.status).toBe(429);
+      const body = await res.text();
+      expect(body).toContain('<h1>Same again, new date</h1>');
+      expect(body).toContain('<title>Same again, new date</title>');
+      expect(body).toContain('<meta name="robots" content="noindex"');
+      expect(body).toContain(PUBLISH_LIMIT_NOTICE);
+    });
+
+    it('escapes entered values on the 422 (Review Focus)', async () => {
+      const deps = testDeps();
+      const old = await publishPlan(deps, ana);
+
+      const res = await post(deps, { ...entered, date: '', name: '"><b>x', fromManageToken: old.manageToken });
+
+      expect(res.status).toBe(422);
+      const body = await res.text();
+      expect(body).toContain('&quot;&gt;&lt;b&gt;x');
+      expect(body).not.toContain('<b>x');
+    });
   });
 });

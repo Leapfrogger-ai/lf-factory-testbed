@@ -7,7 +7,7 @@ import { appendEvent } from './events.ts';
 import { computeSchedule, deadlineIsStale, defaultDeadline } from './plan-rules.ts';
 import type { Suggestion } from './suggestions.ts';
 import { localToInstant } from './time.ts';
-import { newToken } from './tokens.ts';
+import { isToken, newToken } from './tokens.ts';
 
 export type PlanRow = typeof plans.$inferSelect;
 export type CommitRow = typeof commits.$inferSelect;
@@ -28,10 +28,47 @@ export type PlanView = {
   events: { type: string; data: Record<string, unknown> }[];
 };
 
+/** An old plan to publish a new one from; name and email are the old plan's creator commit. */
+export type FromPlan = {
+  id: string;
+  manageToken: string;
+  city: string;
+  area: string;
+  timeWindow: string;
+  format: string;
+  venue: string;
+  minimum: number;
+  name: string;
+  email: string;
+};
+
+/** The old plan for a manage token, or null for no token, a malformed one (no query) or no match; the one place besides loadSendTarget that selects an email. */
+export async function loadFromPlan(db: Db, manageToken: string | undefined): Promise<FromPlan | null> {
+  if (manageToken === undefined || !isToken(manageToken)) return null;
+  const [row] = await db
+    .select({
+      id: plans.id,
+      manageToken: plans.manageToken,
+      city: plans.city,
+      area: plans.area,
+      timeWindow: plans.timeWindow,
+      format: plans.format,
+      venue: plans.venue,
+      minimum: plans.minimum,
+      name: commits.name,
+      email: commits.email,
+    })
+    .from(plans)
+    .innerJoin(commits, and(eq(commits.planId, plans.id), eq(commits.isCreator, true)))
+    .where(eq(plans.manageToken, manageToken));
+  return row ?? null;
+}
+
 export async function publish(
   deps: Pick<AppDeps, 'db' | 'now' | 'planWorkflows'>,
   form: PublishForm,
   suggestion?: Extract<Suggestion, { outcome: 'ok' }>,
+  from?: FromPlan,
 ): Promise<{ planId: string; publicToken: string; manageToken: string; creatorCommitId: string }> {
   const gatheringAt = localToInstant(form.date, form.time);
   const submittedDeadline =
@@ -72,6 +109,7 @@ export async function publish(
         minimum: form.minimum,
         suggestionId: suggestion?.id ?? null,
         suggestionEdited,
+        fromPlanId: from?.id ?? null,
         state: 'open',
       })
       .returning({ id: plans.id });
@@ -87,7 +125,7 @@ export async function publish(
         withdrawToken: newToken(),
       })
       .returning({ id: commits.id });
-    await appendEvent(tx, { planId, type: 'plan.published', data: { fromPlanId: null } });
+    await appendEvent(tx, { planId, type: 'plan.published', data: { fromPlanId: from?.id ?? null } });
     await appendEvent(tx, {
       planId,
       commitId: commit!.id,
