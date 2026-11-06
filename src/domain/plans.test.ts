@@ -751,6 +751,9 @@ describe('publish from an old plan', () => {
 });
 
 describe('callOff', () => {
+  const calledOffEvents = async (manageToken: string) =>
+    (await loadPlan(db, manageToken))!.events.filter((e) => e.type === 'plan.called_off');
+
   it('callOff calls an open plan off', async () => {
     const deps = testDeps();
     const { planId, manageToken } = await publishPlan(deps);
@@ -761,13 +764,8 @@ describe('callOff', () => {
     const [row] = await db.select().from(plans).where(eq(plans.id, planId));
     expect(row).toMatchObject({ state: 'called_off', calledOffReason: 'creator' });
     expect(row?.calledOffAt).not.toBeNull();
-    const view = await loadPlan(db, manageToken);
-    const calledOff = view!.events.filter((e) => e.type === 'plan.called_off');
-    expect(calledOff).toEqual([{ type: 'plan.called_off', data: { reason: 'creator', wasConfirmed: false, activeCount: 1 } }]);
+    expect(await calledOffEvents(manageToken)).toEqual([{ type: 'plan.called_off', data: { reason: 'creator', wasConfirmed: false, activeCount: 1 } }]);
   });
-
-  const calledOffEvents = async (manageToken: string) =>
-    (await loadPlan(db, manageToken))!.events.filter((e) => e.type === 'plan.called_off');
 
   it('records wasConfirmed true for a confirmed plan', async () => {
     const deps = testDeps();
