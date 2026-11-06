@@ -6,10 +6,10 @@ import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeSchedule, type Schedule } from '../../src/domain/plan-rules.ts';
-import { commit, loadPlan, withdraw } from '../../src/domain/plans.ts';
+import { callOff, commit, loadPlan, withdraw } from '../../src/domain/plans.ts';
 import type { SendEmail } from '../../src/email/send-email.ts';
 import { createActivities } from '../../src/temporal/activities.ts';
-import { committed, confirmed, planWorkflow, type PlanWorkflowInput } from '../../src/temporal/workflows.ts';
+import { calledOff, committed, confirmed, planWorkflow, type PlanWorkflowInput } from '../../src/temporal/workflows.ts';
 import { commitFormSchema } from '../../src/web/forms.ts';
 import { publishPlan, TEST_BASE_URL, testDeps } from '../support/builders.ts';
 import { fixedClock } from '../support/fakes.ts';
@@ -549,5 +549,111 @@ describe('planWorkflow reminders', () => {
     expect(today).toHaveLength(3);
     for (const r of tomorrow) expectAt(r.at, c.tomorrowAt, shift);
     for (const r of today) expectAt(r.at, c.todayAt, shift);
+  });
+});
+
+describe('planWorkflow call-off', () => {
+  const NOT_THIS_TIME = 'Not this time: Coffee on Sat 14 Nov';
+  const NOT_THIS_TIME_TEXT = "This one didn't come together, and that's fine. Nobody's going, so there's nothing to do.\n";
+  const EVERYONE = ['ann@example.test', 'mia@example.test', 'raj@example.test'];
+  const PAST_CHECK_IN = Date.parse('2026-11-14T18:01:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000;
+
+  it('sends Not this time to everyone and no reminder after a call-off between confirmation and the 24h reminder (AC2)', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await waitForEmails(deps, 3);
+        expect(await callOff(deps, published.manageToken)).toEqual({ outcome: 'called_off', planId: published.planId });
+        await h.signal(calledOff);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    const notThisTime = startingWith(mail.records, 'Not this time:');
+    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
+    for (const r of notThisTime) {
+      expect(r.subject).toBe(NOT_THIS_TIME);
+      expect(r.text).toBe(NOT_THIS_TIME_TEXT);
+    }
+    expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+  });
+
+  it('sends no morning reminder or check-in after a call-off between the two reminders', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await env.sleep(Date.parse('2026-11-13T18:00:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000);
+        await vi.waitFor(() => expect(startingWith(mail.records, 'Tomorrow:')).toHaveLength(3), {
+          timeout: 10_000,
+          interval: 20,
+        });
+        await callOff(deps, published.manageToken);
+        await h.signal(calledOff);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    expect(startingWith(mail.records, 'Tomorrow:').map((r) => r.to).sort()).toEqual(EVERYONE);
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+    const notThisTime = startingWith(mail.records, 'Not this time:');
+    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
+    // Sent on the signal, not when the morning wait would have run out.
+    for (const r of notThisTime) expect(r.at).toBeLessThan(Date.parse('2026-11-14T16:00:00Z') + shift);
+  });
+
+  it('sends Not this time once each, and not to a committer who withdrew', async () => {
+    const { deps, published, plan } = await confirmedPlan();
+    const raj = plan.commits.filter((c) => !c.isCreator)[1]!;
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await waitForEmails(deps, 3);
+        await withdraw(deps, raj.withdrawToken);
+        await callOff(deps, published.manageToken);
+        await Promise.all([h.signal(calledOff), h.signal(calledOff)]);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    expect(startingWith(mail.records, 'Not this time:').map((r) => r.to).sort()).toEqual([
+      'ann@example.test',
+      'mia@example.test',
+    ]);
+    expect(mail.records.filter((r) => r.to === 'raj@example.test').map((r) => r.subject)).toEqual([
+      "It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM",
+    ]);
+  });
+
+  it('replays a history recorded after this patch', async () => {
+    const { deps, published } = await confirmedPlan();
+    let handle: WorkflowHandle | undefined;
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      act: async (h) => {
+        handle = h;
+        await waitForEmails(deps, 3);
+        await callOff(deps, published.manageToken);
+        await h.signal(calledOff);
+      },
+    });
+
+    await expect(Worker.runReplayHistory({ workflowsPath }, await handle!.fetchHistory())).resolves.toBeUndefined();
   });
 });

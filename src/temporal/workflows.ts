@@ -53,17 +53,25 @@ export async function planWorkflow(input: PlanWorkflowInput): Promise<void> {
   }
   if (isCalledOff) await activities.sendToCommitters(input.planId, 'not_this_time');
 
-  /** Waits until `at`, sending each late commit its confirmed email as its signal arrives. */
-  async function waitUntil(at: number): Promise<void> {
+  /**
+   * Waits until `at`, sending each late commit its confirmed email as its signal arrives. With
+   * `stopOnCallOff`, a `calledOff` signal ends the wait early and no further confirmed email goes out.
+   */
+  async function waitUntil(at: number, stopOnCallOff = false): Promise<void> {
+    const stopped = () => stopOnCallOff && isCalledOff;
     for (;;) {
+      if (stopped()) return;
       const remaining = at - Date.now();
       // No zero-length timer: an instant already passed only drains the queue below.
       if (remaining <= 0) break;
-      const woke = await condition(() => lateCommitIds.length > 0, remaining);
+      const woke = await condition(() => lateCommitIds.length > 0 || stopped(), remaining);
       if (!woke) break;
+      if (stopped()) return;
       await activities.sendToOne(input.planId, 'confirmed', lateCommitIds.shift()!);
     }
-    while (lateCommitIds.length > 0) await activities.sendToOne(input.planId, 'confirmed', lateCommitIds.shift()!);
+    while (lateCommitIds.length > 0 && !stopped()) {
+      await activities.sendToOne(input.planId, 'confirmed', lateCommitIds.shift()!);
+    }
   }
 
   // Gated so a history recorded by the open-phase-only workflow still replays.
@@ -71,20 +79,31 @@ export async function planWorkflow(input: PlanWorkflowInput): Promise<void> {
     await activities.sendToCommitters(input.planId, 'confirmed');
     // Gated so a history recorded by story 3.2's workflow (placeholder wait) still replays.
     if (patched('reminders-3-3')) {
+      // Gated so a history recorded by story 3.3's workflow (which ignored a call-off once confirmed) still replays.
+      const stopOnCallOff = patched('call-off-3-5');
+      /** After a call-off, sends "Not this time" once and reports that the workflow should end. */
+      const endedByCallOff = async (): Promise<boolean> => {
+        if (!stopOnCallOff || !isCalledOff) return false;
+        await activities.sendToCommitters(input.planId, 'not_this_time');
+        return true;
+      };
       let sent24At: number | null = null;
       if (input.reminder24At > Date.now()) {
-        await waitUntil(input.reminder24At);
+        await waitUntil(input.reminder24At, stopOnCallOff);
+        if (await endedByCallOff()) return;
         await reminders.sendToCommitters(input.planId, 'reminder_24h');
         sent24At = Date.now();
       }
       const morningAt = input.reminderMorningAt;
       // FR021: skip the morning reminder when the 24h one actually went out less than 6h before it.
       if (morningAt !== null && morningAt > Date.now() && !(sent24At !== null && morningAt - sent24At < SIX_HOURS_MS)) {
-        await waitUntil(morningAt);
+        await waitUntil(morningAt, stopOnCallOff);
+        if (await endedByCallOff()) return;
         await reminders.sendToCommitters(input.planId, 'reminder_morning');
       }
       // Placeholder end of the confirmed phase: Epic 4 adds the check-in here.
-      await waitUntil(input.checkInAt);
+      await waitUntil(input.checkInAt, stopOnCallOff);
+      if (await endedByCallOff()) return;
     } else {
       // Placeholder end of the confirmed phase: story 3.3 replaces this wait with the reminder timers.
       const endAt = input.checkInAt;
