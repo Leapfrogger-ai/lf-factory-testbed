@@ -5,7 +5,7 @@ import { resetDb, testDb } from '../../tests/support/db.ts';
 import { fixedClock } from '../../tests/support/fakes.ts';
 import { loadFixture } from '../../tests/support/fixtures.ts';
 import { commitFormSchema } from '../web/forms.ts';
-import { commit, countPlans, loadPlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
+import { commit, countPlans, loadPlan, loadManagePlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
 import { loadSuggestion, recordSuggestion } from './suggestions.ts';
 import { newToken } from './tokens.ts';
 
@@ -170,6 +170,56 @@ describe('loadPublicPlan', () => {
     await publishPlan(testDeps());
 
     expect(await loadPublicPlan(db, newToken())).toBeNull();
+  });
+});
+
+describe('loadManagePlan', () => {
+  const form = (name: string, email: string) => commitFormSchema.parse({ name, email });
+
+  it('returns full names of active commits in commit order', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    const plan = await loadManagePlan(db, manageToken);
+
+    expect(plan).toMatchObject({
+      names: ['Ana Ruiz', 'Mia Chen'],
+      minimum: 3,
+      publicToken,
+      manageToken,
+      venue: 'Blue Bottle',
+    });
+  });
+
+  it('leaves out a withdrawn commit', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+    const view = await loadPlan(db, manageToken);
+    await withdraw(deps, view!.commits.find((c) => !c.isCreator)!.withdrawToken);
+
+    const plan = await loadManagePlan(db, manageToken);
+
+    expect(plan?.names).toEqual(['Ana Ruiz']);
+  });
+
+  it('is null for an unknown token', async () => {
+    await publishPlan(testDeps());
+
+    expect(await loadManagePlan(db, newToken())).toBeNull();
+  });
+
+  it('has no email on the result', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    const plan = await loadManagePlan(db, manageToken);
+
+    const json = JSON.stringify(plan);
+    expect(json).not.toContain('ana@example.test');
+    expect(json).not.toContain('mia@example.test');
   });
 });
 

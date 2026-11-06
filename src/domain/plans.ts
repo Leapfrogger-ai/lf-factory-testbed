@@ -188,6 +188,32 @@ export type PublicPlan = {
   names: string[];
 };
 
+type PlanRows = {
+  state: string;
+  format: string;
+  venue: string;
+  city: string;
+  gatheringAt: Date;
+  commitDeadlineAt: Date;
+  minimum: number;
+  name: string | null;
+}[];
+
+/** Maps the plan-with-active-commits join rows (one per commit, oldest first) to a PublicPlan; the caller has checked there is a first row. */
+function toPublicPlan(rows: PlanRows): PublicPlan {
+  const first = rows[0]!;
+  return {
+    state: first.state,
+    format: first.format,
+    venue: first.venue,
+    city: first.city,
+    gatheringAt: first.gatheringAt.toTemporalInstant(),
+    commitDeadlineAt: first.commitDeadlineAt.toTemporalInstant(),
+    minimum: first.minimum,
+    names: rows.flatMap((r) => (r.name === null ? [] : [r.name])),
+  };
+}
+
 export async function loadPublicPlan(db: Db, publicToken: string): Promise<PublicPlan | null> {
   const rows = await db
     .select({
@@ -204,18 +230,34 @@ export async function loadPublicPlan(db: Db, publicToken: string): Promise<Publi
     .leftJoin(commits, and(eq(commits.planId, plans.id), isNull(commits.withdrawnAt)))
     .where(eq(plans.publicToken, publicToken))
     .orderBy(asc(commits.createdAt));
+  if (rows.length === 0) return null;
+  return toPublicPlan(rows);
+}
+
+export type ManagePlan = PublicPlan & { publicToken: string; manageToken: string };
+
+/** The manage page's plan: `names` are full names (the one place they leave the database); commits.email is never selected. */
+export async function loadManagePlan(db: Db, manageToken: string): Promise<ManagePlan | null> {
+  const rows = await db
+    .select({
+      state: plans.state,
+      format: plans.format,
+      venue: plans.venue,
+      city: plans.city,
+      gatheringAt: plans.gatheringAt,
+      commitDeadlineAt: plans.commitDeadlineAt,
+      minimum: plans.minimum,
+      publicToken: plans.publicToken,
+      manageToken: plans.manageToken,
+      name: commits.name,
+    })
+    .from(plans)
+    .leftJoin(commits, and(eq(commits.planId, plans.id), isNull(commits.withdrawnAt)))
+    .where(eq(plans.manageToken, manageToken))
+    .orderBy(asc(commits.createdAt));
   const first = rows[0];
   if (!first) return null;
-  return {
-    state: first.state,
-    format: first.format,
-    venue: first.venue,
-    city: first.city,
-    gatheringAt: first.gatheringAt.toTemporalInstant(),
-    commitDeadlineAt: first.commitDeadlineAt.toTemporalInstant(),
-    minimum: first.minimum,
-    names: rows.flatMap((r) => (r.name === null ? [] : [r.name])),
-  };
+  return { ...toPublicPlan(rows), publicToken: first.publicToken, manageToken: first.manageToken };
 }
 
 export type CommitResult =
