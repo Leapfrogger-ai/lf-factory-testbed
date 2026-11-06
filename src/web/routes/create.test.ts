@@ -1,12 +1,13 @@
 import { ApplicationFailure } from '@temporalio/activity';
 import { eq } from 'drizzle-orm';
 import { afterAll,afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { planForm, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
+import { planForm, publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fakeSuggest, fixedClock } from '../../../tests/support/fakes.ts';
+import { newToken } from '../../domain/tokens.ts';
 import { loadFixture } from '../../../tests/support/fixtures.ts';
-import { suggestions } from '../../db/schema.ts';
-import { countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
+import { plans, suggestions } from '../../db/schema.ts';
+import { commit, countPlans, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
 import { countSuggestions, loadSuggestion } from '../../domain/suggestions.ts';
 import { createApp } from '../app.ts';
 import { PUBLISH_LIMIT_NOTICE, SUGGEST_LIMIT_NOTICE } from '../views/create-page.ts';
@@ -1080,5 +1081,80 @@ describe('rate limited requests log', () => {
 
     expect(res.status).toBe(429);
     expectOneWarnWithoutIp('publish');
+  });
+});
+
+describe('POST /plans with fromManageToken', () => {
+  async function oldPlan(deps: ReturnType<typeof testDeps>) {
+    const old = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, old.publicToken, {
+      name: 'Mia Chen',
+      email: 'mia@example.test',
+      emailNormalized: 'mia@example.test',
+    });
+    return old;
+  }
+
+  async function fromPlanIdOf(planId: string) {
+    const [row] = await db.select({ fromPlanId: plans.fromPlanId }).from(plans).where(eq(plans.id, planId));
+    return row?.fromPlanId;
+  }
+
+  const again = { date: '2026-11-21', time: '10:00', name: 'Ana Ruiz', email: 'ana@example.test' };
+
+  it('publishes a new plan from the old one (AC2)', async () => {
+    const deps = testDeps();
+    const old = await oldPlan(deps);
+
+    const res = await post(deps, { ...again, fromManageToken: old.manageToken });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toMatch(/^\/m\/[A-Za-z0-9_-]{43}\/published$/);
+    expect(location).not.toContain(old.manageToken);
+    const plan = await publishedPlan(res);
+    expect(await fromPlanIdOf(plan!.id)).toBe(old.planId);
+    expect(plan?.commits).toHaveLength(1);
+    expect(deps.fakes.planWorkflows.startCalls.at(-1)?.planId).toBe(plan!.id);
+    expect((await loadPlan(db, old.manageToken))?.commits).toHaveLength(2);
+  });
+
+  it('emails only the creator of the new plan (AC3)', async () => {
+    const deps = testDeps();
+    const old = await oldPlan(deps);
+
+    const res = await post(deps, { ...again, fromManageToken: old.manageToken });
+
+    const newToken = (res.headers.get('location') ?? '').split('/')[2];
+    const calls = deps.fakes.email.calls as { payload: { to: string; text: string } }[];
+    expect(calls.filter((call) => call.payload.to === 'ana@example.test')).toHaveLength(1);
+    expect(calls.filter((call) => call.payload.to === 'mia@example.test')).toHaveLength(0);
+    expect(calls.at(-1)?.payload.text).toContain('https://calvin.test/m/' + newToken);
+  });
+
+  it('an unknown or malformed fromManageToken publishes with no from_plan_id (AC5)', async () => {
+    for (const fromManageToken of [newToken(), 'abc']) {
+      const deps = testDeps();
+
+      const res = await post(deps, { ...again, fromManageToken });
+
+      expect(res.status).toBe(303);
+      const plan = await publishedPlan(res);
+      expect(await fromPlanIdOf(plan!.id)).toBeNull();
+      expect(plan?.events[0]).toMatchObject({ type: 'plan.published', data: { fromPlanId: null } });
+    }
+  });
+
+  it('a valid fromManageToken beats a suggestionId (AC6)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('good')).call });
+    const suggestionId = (await suggestedLocation(deps)).split('=')[1] ?? '';
+    const old = await oldPlan(deps);
+
+    const res = await post(deps, { ...cardForm, suggestionId, fromManageToken: old.manageToken });
+
+    expect(res.status).toBe(303);
+    const plan = await publishedPlan(res);
+    expect(await fromPlanIdOf(plan!.id)).toBe(old.planId);
+    expect(plan?.suggestionId).toBeNull();
   });
 });

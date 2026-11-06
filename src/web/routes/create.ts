@@ -2,7 +2,7 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import { deadlineIsStale, defaultDeadline } from '../../domain/plan-rules.ts';
-import { loadSendTarget, publish } from '../../domain/plans.ts';
+import { loadFromPlan, loadSendTarget, publish } from '../../domain/plans.ts';
 import { loadSuggestion, recordSuggestion, type Suggestion } from '../../domain/suggestions.ts';
 import { localToInstant } from '../../domain/time.ts';
 import { sendOnce } from '../../email/send.ts';
@@ -201,10 +201,11 @@ export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimi
     }),
     async (c) => {
       const form = c.req.valid('form');
-      const suggestion = await okSuggestion(deps, form.suggestionId);
+      const from = await loadFromPlan(deps.db, form.fromManageToken);
+      const suggestion = from ? undefined : await okSuggestion(deps, form.suggestionId);
       const errors = timingErrors(deps, withoutStaleDeadline(form, suggestion));
       if (Object.keys(errors).length > 0) return rerenderPublish(c, deps, errors);
-      const { planId, manageToken } = await publish(deps, form, suggestion);
+      const { planId, manageToken } = await publish(deps, form, suggestion, from ?? undefined);
       try {
         const { plan, commit } = await loadSendTarget(deps.db, planId);
         await sendOnce({ db: deps.db, sendEmail: deps.sendEmail, baseUrl: config.baseUrl }, 'manage_link', plan, commit);
