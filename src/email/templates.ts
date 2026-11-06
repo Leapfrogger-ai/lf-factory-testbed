@@ -1,6 +1,6 @@
 import type { emailSends } from '../db/schema.ts';
 import type { CommitRow, PlanRow } from '../domain/plans.ts';
-import { formatDay, formatShareWhen, formatWhen } from '../domain/time.ts';
+import { formatClock, formatDay, formatShareWhen, formatWhen } from '../domain/time.ts';
 import { firstName } from '../web/views/public-plan-page.ts';
 import type { EmailPayload } from './send-email.ts';
 
@@ -13,21 +13,44 @@ export function buildEmail(
   baseUrl: string,
   activeCommits: CommitRow[] = [],
 ): EmailPayload {
-  if (kind !== 'manage_link' && kind !== 'not_this_time' && kind !== 'confirmed') {
+  if (
+    kind !== 'manage_link' && kind !== 'not_this_time' && kind !== 'confirmed'
+    && kind !== 'reminder_24h' && kind !== 'reminder_morning'
+  ) {
     throw new Error(`No email template for ${kind}`);
   }
   const format = plan.format.charAt(0).toUpperCase() + plan.format.slice(1);
   const day = formatDay(plan.gatheringAt.toTemporalInstant());
+  const mapLine = () =>
+    `Map: https://maps.google.com/?${new URLSearchParams({ q: `${plan.venue} ${plan.city}` }).toString()}`;
+  const names = () => activeCommits.map((c) => firstName(c.name)).join(', ');
+  if (kind === 'reminder_24h' || kind === 'reminder_morning') {
+    const instant = plan.gatheringAt.toTemporalInstant();
+    const lead = kind === 'reminder_24h' ? 'Tomorrow' : 'Today';
+    const clock = formatClock(instant);
+    const lines = [
+      `${lead} at ${clock}: ${format} at ${plan.venue}, ${plan.city}.`,
+      mapLine(),
+      '',
+      `Who's in: ${names()}.`,
+      '',
+    ];
+    if (!commit.isCreator) lines.push(`Can't make it? Withdraw: ${baseUrl}/w/${commit.withdrawToken}`, '');
+    return {
+      to: commit.email,
+      subject: `${lead}: ${format} at ${plan.venue}, ${clock}`,
+      text: lines.join('\n'),
+      tags: [{ name: 'kind', value: kind }],
+    };
+  }
   if (kind === 'confirmed') {
     const instant = plan.gatheringAt.toTemporalInstant();
-    const names = activeCommits.map((c) => firstName(c.name)).join(', ');
-    const map = new URLSearchParams({ q: `${plan.venue} ${plan.city}` }).toString();
     const lines = [
-      `It's on. ${names} are in.`,
+      `It's on. ${names()} are in.`,
       '',
       `${format} at ${plan.venue}`,
       formatWhen(instant),
-      `Map: https://maps.google.com/?${map}`,
+      mapLine(),
       '',
       "We'll remind you the day before and that morning.",
       '',

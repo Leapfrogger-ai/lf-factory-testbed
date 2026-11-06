@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatDay, formatDeadline, formatShareWhen, formatWhen, localDateTime } from './time.ts';
+import { formatClock, formatDay, formatDeadline, formatShareWhen, formatWhen, localDateTime } from './time.ts';
 
 const when = (iso: string) => formatWhen(Temporal.Instant.from(iso));
 const day = (iso: string) => formatDay(Temporal.Instant.from(iso));
@@ -85,6 +85,15 @@ describe('formatDay', () => {
   test('uses the plan-time date when the UTC date has already rolled over', () => {
     expect(day('2026-11-15T07:30:00Z')).toBe('Sat 14 Nov');
   });
+});
+
+test.each([
+  ['2026-11-14T18:00:00Z', '10:00 AM'],
+  ['2026-11-14T21:30:00Z', '1:30 PM'],
+  ['2026-11-01T18:00:00Z', '10:00 AM'],
+  ['2027-03-14T18:00:00Z', '11:00 AM'],
+])('formatClock of %s is %s in plan time', (iso, expected) => {
+  expect(formatClock(Temporal.Instant.from(iso))).toBe(expected);
 });
 
 test('no output contains a narrow or no-break space', () => {
