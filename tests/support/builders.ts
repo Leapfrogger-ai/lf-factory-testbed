@@ -49,7 +49,8 @@ export async function publishPlan(
   deps: ReturnType<typeof testDeps>,
   overrides: Record<string, string> = {},
   suggestion?: Parameters<typeof publish>[2],
+  from?: Parameters<typeof publish>[3],
 ) {
   const form = publishFormSchema.parse(planForm(overrides));
-  return publish(deps, form, suggestion);
+  return publish(deps, form, suggestion, from);
 }

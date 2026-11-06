@@ -1,11 +1,13 @@
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { plans } from '../db/schema.ts';
 import { suggest, type SuggestInput } from '../suggest/suggest.ts';
 import { publishPlan, testDeps } from '../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../tests/support/db.ts';
 import { fixedClock } from '../../tests/support/fakes.ts';
 import { loadFixture } from '../../tests/support/fixtures.ts';
 import { commitFormSchema } from '../web/forms.ts';
-import { commit, countPlans, loadPlan, loadManagePlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
+import { commit, countPlans, loadFromPlan, loadPlan, loadManagePlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
 import { loadSuggestion, recordSuggestion } from './suggestions.ts';
 import { newToken } from './tokens.ts';
 
@@ -670,5 +672,80 @@ describe('loadSendTargets', () => {
 
   it('throws when there is no plan for the id', async () => {
     await expect(loadSendTargets(db, '00000000-0000-0000-0000-000000000000')).rejects.toThrow('No plan for that id');
+  });
+});
+
+describe('loadFromPlan', () => {
+  const form = (name: string, email: string) => commitFormSchema.parse({ name, email });
+
+  it("returns the old plan's fields and its creator's name and email", async () => {
+    const deps = testDeps();
+    const { planId, publicToken, manageToken } = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, publicToken, form('Mia Chen', 'mia@example.test'));
+
+    const from = await loadFromPlan(db, manageToken);
+
+    expect(from).toMatchObject({
+      id: planId,
+      manageToken,
+      city: 'Oakland',
+      area: 'Rockridge',
+      timeWindow: 'next weekend',
+      format: 'coffee',
+      venue: 'Blue Bottle',
+      minimum: 3,
+      name: 'Ana Ruiz',
+      email: 'ana@example.test',
+    });
+  });
+
+  it('is null for undefined, a malformed token and an unknown token', async () => {
+    await publishPlan(testDeps());
+
+    expect(await loadFromPlan(db, undefined)).toBeNull();
+    expect(await loadFromPlan(db, 'abc')).toBeNull();
+    expect(await loadFromPlan(db, newToken())).toBeNull();
+  });
+});
+
+describe('publish from an old plan', () => {
+  const form = (name: string, email: string) => commitFormSchema.parse({ name, email });
+
+  it('with a from plan sets from_plan_id and the event\'s fromPlanId (AC2)', async () => {
+    const deps = testDeps();
+    const old = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, old.publicToken, form('Mia Chen', 'mia@example.test'));
+    const oldBefore = await loadPlan(db, old.manageToken);
+    const from = await loadFromPlan(db, old.manageToken);
+
+    const created = await publishPlan(
+      deps,
+      { name: from!.name, email: from!.email, date: '2026-11-21', time: '10:00' },
+      undefined,
+      from!,
+    );
+
+    const plan = await loadPlan(db, created.manageToken);
+    const [row] = await db.select({ fromPlanId: plans.fromPlanId }).from(plans).where(eq(plans.id, created.planId));
+    expect(row?.fromPlanId).toBe(old.planId);
+    expect(plan?.events[0]).toEqual({ type: 'plan.published', data: { fromPlanId: old.planId } });
+    expect(plan?.publicToken).not.toBe(oldBefore?.publicToken);
+    expect(plan?.manageToken).not.toBe(oldBefore?.manageToken);
+    expect(plan?.checkInToken).not.toBe(oldBefore?.checkInToken);
+    expect(plan?.commits).toHaveLength(1);
+    expect(plan?.commits[0]?.isCreator).toBe(true);
+    expect(await loadManagePlan(db, created.manageToken)).toMatchObject({ names: ['Ana Ruiz'] });
+    expect(await loadPlan(db, old.manageToken)).toEqual(oldBefore);
+    expect(oldBefore?.count).toBe(2);
+    expect(deps.fakes.planWorkflows.startCalls.map((c) => c.planId)).toEqual([old.planId, created.planId]);
+  });
+
+  it('without a from plan leaves from_plan_id null (AC5)', async () => {
+    const { planId, manageToken } = await publishPlan(testDeps());
+
+    const plan = await loadPlan(db, manageToken);
+    const [row] = await db.select({ fromPlanId: plans.fromPlanId }).from(plans).where(eq(plans.id, planId));
+    expect(row?.fromPlanId).toBeNull();
+    expect(plan?.events[0]).toEqual({ type: 'plan.published', data: { fromPlanId: null } });
   });
 });
