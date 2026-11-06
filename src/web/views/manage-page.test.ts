@@ -129,4 +129,15 @@ describe('managePage', () => {
     expect(form?.[1]).toMatch(/<button[^>]*btn btn-dim[^>]*>Call it off<\/button>/);
     expect(form?.[1]).not.toContain('<input');
   });
+
+  it('shows the too-late notice above the pill (AC4)', () => {
+    const body = render(plan(), 'happening_now', { notice: 'too-late' });
+    const notice = `<p class="notice" role="status">It's already started, so it can't be called off.</p>`;
+    expect(body).toContain(notice);
+    expect(body.indexOf(notice)).toBeLessThan(body.indexOf('class="pill'));
+  });
+
+  it('shows no notice without the option', () => {
+    expect(render(plan(), 'happening_now')).not.toContain('class="notice"');
+  });
 });

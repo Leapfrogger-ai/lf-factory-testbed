@@ -24,6 +24,8 @@ export type PlanView = {
   suggestionEdited: boolean | null;
   count: number;
   manageLinkSent: boolean;
+  calledOffReason: string | null;
+  calledOffAt: string | null;
   commits: { isCreator: boolean; withdrawToken: string }[];
   events: { type: string; data: Record<string, unknown> }[];
 };
@@ -210,6 +212,8 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
     suggestionEdited: plan.suggestionEdited,
     count: planCommits.filter((c) => c.withdrawnAt === null).length,
     manageLinkSent: sent?.sentAt != null,
+    calledOffReason: plan.calledOffReason,
+    calledOffAt: plan.calledOffAt?.toTemporalInstant().toString() ?? null,
     commits: planCommits.map((c) => ({ isCreator: c.isCreator, withdrawToken: c.withdrawToken })),
     events: planEvents.map((e) => ({ type: e.type, data: e.data as Record<string, unknown> })),
   };
@@ -440,6 +444,37 @@ export async function withdraw(deps: Pick<AppDeps, 'db' | 'now'>, withdrawToken:
     const activeCount = active!.value;
     await appendEvent(tx, { planId: plan.id, commitId: found.commitId, type: 'commit.withdrawn', data: { activeCount } });
     return { outcome: 'withdrawn', planId: plan.id, activeCount };
+  });
+}
+
+export type CallOffResult =
+  | { outcome: 'not_found' }
+  | { outcome: 'already_called_off' }
+  | { outcome: 'too_late' }
+  | { outcome: 'called_off'; planId: string };
+
+/** The creator calls a plan off by its manage token; already called off is checked before the gathering-started rule. */
+export async function callOff(deps: Pick<AppDeps, 'db' | 'now'>, manageToken: string): Promise<CallOffResult> {
+  return deps.db.transaction(async (tx) => {
+    const [plan] = await tx.select().from(plans).where(eq(plans.manageToken, manageToken)).for('update');
+    if (!plan) return { outcome: 'not_found' };
+    if (plan.state === 'called_off') return { outcome: 'already_called_off' };
+    const now = deps.now();
+    if (Temporal.Instant.compare(now, plan.gatheringAt.toTemporalInstant()) >= 0) return { outcome: 'too_late' };
+    await tx
+      .update(plans)
+      .set({ state: 'called_off', calledOffAt: new Date(now.epochMilliseconds), calledOffReason: 'creator' })
+      .where(eq(plans.id, plan.id));
+    const [active] = await tx
+      .select({ value: count() })
+      .from(commits)
+      .where(and(eq(commits.planId, plan.id), isNull(commits.withdrawnAt)));
+    await appendEvent(tx, {
+      planId: plan.id,
+      type: 'plan.called_off',
+      data: { reason: 'creator', wasConfirmed: plan.state === 'confirmed', activeCount: active!.value },
+    });
+    return { outcome: 'called_off', planId: plan.id };
   });
 }
 
