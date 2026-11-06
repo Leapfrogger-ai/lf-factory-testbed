@@ -75,6 +75,7 @@ describe('managePage', () => {
     expect(body).toContain('venue venue-off');
     expect(body).not.toContain('class="count"');
     expect(body).not.toContain('seat-empty');
+    expect(body).not.toContain('linkbox');
     expect(body).not.toContain('Call it off');
     expect(body).toContain('<a class="btn btn-primary" href="/m/MAN/new">Start a new plan from this</a>');
   });
