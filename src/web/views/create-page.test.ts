@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CITIES } from '../../config.ts';
+import type { FromPlan } from '../../domain/plans.ts';
 import type { Suggestion } from '../../domain/suggestions.ts';
 import { createPage, type CreateState } from './create-page.ts';
 
@@ -355,5 +356,62 @@ describe('createPage calvin-4 markup', () => {
       expect(form).toContain('class="again"');
       expect(form).toMatch(/<button[^>]*class="btn btn-secondary"/);
     }
+  });
+});
+
+const fromPlan: FromPlan = {
+  id: '22222222-2222-4222-8222-222222222222',
+  manageToken: 'M'.repeat(43),
+  city: 'Oakland',
+  area: 'Rockridge',
+  timeWindow: 'next weekend, morning',
+  format: 'Coffee',
+  venue: 'Blue Bottle',
+  minimum: 3,
+  name: 'Ana Ruiz',
+  email: 'ana@example.test',
+};
+
+const again = (values: Record<string, string> = {}): CreateState => ({ kind: 'again', from: fromPlan, values });
+
+describe('createPage again state', () => {
+  it('is headed "Same again, new date" and shows the card pre-filled (AC1)', () => {
+    const body = render(again());
+
+    expect(body).toContain('<h1>Same again, new date</h1>');
+    expect(body).not.toContain('Suggest a plan</h1>');
+    expect(body).toContain('value="Coffee"');
+    expect(body).toContain('value="Blue Bottle"');
+    expect(body).toMatch(/<input[^>]*name="minimum"[^>]*value="3"/);
+    expect(body).toContain('value="Ana Ruiz"');
+    expect(body).toContain('value="ana@example.test"');
+    expect(body).toContain(`<input type="hidden" name="fromManageToken" value="${'M'.repeat(43)}" />`);
+    expect(body).toContain('Oakland · Rockridge · next weekend, morning');
+    for (const field of ['date', 'time', 'deadlineDate', 'deadlineTime']) {
+      expect(body).toMatch(new RegExp(`<input[^>]*name="${field}"[^>]*value=""`));
+    }
+  });
+
+  it('has no Suggest another, Change or suggestion link (AC1)', () => {
+    const body = render(again());
+
+    for (const absent of ['Suggest another', 'Change', 'change=1', 'data-suggest-form', 'name="suggestionId"', 'name="previousSuggestionId"']) {
+      expect(body).not.toContain(absent);
+    }
+    expect(body).toContain('data-publish-form="again"');
+  });
+
+  it('keeps entered values and shows the error under the date (AC4 re-render)', () => {
+    const body = render(again({ date: '', time: '10:00', name: 'Ana Ruiz' }), { date: 'Pick a date.' });
+
+    expect(body).toContain('<p class="error" id="date-error">Pick a date.</p>');
+    expect(body).toContain('aria-invalid="true"');
+    expect(body).toMatch(/<input[^>]*name="time"[^>]*value="10:00"/);
+  });
+
+  it('escapes entered values on the again page', () => {
+    const body = render(again({ name: '"><b>x' }));
+
+    expect(body).not.toContain('<b>x');
   });
 });
