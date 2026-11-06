@@ -322,7 +322,38 @@ describe('createPage hooks for create.js', () => {
       'decide',
     ]);
     expect(body).toMatch(/<form method="post" action="\/plans" data-publish-form="card">/);
-    expect(body).toMatch(/<form method="post" action="\/suggest" data-suggest-form>/);
+    expect(body).toMatch(/<form method="post" action="\/suggest" class="again" data-suggest-form>/);
     expect(render(fallback())).toMatch(/<form method="post" action="\/plans" data-publish-form="fallback">/);
+  });
+});
+
+describe('createPage calvin-4 markup', () => {
+  it('wraps the format, where, when, minimum and decide-by fields in one card', () => {
+    const body = render(card());
+    const cards = [...body.matchAll(/<div class="card">([\s\S]*?)<\/div>\s*<h2>/g)];
+
+    expect(body.match(/class="card"/g)).toHaveLength(1);
+    expect(cards).toHaveLength(1);
+    for (const name of ['format', 'venue', 'date', 'time', 'minimum', 'deadlineDate', 'deadlineTime']) {
+      expect(cards[0]?.[1]).toContain(`name="${name}"`);
+    }
+    expect(cards[0]?.[1]).not.toContain('name="email"');
+  });
+
+  it('gives the Change link class quiet and the context line class summary', () => {
+    const body = render(card());
+
+    expect(body).toContain('<p class="summary">');
+    expect(body).toMatch(/<a href="\/\?suggestion=[^"]*" class="quiet">Change<\/a>/);
+  });
+
+  it('renders Suggest another and Try suggesting again as btn btn-secondary in a form with class again', () => {
+    const another = suggestAgainForm(render(card()));
+    const again = suggestAgainForm(render({ ...fallback({}, NOTICE), previousSuggestionId: ID }));
+
+    for (const form of [another, again]) {
+      expect(form).toContain('class="again"');
+      expect(form).toMatch(/<button[^>]*class="btn btn-secondary"/);
+    }
   });
 });

@@ -17,6 +17,15 @@ const atStart = Temporal.Instant.from('2026-11-14T18:00:00Z');
 const render = (t: WithdrawTarget, now: Temporal.Instant = before) =>
   String(withdrawPage({ target: t, token: 'wtok123', now })).replaceAll('&#39;', "'");
 
+describe('withdrawPage markup', () => {
+  it('keeps the Withdraw button btn btn-primary and the question is the only h1', () => {
+    const body = render(target());
+
+    expect(body).toMatch(/<button[^>]*class="btn btn-primary"[^>]*>Withdraw<\/button>/);
+    expect(body.match(/<h1[ >]/g)).toHaveLength(1);
+  });
+});
+
 describe('withdrawPage', () => {
   it('the confirm view asks "Withdraw from Coffee at Blue Bottle on Sat 14 Nov?" with a Withdraw button', () => {
     const body = render(target());

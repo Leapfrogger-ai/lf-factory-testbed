@@ -7,6 +7,6 @@ export function systemErrorPage(): HtmlEscapedString {
     ${brand}
     <h1>Something went wrong</h1>
     <p>Something went wrong. Go back and try again.</p>
-    <p><a href="/">Start over</a></p>
+    <p><a class="quiet" href="/">Start over</a></p>
   </main>` as HtmlEscapedString;
 }

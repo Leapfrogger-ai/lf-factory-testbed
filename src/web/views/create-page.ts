@@ -123,7 +123,7 @@ export function createPage(
     ${hasContext
       ? html`<p class="summary">
           ${context.city} · ${context.area} · ${context.timeWindow}
-          ${changeId !== undefined ? html`<a href="/?suggestion=${changeId}&change=1">Change</a>` : ''}
+          ${changeId !== undefined ? html`<a href="/?suggestion=${changeId}&change=1" class="quiet">Change</a>` : ''}
         </p>`
       : ''}
     ${contextErrors.length > 0
@@ -134,6 +134,7 @@ export function createPage(
     <form method="post" action="/plans" data-publish-form="${state.kind}">
       ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
       ${state.kind === 'card' ? html`<input type="hidden" name="suggestionId" value="${state.suggestion.id}" />` : ''}
+      <div class="card">
       ${input('format', 'What', prefill.format)}
       ${row('where', input('venue', 'Where', prefill.venue))}
       ${row(
@@ -150,6 +151,7 @@ export function createPage(
           ${input('deadlineTime', 'Time', prefill.deadline.time, { type: 'time' })}
         </div>`,
       )}
+      </div>
       <h2>You're the first one in</h2>
       ${input('name', 'Your name', '', { autocomplete: 'name' })}
       ${input('email', 'Your email', '', { type: 'email', autocomplete: 'email' })}
@@ -177,9 +179,9 @@ type Context = { city: string; area: string; timeWindow: string };
 
 /** A form beside the publish form that asks for another suggestion for the same city, area and time. */
 function suggestAgain(context: Context, previousId: string, label: string): HtmlEscapedString {
-  return html`<form method="post" action="/suggest" data-suggest-form>
+  return html`<form method="post" action="/suggest" class="again" data-suggest-form>
     ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
     <input type="hidden" name="previousSuggestionId" value="${previousId}" />
-    <button type="submit" class="btn">${label}</button>
+    <button type="submit" class="btn btn-secondary">${label}</button>
   </form>` as HtmlEscapedString;
 }
