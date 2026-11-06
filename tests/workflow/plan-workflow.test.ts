@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import type { WorkflowHandle } from '@temporalio/client';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commit, loadPlan, withdraw } from '../../src/domain/plans.ts';
 import { createActivities } from '../../src/temporal/activities.ts';
 import { committed, confirmed, planWorkflow, type PlanWorkflowInput } from '../../src/temporal/workflows.ts';
@@ -138,6 +138,10 @@ describe('planWorkflow open phase', () => {
 type Sent = { to: string; subject: string; text: string };
 const sent = (deps: ReturnType<typeof testDeps>) => deps.fakes.email.calls.map((c) => c.payload as Sent);
 
+/** Waits (real time, short polls) until the fake mailbox holds `count` emails. */
+const waitForEmails = (deps: ReturnType<typeof testDeps>, count: number) =>
+  vi.waitFor(() => expect(deps.fakes.email.calls.length).toBeGreaterThanOrEqual(count), { timeout: 10_000, interval: 20 });
+
 const E1_HEAD = [
   "It's on. Ann, Mia, Raj are in.",
   '',
@@ -192,6 +196,7 @@ describe('planWorkflow confirmed phase', () => {
 
     await run(deps, published.planId, 3_600_000, async (h) => {
       await h.signal(confirmed);
+      await waitForEmails(deps, 3);
       const lee = await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
       if (lee.outcome !== 'committed') throw new Error('Lee should commit');
       await h.signal(committed, lee.commitId);
@@ -216,13 +221,25 @@ describe('planWorkflow confirmed phase', () => {
   });
 
   it('sends nothing to a committer who withdrew before confirmation', async () => {
-    const { deps, published, plan } = await confirmedPlan();
-    const raj = plan.commits.filter((c) => !c.isCreator)[1]!;
-    await withdraw(deps, raj.withdrawToken);
+    const deps = testDeps();
+    const published = await publishPlan(deps, { minimum: '4' });
+    await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
+    await commit(deps, published.publicToken, form('Raj', 'raj@example.test'));
+    const open = await loadPlan(db, published.manageToken);
+    expect(open?.state).toBe('open');
+    await withdraw(deps, open!.commits.filter((c) => !c.isCreator)[1]!.withdrawToken);
+    await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+    await commit(deps, published.publicToken, form('Kim', 'kim@example.test'));
+    expect((await loadPlan(db, published.manageToken))?.state).toBe('confirmed');
 
     await run(deps, published.planId, 3_600_000, (h) => h.signal(confirmed));
 
-    expect(sent(deps).map((e) => e.to).sort()).toEqual(['ann@example.test', 'mia@example.test']);
+    expect(sent(deps).map((e) => e.to).sort()).toEqual([
+      'ann@example.test',
+      'kim@example.test',
+      'lee@example.test',
+      'mia@example.test',
+    ]);
   });
 
   it('sends nothing new for a rejoin signalled after confirmation', async () => {
@@ -231,6 +248,7 @@ describe('planWorkflow confirmed phase', () => {
 
     await run(deps, published.planId, 3_600_000, async (h) => {
       await h.signal(confirmed);
+      await waitForEmails(deps, 3);
       await withdraw(deps, mia.withdrawToken);
       const rejoin = await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
       if (rejoin.outcome !== 'committed') throw new Error('Mia should rejoin');
