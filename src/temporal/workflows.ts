@@ -1,4 +1,4 @@
-import { condition, defineSignal, proxyActivities, setHandler } from '@temporalio/workflow';
+import { condition, defineSignal, patched, proxyActivities, setHandler } from '@temporalio/workflow';
 import type { Activities } from './activities.ts';
 
 export type PlanWorkflowInput = {
@@ -10,6 +10,7 @@ export type PlanWorkflowInput = {
 };
 
 export const confirmed = defineSignal<[]>('confirmed');
+export const committed = defineSignal<[string]>('committed');
 export const calledOff = defineSignal<[]>('calledOff');
 
 const activities = proxyActivities<Activities>({
@@ -18,12 +19,16 @@ const activities = proxyActivities<Activities>({
   retry: { initialInterval: '5s', backoffCoefficient: 2, maximumInterval: '10m' },
 });
 
-// Open phase only; the confirmed phase is story 3.2. Workflow code imports only @temporalio/workflow.
+// Open phase, then the confirmed emails (story 3.2). Workflow code imports only @temporalio/workflow.
 export async function planWorkflow(input: PlanWorkflowInput): Promise<void> {
   let isConfirmed = false;
   let isCalledOff = false;
   setHandler(confirmed, () => {
     isConfirmed = true;
+  });
+  const lateCommitIds: string[] = [];
+  setHandler(committed, (commitId) => {
+    lateCommitIds.push(commitId);
   });
   setHandler(calledOff, () => {
     isCalledOff = true;
@@ -32,7 +37,21 @@ export async function planWorkflow(input: PlanWorkflowInput): Promise<void> {
   await condition(() => isConfirmed || isCalledOff, Math.max(input.deadlineAt - Date.now(), 0));
 
   if (!isConfirmed && !isCalledOff) {
-    isCalledOff = (await activities.resolveDeadline(input.planId)) === 'called_off';
+    const state = await activities.resolveDeadline(input.planId);
+    isCalledOff = state === 'called_off';
+    isConfirmed = state === 'confirmed';
   }
   if (isCalledOff) await activities.sendToCommitters(input.planId, 'not_this_time');
+
+  // Gated so a history recorded by the open-phase-only workflow still replays.
+  if (isConfirmed && !isCalledOff && patched('confirmed-emails-3-2')) {
+    await activities.sendToCommitters(input.planId, 'confirmed');
+    // Placeholder end of the confirmed phase: story 3.3 replaces this wait with the reminder timers.
+    const endAt = input.checkInAt;
+    for (;;) {
+      const woke = await condition(() => lateCommitIds.length > 0, Math.max(endAt - Date.now(), 0));
+      if (!woke) break;
+      await activities.sendToOne(input.planId, 'confirmed', lateCommitIds.shift()!);
+    }
+  }
 }

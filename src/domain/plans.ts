@@ -110,7 +110,7 @@ export async function loadSendTarget(db: Db, planId: string): Promise<{ plan: Pl
   return { plan, commit };
 }
 
-/** The plan and its active commits, oldest first (the creator's commit comes first), the targets of a call-off email. */
+/** The plan and its active commits, oldest first (the creator's commit comes first), the targets of a call-off or confirmed email. */
 export async function loadSendTargets(db: Db, planId: string): Promise<{ plan: PlanRow; commits: CommitRow[] }> {
   const [plan] = await db.select().from(plans).where(eq(plans.id, planId));
   if (!plan) throw new Error('No plan for that id');

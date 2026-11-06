@@ -40,6 +40,37 @@ describe('sendOnce manage_link', () => {
     expect(payload).not.toHaveProperty('html');
   });
 
+  it('treats a rejected idempotency key as already sent and marks the ledger row sent', async () => {
+    const { published, plan, commit } = await setup();
+    const conflict = async (): Promise<{ id: string }> => {
+      throw new Error('Resend send failed: invalid_idempotent_request (409)');
+    };
+
+    await sendOnce({ db, sendEmail: conflict, baseUrl: TEST_BASE_URL }, 'manage_link', plan, commit);
+
+    const rows = await db.select().from(emailSends);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.sentAt).toBeInstanceOf(Date);
+    expect(rows[0]?.resendId).toBe('idempotent-replay');
+    const sent = await db.select().from(events).where(eq(events.type, 'email.sent'));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.planId).toBe(published.planId);
+  });
+
+  it('still fails on any other send error and leaves the row unsent', async () => {
+    const { plan, commit } = await setup();
+    const broken = async (): Promise<{ id: string }> => {
+      throw new Error('Resend send failed: validation_error (422)');
+    };
+
+    await expect(
+      sendOnce({ db, sendEmail: broken, baseUrl: TEST_BASE_URL }, 'manage_link', plan, commit),
+    ).rejects.toThrow('validation_error');
+
+    const rows = await db.select().from(emailSends);
+    expect(rows[0]?.sentAt).toBeNull();
+  });
+
   it('sends once however many times it is called', async () => {
     const { deps, published, send } = await setup();
 
@@ -99,7 +130,7 @@ describe('sendOnce manage_link', () => {
     const { deps, plan, commit } = await setup();
 
     await expect(
-      sendOnce({ db, sendEmail: deps.sendEmail, baseUrl: TEST_BASE_URL }, 'confirmed', plan, commit),
-    ).rejects.toThrow('No email template for confirmed');
+      sendOnce({ db, sendEmail: deps.sendEmail, baseUrl: TEST_BASE_URL }, 'check_in', plan, commit),
+    ).rejects.toThrow('No email template for check_in');
   });
 });
