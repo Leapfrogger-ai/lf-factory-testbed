@@ -4,6 +4,10 @@ import type { PublicPlan } from '../../domain/plans.ts';
 import { layout } from './layout.ts';
 import { publicPlanOg, publicPlanPage } from './public-plan-page.ts';
 
+function decodeEntities(html: string): string {
+  return html.replaceAll('&#39;', "'").replaceAll('&#x27;', "'").replaceAll('&apos;', "'");
+}
+
 const plan = (overrides: Partial<PublicPlan> = {}): PublicPlan => ({
   state: 'open',
   format: 'coffee',
@@ -151,6 +155,20 @@ describe('publicPlanPage', () => {
     expect(body).not.toContain('Ana');
     expect(body).not.toMatch(/\d of \d/);
   });
+
+  it('a not_this_time page has a pill with class state-off, no form', () => {
+    const body = render(plan({ state: 'called_off' }), 'not_this_time');
+
+    expect(body).toContain('<p class="pill state-off">Not this time</p>');
+    expect(body).not.toContain('<form');
+  });
+
+  it('closed notice comes before the pill', () => {
+    const body = decodeEntities(render(plan({ state: 'called_off' }), 'not_this_time', { notice: { code: 'closed' } }));
+
+    expect(body).toContain("This one isn't taking commits any more.");
+    expect(body.indexOf("This one isn't taking commits any more.")).toBeLessThan(body.indexOf('class="pill state-off"'));
+  });
 });
 
 describe('publicPlanPage commit form', () => {
@@ -289,9 +307,7 @@ describe('publicPlanOg', () => {
     }
   });
 
-  it('uses the normal description for a not-this-time plan', () => {
-    expect(publicPlanOg(plan(), 'not_this_time', 'https://calvin.test')?.description).toBe(
-      'Sat 14 Nov · 10:00 AM · Oakland. Goes ahead if 3 are in.',
-    );
+  it('og description for not_this_time is "Not this time"', () => {
+    expect(publicPlanOg(plan(), 'not_this_time', 'https://calvin.test')?.description).toBe('Not this time');
   });
 });

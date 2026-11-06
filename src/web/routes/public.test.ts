@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fakePlanWorkflows, fixedClock } from '../../../tests/support/fakes.ts';
-import { commit, loadPlan } from '../../domain/plans.ts';
+import { commit, loadPlan, resolveDeadline } from '../../domain/plans.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
 import { commitFormSchema } from '../forms.ts';
@@ -529,5 +529,48 @@ describe('POST /p/:token/commit', () => {
       const commitLine = lines.find((l) => l.msg === 'request' && l.status === 303);
       expect(commitLine?.path).toBe('/p/:token/commit');
     });
+  });
+});
+
+describe('a called-off plan', () => {
+  async function calledOffPlan() {
+    const deps = testDeps();
+    const published = await publishPlan(deps, creator);
+    await commit(deps, published.publicToken, commitFormSchema.parse({ name: 'Mia Chen', email: 'mia@example.test' }));
+    await resolveDeadline(deps.db, published.planId);
+    return { deps, published, app: createApp(deps, { baseUrl: TEST_BASE_URL }) };
+  }
+
+  it('GET shows the Not this time pill, no form and the og description (AC6)', async () => {
+    const { app, published } = await calledOffPlan();
+
+    const res = await app.request(`/p/${published.publicToken}`);
+
+    expect(res.status).toBe(200);
+    const body = decodeEntities(await res.text());
+    expect(body).toContain('class="pill state-off"');
+    expect(body).toContain('Not this time');
+    expect(body).not.toContain('<form');
+    expect(body).toContain('<meta property="og:description" content="Not this time"');
+  });
+
+  it('a commit POST redirects to notice=closed, changes nothing, and the page shows the notice above the pill (AC7)', async () => {
+    const { deps, app, published } = await calledOffPlan();
+    const before = await loadPlan(deps.db, published.manageToken);
+
+    const res = await post(app, published.publicToken, { name: 'Raj Rao', email: 'raj@example.test' });
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get('location')!;
+    expect(location).toBe(`/p/${published.publicToken}?notice=closed`);
+    const after = await loadPlan(deps.db, published.manageToken);
+    expect(after?.count).toBe(before?.count);
+    expect(after?.events.filter((e) => e.type === 'commit.added')).toHaveLength(
+      before!.events.filter((e) => e.type === 'commit.added').length,
+    );
+    const body = decodeEntities(await (await app.request(location)).text());
+    expect(body).toContain("This one isn't taking commits any more.");
+    expect(body.indexOf("This one isn't taking commits any more.")).toBeLessThan(body.indexOf('class="pill state-off"'));
+    expect(body).not.toContain('<form');
   });
 });

@@ -116,20 +116,27 @@ export function publicPlanPage({
           <p>
             Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)}.
           </p>`;
+  const noticeHtml =
+    noticeCopy === undefined ? '' : html`<p class="${notice?.code === 'on' ? 'notice notice-on' : 'notice'}" role="status">${noticeCopy}</p>`;
+  const noticeFirst = notice?.code === 'closed';
   return html`<main>
-    <p class="pill">${pillText(plan, state)}</p>
+    ${noticeFirst ? noticeHtml : ''}
+    <p class="${state === 'not_this_time' ? 'pill state-off' : 'pill'}">${pillText(plan, state)}</p>
     <p class="eyebrow">${capitalise(plan.format)}</p>
     <h1>${plan.venue}</h1>
     <p class="meta">${plan.city} · ${formatWhen(plan.gatheringAt)}</p>
     ${body}
-    ${noticeCopy === undefined ? '' : html`<p class="${notice?.code === 'on' ? 'notice notice-on' : 'notice'}" role="status">${noticeCopy}</p>`}
+    ${noticeFirst ? '' : noticeHtml}
     ${state === 'not_this_time' || state === 'happening_now' || state === 'was_on' || replacesForm ? '' : commitForm(publicToken, form)}
   </main>` as HtmlEscapedString;
 }
 
 export function publicPlanOg(plan: PublicPlan, state: DisplayState, baseUrl: string): LayoutOptions['og'] {
   const itsOn = state === 'on' ? " It's on." : '';
-  const description = `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.${itsOn}`;
+  const description =
+    state === 'not_this_time'
+      ? 'Not this time'
+      : `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.${itsOn}`;
   return {
     title: `${capitalise(plan.format)} at ${plan.venue}`,
     description,
