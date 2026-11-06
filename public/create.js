@@ -78,7 +78,7 @@
 
     const done = document.createElement('button');
     done.type = 'button';
-    done.className = 'btn';
+    done.className = 'btn btn-secondary';
     done.textContent = 'Done';
     edit.appendChild(done);
 
@@ -91,7 +91,7 @@
     summary.className = 'row-summary';
     const editButton = document.createElement('button');
     editButton.type = 'button';
-    editButton.className = 'btn';
+    editButton.className = 'quiet';
     editButton.textContent = 'Edit';
     editButton.setAttribute('aria-label', `Edit ${name.toLowerCase()}`);
     view.append(viewLabel, summary, editButton);

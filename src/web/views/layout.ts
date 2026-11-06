@@ -7,6 +7,9 @@ export type LayoutOptions = {
   script?: { src: string; nonce: string };
 };
 
+/** The calvin wordmark; the first child of every page's <main>. */
+export const brand = html`<p class="brand">calvin</p>` as HtmlEscapedString;
+
 export function layout(title: string, body: HtmlEscapedString, options: LayoutOptions = {}): HtmlEscapedString {
   const { og } = options;
   const ogTags = og

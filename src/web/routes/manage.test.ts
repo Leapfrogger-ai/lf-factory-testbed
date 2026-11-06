@@ -37,7 +37,7 @@ describe('GET /m/:token/published', () => {
     expect(body).toContain(
       'data-share-text="Coffee at Blue Bottle, Sat 14 Nov 10:00 AM — I&#39;m in, who else?"',
     );
-    expect(body).toMatch(/<button type="button" id="share" hidden[^>]*>Share…<\/button>/);
+    expect(body).toMatch(/<button type="button" id="share"[^>]*hidden[^>]*>Share…<\/button>/);
     expect(body).toMatch(/id="public-link"/);
     expect(body).toMatch(/<button type="button" id="copy"/);
     expect(body).toMatch(/aria-live="polite"/);

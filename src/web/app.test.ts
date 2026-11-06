@@ -57,7 +57,7 @@ describe('not-found page', () => {
     expect(res.headers.get('content-type')).toMatch(/^text\/html/);
     const body = decodeEntities(await res.text());
     expect(body).toContain(NOT_FOUND_COPY);
-    expect(body).toContain('<a href="/">Suggest a plan</a>');
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
   });
 });
 

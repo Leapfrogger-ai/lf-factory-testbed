@@ -53,8 +53,9 @@ describe('GET /p/:token', () => {
     expect(res.status).toBe(200);
     const body = decodeEntities(await res.text());
     expect(body).toContain('Needs 2 more');
-    expect(body).toContain('<h1>Blue Bottle</h1>');
-    expect(body).toContain('Oakland · Sat 14 Nov · 10:00 AM');
+    expect(body).toContain('<h1 class="venue">Blue Bottle</h1>');
+    expect(body).toContain('<p class="when">Sat 14 Nov · 10:00 AM</p>');
+    expect(body).toContain('<p class="where">Oakland</p>');
     expect(body).toContain('Ana');
     expect(body).not.toContain('Ruiz');
     expect(body).toContain('you?');
@@ -226,7 +227,7 @@ describe('POST /p/:token/commit', () => {
 
     expect(res.status).toBe(422);
     const body = decodeEntities(await res.text());
-    expect(body).toContain('<h1>Blue Bottle</h1>');
+    expect(body).toContain('<h1 class="venue">Blue Bottle</h1>');
     expect(body).toContain(message);
     expect(body).toContain(`id="${id}"`);
     expect(body).toContain(kept);

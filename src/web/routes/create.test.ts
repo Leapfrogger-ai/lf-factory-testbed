@@ -851,8 +851,8 @@ describe('GET /static/app.css', () => {
     expect(res.headers.get('cache-control')).toBe('public, max-age=86400');
     const css = await res.text();
     expect(css).toContain('prefers-color-scheme: dark');
-    expect(css).toContain('#FBF7F2');
-    expect(css).toContain('#1E1A17');
+    expect(css).toContain('#F5F3F8');
+    expect(css).toContain('#1A1720');
   });
 });
 
