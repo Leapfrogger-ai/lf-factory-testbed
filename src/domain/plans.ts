@@ -24,6 +24,8 @@ export type PlanView = {
   suggestionEdited: boolean | null;
   count: number;
   manageLinkSent: boolean;
+  calledOffReason: string | null;
+  calledOffAt: string | null;
   commits: { isCreator: boolean; withdrawToken: string }[];
   events: { type: string; data: Record<string, unknown> }[];
 };
@@ -210,6 +212,8 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
     suggestionEdited: plan.suggestionEdited,
     count: planCommits.filter((c) => c.withdrawnAt === null).length,
     manageLinkSent: sent?.sentAt != null,
+    calledOffReason: plan.calledOffReason,
+    calledOffAt: plan.calledOffAt?.toTemporalInstant().toString() ?? null,
     commits: planCommits.map((c) => ({ isCreator: c.isCreator, withdrawToken: c.withdrawToken })),
     events: planEvents.map((e) => ({ type: e.type, data: e.data as Record<string, unknown> })),
   };

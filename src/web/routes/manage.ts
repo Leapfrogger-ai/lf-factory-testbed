@@ -1,9 +1,9 @@
 import { Hono, type Context } from 'hono';
 import { displayState } from '../../domain/plan-rules.ts';
 import { callOff, loadManagePlan, loadPlan, loadPublicPlan } from '../../domain/plans.ts';
-import { log } from '../../log.ts';
 import { formatShareWhen } from '../../domain/time.ts';
 import { isToken } from '../../domain/tokens.ts';
+import { log } from '../../log.ts';
 import type { AppConfig, AppDeps } from '../app.ts';
 import { layout } from '../views/layout.ts';
 import { managePage } from '../views/manage-page.ts';
@@ -55,7 +55,7 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
     const token = c.req.param('token');
     const plan = isToken(token) ? await loadPlan(deps.db, token) : null;
     const shown = plan ? await loadPublicPlan(deps.db, plan.publicToken) : null;
-    if (!plan || !shown) return c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
+    if (!plan || !shown) return notFound(c);
     const page = publishedPage({
       publicLink: `${config.baseUrl}/p/${plan.publicToken}`,
       manageLink: `/m/${plan.manageToken}`,

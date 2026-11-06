@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { WorkflowHandle } from '@temporalio/client';
+import { WorkflowNotFoundError, type WorkflowHandle } from '@temporalio/client';
 import proto from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
@@ -625,7 +625,11 @@ describe('planWorkflow call-off', () => {
         await waitForEmails(deps, 3);
         await withdraw(deps, raj.withdrawToken);
         await callOff(deps, published.manageToken);
-        await Promise.all([h.signal(calledOff), h.signal(calledOff)]);
+        await h.signal(calledOff);
+        // The workflow may already have finished handling the first signal; only that error is tolerated.
+        await h.signal(calledOff).catch((error: unknown) => {
+          if (!(error instanceof WorkflowNotFoundError)) throw error;
+        });
         await env.sleep(PAST_CHECK_IN);
       },
     });

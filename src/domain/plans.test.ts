@@ -761,7 +761,7 @@ describe('callOff', () => {
     const result = await callOff(deps, manageToken);
 
     expect(result).toEqual({ outcome: 'called_off', planId });
-    const [row] = await db.select().from(plans).where(eq(plans.id, planId));
+    const row = await loadPlan(db, manageToken);
     expect(row).toMatchObject({ state: 'called_off', calledOffReason: 'creator' });
     expect(row?.calledOffAt).not.toBeNull();
     expect(await calledOffEvents(manageToken)).toEqual([{ type: 'plan.called_off', data: { reason: 'creator', wasConfirmed: false, activeCount: 1 } }]);
