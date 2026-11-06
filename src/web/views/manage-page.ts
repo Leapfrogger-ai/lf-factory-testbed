@@ -22,16 +22,20 @@ function confirm(manage: string): HtmlEscapedString {
   </details>` as HtmlEscapedString;
 }
 
+const tooLate = html`<p class="notice" role="status">It's already started, so it can't be called off.</p>`;
+
 export function managePage({
   plan,
   state,
   publicLink,
   now,
+  notice,
 }: {
   plan: ManagePlan;
   state: DisplayState;
   publicLink: string;
   now: Temporal.Instant;
+  notice?: 'too-late';
 }): HtmlEscapedString {
   const calledOff = state === 'not_this_time' || state === 'was_on';
   const pill =
@@ -65,6 +69,7 @@ export function managePage({
   return html`<main>
     <p class="private">Your plan. Only you can see this page.</p>
     ${brand}
+    ${notice === 'too-late' ? tooLate : ''}
     <p class="pill ${pillClass(state)}">${pill}</p>
     <p class="kind">${capitalise(plan.format)}</p>
     <h1 class="${state === 'not_this_time' ? 'venue venue-off' : 'venue'}">${plan.venue}</h1>

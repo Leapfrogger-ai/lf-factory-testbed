@@ -168,6 +168,21 @@ describe('GET /m/:token', () => {
     expect(body).not.toContain('Call it off');
   });
 
+  it('?notice=too-late shows the notice, and an unknown notice shows none', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, creator);
+    await join(deps, publicToken, 'Mia Chen', 'mia@example.test');
+    await join(deps, publicToken, 'Raj Rao', 'raj@example.test');
+    const app = createApp({ ...deps, now: fixedClock('2026-11-14T18:00:01Z') }, { baseUrl: TEST_BASE_URL });
+
+    const late = (await (await app.request(`/m/${manageToken}?notice=too-late`)).text()).replaceAll('&#39;', "'");
+    const other = await (await app.request(`/m/${manageToken}?notice=other`)).text();
+
+    expect(late).toContain("It's already started, so it can't be called off.");
+    expect(late).toContain('Happening now');
+    expect(other).not.toContain('class="notice"');
+  });
+
   it('404s an unknown token, and a malformed one without a query (AC7)', async () => {
     const throwingDb = new Proxy(
       {},
