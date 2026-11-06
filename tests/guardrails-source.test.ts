@@ -41,3 +41,4 @@ test('every patched() id in the plan workflow has a recorded-history replay test
     .filter(({ file }) => file.startsWith('tests/workflow/'))
     .flatMap(({ text }) => [...text.matchAll(/runReplayHistory\(/g)]);
   expect(replays.length).toBeGreaterThanOrEqual(new Set(patches).size);
+});
