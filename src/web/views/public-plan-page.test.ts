@@ -4,6 +4,10 @@ import type { PublicPlan } from '../../domain/plans.ts';
 import { layout } from './layout.ts';
 import { publicPlanOg, publicPlanPage } from './public-plan-page.ts';
 
+function decodeEntities(html: string): string {
+  return html.replaceAll('&#39;', "'").replaceAll('&#x27;', "'").replaceAll('&apos;', "'");
+}
+
 const plan = (overrides: Partial<PublicPlan> = {}): PublicPlan => ({
   state: 'open',
   format: 'coffee',
@@ -152,6 +156,20 @@ describe('publicPlanPage', () => {
     expect(body).not.toContain('Ana');
     expect(body).not.toMatch(/\d of \d/);
   });
+
+  it('a not_this_time page has a pill with class state-off, no form', () => {
+    const body = render(plan({ state: 'called_off' }), 'not_this_time');
+
+    expect(body).toContain('<p class="pill state-off">Not this time</p>');
+    expect(body).not.toContain('<form');
+  });
+
+  it('closed notice comes before the pill', () => {
+    const body = decodeEntities(render(plan({ state: 'called_off' }), 'not_this_time', { notice: { code: 'closed' } }));
+
+    expect(body).toContain("This one isn't taking commits any more.");
+    expect(body.indexOf("This one isn't taking commits any more.")).toBeLessThan(body.indexOf('class="pill state-off"'));
+  });
 });
 
 describe('publicPlanPage commit form', () => {
@@ -276,7 +294,7 @@ describe('publicPlanPage frame markup', () => {
   it('AC4: the open plan uses the state, venue, when, where and seat-row markup', () => {
     const body = render(plan({ names: ['Ana Ruiz', 'Mia Chen'], minimum: 3 }));
 
-    expect(body).toContain('<p class="state state-open">Needs 1 more</p>');
+    expect(body).toContain('<p class="pill state-open">Needs 1 more</p>');
     expect(body).toContain('<h1 class="venue">Blue Bottle</h1>');
     expect(body).toContain('<p class="when">Sat 14 Nov · 10:00 AM</p>');
     expect(body).toContain('<p class="where">Oakland</p>');
@@ -289,7 +307,7 @@ describe('publicPlanPage frame markup', () => {
 
   it('AC5: on and happening_now take the on and now state classes and the seats-on row', () => {
     const on = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'on');
-    expect(on).toContain('state state-on');
+    expect(on).toContain('pill state-on');
     expect(on).toMatch(/It(&#39;|')s on/);
     expect(on).toContain('class="seats seats-on"');
     expect(on).not.toContain('just-on');
@@ -298,17 +316,17 @@ describe('publicPlanPage frame markup', () => {
     expect(fresh).toContain('seats seats-on just-on');
 
     const now = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'happening_now');
-    expect(now).toContain('state state-now');
+    expect(now).toContain('pill state-now');
     expect(now).toContain('Happening now');
     expect(now).toContain('class="seats seats-on"');
   });
 
-  it('was_on uses state-off and no seats-on on needs_more', () => {
+  it('was_on uses state-off and no seats-on, nor does needs_more', () => {
     const was = render(plan({ names: ['Ana', 'Mia', 'Raj'] }), 'was_on');
-    expect(was).toContain('state state-off');
+    expect(was).toContain('pill state-off');
     expect(was).toContain('This was on Sat 14 Nov');
-    expect(was).toContain('class="seats seats-on"');
-    expect(render(plan(), 'not_this_time')).toContain('state state-off');
+    expect(was).not.toContain('seats-on');
+    expect(render(plan(), 'not_this_time')).toContain('pill state-off');
     expect(render(plan())).not.toContain('seats-on');
   });
 
@@ -318,7 +336,7 @@ describe('publicPlanPage frame markup', () => {
     for (const body of [on, closed]) {
       const at = body.indexOf('role="status"');
       expect(at).toBeGreaterThan(body.indexOf('class="brand"'));
-      expect(at).toBeLessThan(body.indexOf('class="state'));
+      expect(at).toBeLessThan(body.indexOf('class="pill'));
       expect(at).toBeLessThan(body.indexOf('<h1'));
     }
     expect(on).toContain('notice notice-on');
@@ -351,9 +369,7 @@ describe('publicPlanOg', () => {
     }
   });
 
-  it('uses the normal description for a not-this-time plan', () => {
-    expect(publicPlanOg(plan(), 'not_this_time', 'https://calvin.test')?.description).toBe(
-      'Sat 14 Nov · 10:00 AM · Oakland. Goes ahead if 3 are in.',
-    );
+  it('og description for not_this_time is "Not this time"', () => {
+    expect(publicPlanOg(plan(), 'not_this_time', 'https://calvin.test')?.description).toBe('Not this time');
   });
 });

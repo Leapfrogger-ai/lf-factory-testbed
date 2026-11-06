@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fixedClock } from '../../../tests/support/fakes.ts';
-import { loadPlan } from '../../domain/plans.ts';
+import { loadPlan, resolveDeadline } from '../../domain/plans.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
 
@@ -198,6 +198,18 @@ describe('the withdraw link in other situations', () => {
     const plan = await loadPlan(deps.db, published.manageToken);
     expect(plan?.count).toBe(2);
     expect(plan?.events.map((e) => e.type)).not.toContain('commit.withdrawn');
+  });
+
+  it('a called-off plan reads nothing to withdraw from, with no button (AC8)', async () => {
+    const { deps, app, published, miaToken } = await pageWith();
+    await resolveDeadline(deps.db, published.planId);
+
+    const res = await app.request(`/w/${miaToken}`);
+
+    expect(res.status).toBe(200);
+    const body = decodeEntities(await res.text());
+    expect(body).toContain("This one isn't going ahead, so there's nothing to withdraw from.");
+    expect(body).not.toContain('<button');
   });
 
   it('a malformed token is 404 without a database query (AC9)', async () => {

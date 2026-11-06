@@ -42,8 +42,9 @@ function pillClass(state: DisplayState): string {
   return 'state-open';
 }
 
-function filledSeats(plan: PublicPlan, justOn: boolean): HtmlEscapedString {
-  return html`<ul class="${justOn ? 'seats seats-on just-on' : 'seats seats-on'}" aria-label="${plan.names.length} people in">
+function filledSeats(plan: PublicPlan, on: boolean, justOn: boolean): HtmlEscapedString {
+  const cls = on ? (justOn ? 'seats seats-on just-on' : 'seats seats-on') : 'seats';
+  return html`<ul class="${cls}" aria-label="${plan.names.length} people in">
     ${plan.names.map(seat)}
   </ul>` as HtmlEscapedString;
 }
@@ -121,18 +122,20 @@ export function publicPlanPage({
       ? html`<p class="copy">This one isn't going ahead. No harm done. Maybe next time.</p>
           <p><a class="quiet" href="/">Suggest a plan</a></p>`
       : state === 'happening_now' || state === 'was_on'
-        ? filledSeats(plan, justOn)
+        ? filledSeats(plan, state === 'happening_now', justOn)
         : state === 'on'
-          ? html`${filledSeats(plan, justOn)}
+          ? html`${filledSeats(plan, true, justOn)}
           <p class="meta">More people are welcome until it starts.</p>`
         : html`${seats(plan)}
           <p class="meta">
             Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)}.
           </p>`;
+  const noticeHtml =
+    noticeCopy === undefined ? '' : html`<p class="${notice?.code === 'on' ? 'notice notice-on' : 'notice'}" role="status">${noticeCopy}</p>`;
   return html`<main>
     ${brand}
-    ${noticeCopy === undefined ? '' : html`<p class="${notice?.code === 'on' ? 'notice notice-on' : 'notice'}" role="status">${noticeCopy}</p>`}
-    <p class="state ${pillClass(state)}">${pillText(plan, state)}</p>
+    ${noticeHtml}
+    <p class="pill ${pillClass(state)}">${pillText(plan, state)}</p>
     <p class="kind">${capitalise(plan.format)}</p>
     <h1 class="${state === 'not_this_time' ? 'venue venue-off' : 'venue'}">${plan.venue}</h1>
     <p class="when">${formatWhen(plan.gatheringAt)}</p>
@@ -144,7 +147,10 @@ export function publicPlanPage({
 
 export function publicPlanOg(plan: PublicPlan, state: DisplayState, baseUrl: string): LayoutOptions['og'] {
   const itsOn = state === 'on' ? " It's on." : '';
-  const description = `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.${itsOn}`;
+  const description =
+    state === 'not_this_time'
+      ? 'Not this time'
+      : `${formatWhen(plan.gatheringAt)} · ${plan.city}. Goes ahead if ${plan.minimum} are in.${itsOn}`;
   return {
     title: `${capitalise(plan.format)} at ${plan.venue}`,
     description,

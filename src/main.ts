@@ -19,7 +19,8 @@ try {
 
 const { db, pool } = createDb(config.databaseUrl);
 const client = await connectTemporalClient();
-const worker = await startWorker();
+const sendEmail = createSendEmail({ resend: new Resend(config.resendApiKey), from: config.emailFrom });
+const worker = await startWorker({ db, sendEmail, baseUrl: config.baseUrl });
 
 const anthropic = new Anthropic({ apiKey: config.anthropicApiKey, timeout: 20_000, maxRetries: 0 });
 
@@ -28,7 +29,7 @@ const app = createApp(
     db,
     now: () => Temporal.Now.instant(),
     suggestPlanCall: createSuggestPlanCall(anthropic),
-    sendEmail: createSendEmail({ resend: new Resend(config.resendApiKey), from: config.emailFrom }),
+    sendEmail,
     planWorkflows: createPlanWorkflows(client),
   },
   { baseUrl: config.baseUrl, anthropicModel: config.anthropicModel },

@@ -31,13 +31,13 @@ a { color: var(--berry); text-underline-offset: 3px; }
 .brand { font: italic 600 21px/1 var(--serif); color: var(--berry); margin-bottom: 20px; }
 .private { margin: -16px -16px 16px; padding: 10px 16px; background: var(--strip); color: var(--strip-text); font-size: 14px; line-height: 1.4; }
 
-.state { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; line-height: 1.3; margin-bottom: 16px; }
-.state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
-.state-open { background: var(--berry-tint); color: var(--berry); }
-.state-on { background: var(--on-tint); color: var(--on); }
-.state-off { background: var(--off-tint); color: var(--ink-2); }
-.state-off::before { display: none; }
-.state-now { background: transparent; color: var(--on); box-shadow: inset 0 0 0 1.5px var(--on); }
+.pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; line-height: 1.3; margin-bottom: 16px; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.pill.state-open { background: var(--berry-tint); color: var(--berry); }
+.pill.state-on { background: var(--on-tint); color: var(--on); }
+.pill.state-off { background: var(--off-tint); color: var(--ink-2); }
+.pill.state-off::before { display: none; }
+.pill.state-now { background: transparent; color: var(--on); box-shadow: inset 0 0 0 1.5px var(--on); }
 
 .kind { font-size: 15px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px; }
 h1 { font: 600 24px/1.25 var(--serif); letter-spacing: -0.005em; margin-bottom: 16px; text-wrap: balance; }
