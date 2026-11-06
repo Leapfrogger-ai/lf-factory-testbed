@@ -1,8 +1,8 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { planForm, publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
-import { fixedClock } from '../../../tests/support/fakes.ts';
-import { commit } from '../../domain/plans.ts';
+import { fakePlanWorkflows, fixedClock } from '../../../tests/support/fakes.ts';
+import { commit, loadPlan } from '../../domain/plans.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
 import { commitFormSchema } from '../forms.ts';
@@ -200,5 +200,146 @@ describe('GET /m/:token', () => {
     const nonce = /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy') ?? '')?.[1];
     expect(nonce).toBeTruthy();
     expect(await res.text()).toContain(`<script src="/static/create.js" nonce="${nonce}" defer></script>`);
+  });
+});
+
+function postCallOff(app: ReturnType<typeof createApp>, token: string) {
+  return app.request(`/m/${token}/call-off`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: TEST_BASE_URL, ...sameOrigin },
+    body: '',
+  });
+}
+
+describe('POST /m/:token/call-off', () => {
+  it('calls an open plan off (AC1)', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await postCallOff(app, manageToken);
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+    const plan = (await loadPlan(deps.db, manageToken))!;
+    expect(plan.state).toBe('called_off');
+    const events = plan.events.filter((e) => e.type === 'plan.called_off');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.data).toMatchObject({ wasConfirmed: false });
+    expect(deps.fakes.planWorkflows.signalCalls).toEqual([{ planId: plan.id, signal: 'calledOff', arg: undefined }]);
+  });
+
+  it('leaves a plan already called off alone (AC3)', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const first = await postCallOff(app, manageToken);
+    const second = await postCallOff(app, manageToken);
+
+    expect(first.status).toBe(303);
+    expect(first.headers.get('location')).toBe(`/m/${manageToken}`);
+    expect(second.status).toBe(303);
+    expect(second.headers.get('location')).toBe(`/m/${manageToken}`);
+    const plan = (await loadPlan(deps.db, manageToken))!;
+    expect(plan.events.filter((e) => e.type === 'plan.called_off')).toHaveLength(1);
+    expect(deps.fakes.planWorkflows.signalCalls).toHaveLength(1);
+  });
+
+  it('refuses once the gathering started (AC4)', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps, creator);
+    const app = createApp({ ...deps, now: fixedClock('2026-11-14T18:00:01Z') }, { baseUrl: TEST_BASE_URL });
+
+    const res = await postCallOff(app, manageToken);
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(`/m/${manageToken}?notice=too-late`);
+    const plan = (await loadPlan(deps.db, manageToken))!;
+    expect(plan.state).toBe('open');
+    expect(plan.events.filter((e) => e.type === 'plan.called_off')).toHaveLength(0);
+    expect(deps.fakes.planWorkflows.signalCalls).toHaveLength(0);
+  });
+
+  it('rejects a cross-origin POST (AC6)', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const res = await app.request(`/m/${manageToken}/call-off`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Origin: 'https://evil.test',
+        'Sec-Fetch-Site': 'cross-site',
+      },
+      body: '',
+    });
+
+    expect(res.status).toBe(403);
+    expect((await loadPlan(deps.db, manageToken))!.state).toBe('open');
+    expect(deps.fakes.planWorkflows.signalCalls).toHaveLength(0);
+  });
+
+  it('404s an unknown token and a malformed one without a query', async () => {
+    const throwingDb = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('database touched');
+        },
+      },
+    ) as ReturnType<typeof testDeps>['db'];
+    const guarded = createApp(testDeps({ db: throwingDb }), { baseUrl: TEST_BASE_URL });
+    const real = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
+
+    const unknown = await postCallOff(real, newToken());
+    expect(unknown.status).toBe(404);
+    expect(await unknown.text()).toContain("We can't find that plan.");
+    for (const token of ['not-a-token', 'a'.repeat(200)]) {
+      const res = await postCallOff(guarded, token);
+      expect(res.status).toBe(404);
+      expect(await res.text()).toContain('noindex');
+    }
+  });
+
+  describe('when the signal fails', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('still calls the plan off and logs an error (AC5)', async () => {
+      const lines: Record<string, unknown>[] = [];
+      vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: string | Uint8Array) => {
+        for (const l of String(chunk).split('\n').filter(Boolean)) {
+          try {
+            lines.push(JSON.parse(l));
+          } catch {
+            // not a log line
+          }
+        }
+        return true;
+      }) as typeof process.stdout.write);
+      const deps = testDeps({
+        planWorkflows: {
+          ...fakePlanWorkflows(),
+          signal: async () => {
+            throw new Error('temporal down');
+          },
+        },
+      });
+      const { manageToken } = await publishPlan(deps, creator);
+      const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+      const res = await postCallOff(app, manageToken);
+
+      expect(res.status).toBe(303);
+      expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+      const plan = (await loadPlan(deps.db, manageToken))!;
+      expect(plan.state).toBe('called_off');
+      const errorLine = lines.find((l) => l.level === 'error' && l.msg === 'plan signal failed');
+      expect(errorLine).toMatchObject({ planId: plan.id, signal: 'calledOff' });
+      const logged = JSON.stringify(lines);
+      expect(logged).not.toContain(manageToken);
+      expect(logged).not.toContain('temporal down');
+    });
   });
 });
