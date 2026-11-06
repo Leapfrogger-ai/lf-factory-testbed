@@ -115,9 +115,7 @@ describe('buildEmail confirmed', () => {
   it('map link encoding', () => {
     const odd: PlanRow = { ...confirmedPlan, venue: "Tom & Jerry's", city: 'San José' };
     const { text } = buildEmail('confirmed', odd, mia, 'https://example.test', active);
-    const expected = 'https://maps.google.com/?q=' +
-      new URLSearchParams({ q: "Tom & Jerry's San José" }).toString().slice(2);
-    expect(text).toContain(`Map: ${expected}\n`);
+    expect(text).toContain('Map: https://maps.google.com/?q=Tom+%26+Jerry%27s+San+Jos%C3%A9\n');
   });
 
   it('one name', () => {

@@ -8,6 +8,11 @@ import { buildEmail, type EmailKind } from './templates.ts';
 
 export type { EmailKind };
 
+/** Resend's error name, which createSendEmail puts in its failure message. */
+const IDEMPOTENT_REPLAY_ERROR = 'invalid_idempotent_request';
+/** Stored as the resend id when Resend gave none because the key was already used. */
+const IDEMPOTENT_REPLAY_ID = 'idempotent-replay';
+
 /** Sends the email for (commit, kind) at most once; a failed send leaves the ledger row unsent for a retry. */
 export async function sendOnce(
   deps: { db: Db; sendEmail: SendEmail; baseUrl: string },
@@ -25,7 +30,15 @@ export async function sendOnce(
   if (row?.sentAt) return;
 
   const payload = buildEmail(kind, plan, commit, deps.baseUrl, activeCommits);
-  const { id: resendId } = await deps.sendEmail(payload, `${kind}/${plan.id}/${commit.id}`);
+  let resendId: string;
+  try {
+    ({ id: resendId } = await deps.sendEmail(payload, `${kind}/${plan.id}/${commit.id}`));
+  } catch (error) {
+    // Resend rejects a reused key whose body changed: the first attempt did reach Resend (a retry after a
+    // post-send failure, with a changed "are in" list), so the email is already sent. Resend returns no id then.
+    if (!(error instanceof Error) || !error.message.includes(IDEMPOTENT_REPLAY_ERROR)) throw error;
+    resendId = IDEMPOTENT_REPLAY_ID;
+  }
 
   await db.transaction(async (tx) => {
     const updated = await tx
