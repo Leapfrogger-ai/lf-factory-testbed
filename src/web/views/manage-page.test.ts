@@ -117,15 +117,6 @@ describe('managePage', () => {
     expect(body).not.toContain('seat-empty');
   });
 
-  it('shows the too-late notice after the brand and before the pill, only when asked', () => {
-    const body = render(plan(), 'happening_now', { notice: 'too-late' });
-    const notice = `<p class="notice" role="status">It's already started, so it can't be called off.</p>`;
-
-    expect(body.indexOf('<p class="brand">calvin</p>')).toBeLessThan(body.indexOf(notice));
-    expect(body.indexOf(notice)).toBeLessThan(body.indexOf('<p class="pill'));
-    expect(render(plan(), 'happening_now')).not.toContain('role="status"');
-  });
-
   it('opens to the confirm', () => {
     const body = render();
     const confirm = `Call it off? Everyone who's in gets a short "not this time" email.`;

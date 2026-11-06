@@ -27,13 +27,11 @@ export function managePage({
   state,
   publicLink,
   now,
-  notice,
 }: {
   plan: ManagePlan;
   state: DisplayState;
   publicLink: string;
   now: Temporal.Instant;
-  notice?: 'too-late';
 }): HtmlEscapedString {
   const calledOff = state === 'not_this_time' || state === 'was_on';
   const pill =
@@ -49,10 +47,6 @@ export function managePage({
       ? 'names names-on'
       : 'names';
   const namesLabel = calledOff ? 'Who was in' : "Who's in";
-  const noticeHtml =
-    notice === 'too-late'
-      ? html`<p class="notice" role="status">It's already started, so it can't be called off.</p>`
-      : '';
   const count = state === 'not_this_time' ? '' : html`<p class="count">${plan.names.length} of ${plan.minimum}</p>`;
   const emptySeat = state === 'needs_more' ? html`<li class="seat-empty" aria-hidden="true"><span class="token"></span></li>` : '';
   const linkBox = state === 'not_this_time'
@@ -71,7 +65,6 @@ export function managePage({
   return html`<main>
     <p class="private">Your plan. Only you can see this page.</p>
     ${brand}
-    ${noticeHtml}
     <p class="pill ${pillClass(state)}">${pill}</p>
     <p class="kind">${capitalise(plan.format)}</p>
     <h1 class="${state === 'not_this_time' ? 'venue venue-off' : 'venue'}">${plan.venue}</h1>

@@ -22,7 +22,6 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
       state: displayState(plan, now),
       publicLink: `${config.baseUrl}/p/${plan.publicToken}`,
       now,
-      notice: c.req.query('notice') === 'too-late' ? 'too-late' : undefined,
     });
     const nonce = c.get('secureHeadersNonce') as string;
     return c.html(layout(`Your plan: ${plan.venue}`, page, { noindex: true, script: { src: '/static/create.js', nonce } }));
