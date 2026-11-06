@@ -14,6 +14,7 @@ import { schemaErrors } from '../field-errors.ts';
 import { publishFormSchema, suggestFormSchema } from '../forms.ts';
 import type { RateLimiter, RateRoute } from '../rate-limit.ts';
 import {
+  AGAIN_HEADING,
   createPage,
   FALLBACK_NOTICE,
   PUBLISH_LIMIT_NOTICE,
@@ -23,6 +24,7 @@ import {
   type FormValues,
 } from '../views/create-page.ts';
 import { layout } from '../views/layout.ts';
+import { notFoundPage } from '../views/not-found-page.ts';
 
 type TimingInput = { date?: string; time?: string; deadlineDate?: string; deadlineTime?: string };
 
@@ -96,6 +98,8 @@ async function enteredValues(c: Context): Promise<FormValues> {
 
 /** The card when the form came from an ok suggestion, the fallback when it came from the publish form, else the inputs. */
 async function stateFor(deps: Pick<AppDeps, 'db'>, values: FormValues): Promise<CreateState> {
+  const from = await loadFromPlan(deps.db, values.fromManageToken);
+  if (from) return { kind: 'again', from, values };
   const suggestion = await loadSuggestion(deps.db, values.suggestionId ?? '');
   if (suggestion?.outcome === 'ok') return { kind: 'card', suggestion, values };
   const { city, area, timeWindow } = values;
@@ -104,15 +108,18 @@ async function stateFor(deps: Pick<AppDeps, 'db'>, values: FormValues): Promise<
 }
 
 /** The create page with create.js loaded under the response's CSP nonce. */
-function createLayout(c: Context, body: HtmlEscapedString, status?: 422) {
+function createLayout(c: Context, body: HtmlEscapedString, status?: 422, again = false) {
   const nonce = c.get('secureHeadersNonce') as string;
-  const page = layout('Suggest a plan', body, { script: { src: '/static/create.js', nonce } });
+  const script = { src: '/static/create.js', nonce };
+  const page = again
+    ? layout(AGAIN_HEADING, body, { script, noindex: true })
+    : layout('Suggest a plan', body, { script });
   return status === undefined ? c.html(page) : c.html(page, status);
 }
 
 async function rerenderPublish(c: Context, deps: Pick<AppDeps, 'db'>, errors: FieldErrors) {
   const state = await stateFor(deps, await enteredValues(c));
-  return createLayout(c, createPage(state, errors), 422);
+  return createLayout(c, createPage(state, errors), 422, state.kind === 'again');
 }
 
 async function rerenderInputs(c: Context, errors: FieldErrors) {
@@ -154,7 +161,11 @@ async function renderSuggestLimited(c: Context) {
 
 async function renderPublishLimited(c: Context, deps: Pick<AppDeps, 'db'>) {
   const state: CreateState = { ...(await stateFor(deps, await enteredValues(c))), notice: PUBLISH_LIMIT_NOTICE };
-  return c.html(layout('Suggest a plan', createPage(state, {})), 429);
+  const page = createPage(state, {});
+  return c.html(
+    state.kind === 'again' ? layout(AGAIN_HEADING, page, { noindex: true }) : layout('Suggest a plan', page),
+    429,
+  );
 }
 
 export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimiter): Hono {
@@ -183,6 +194,11 @@ export function createRoutes(deps: AppDeps, config: AppConfig, limiter: RateLimi
                 previousSuggestionId: suggestion.id,
               };
     return createLayout(c, createPage(state, {}));
+  });
+  routes.get('/m/:token/new', async (c) => {
+    const from = await loadFromPlan(deps.db, c.req.param('token'));
+    if (!from) return c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
+    return createLayout(c, createPage({ kind: 'again', from, values: {} }, {}), undefined, true);
   });
   routes.post(
     '/plans',
