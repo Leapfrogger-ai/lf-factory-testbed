@@ -126,6 +126,31 @@ describe('GET /c/:token/:question/:answer', () => {
     expect(answeredEvents(plan)).toEqual([]);
   });
 
+  it('a malformed link is 404 without a database query (AC5)', async () => {
+    const throwingDb = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('database touched');
+        },
+      },
+    ) as ReturnType<typeof testDeps>['db'];
+    const app = createApp(testDeps({ db: throwingDb }), { baseUrl: TEST_BASE_URL });
+    const unknown = await (await app.request('/nope')).text();
+
+    for (const path of [
+      '/c/short/happened/yes',
+      `/c/${'a'.repeat(42)}./happened/yes`,
+      '/c/short/maybe/perhaps',
+      `/c/${newToken()}/maybe/yes`,
+      `/c/${newToken()}/happened/perhaps`,
+    ]) {
+      const res = await app.request(path);
+      expect(res.status, path).toBe(404);
+      expect(await res.text(), path).toBe(unknown);
+    }
+  });
+
   it('is noindex, has generic OG tags and leaks no email or committer name (AC6)', async () => {
     const { app, token } = await confirmedPlan();
 
