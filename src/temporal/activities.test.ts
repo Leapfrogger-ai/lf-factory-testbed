@@ -339,7 +339,7 @@ describe('a committer whose send fails non-retryably', () => {
     expect(rows).toHaveLength(3);
     const unsent = rows.filter((r) => r.sentAt === null);
     expect(unsent).toHaveLength(1);
-    const miaCommit = (await loadSendTargets(db, published.planId)).commits[1]!;
+    const miaCommit = (await loadSendTargets(db, published.planId)).commits.find((c) => c.email === mia)!;
     expect(unsent[0]!.commitId).toBe(miaCommit.id);
     const errors = errorLines(log);
     expect(errors).toHaveLength(1);
@@ -349,6 +349,7 @@ describe('a committer whose send fails non-retryably', () => {
   });
 
   it('still throws a retryable failure', async () => {
+    const log = captureLog();
     const { deps, published, activities } = await threeIn();
     deps.fakes.email.failNextTo(mia);
 
@@ -359,6 +360,7 @@ describe('a committer whose send fails non-retryably', () => {
     await activities.sendToCommitters(published.planId, 'confirmed');
 
     expect(recipients(deps)).toEqual([ann, mia, raj]);
+    expect(errorLines(log)).toHaveLength(0);
   });
 
   it('skips two failing committers and still sends the third', async () => {
