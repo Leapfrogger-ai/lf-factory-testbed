@@ -257,11 +257,44 @@ describe('sendToOne', () => {
 });
 
 describe('reminders', () => {
+  const reminders = (deps: Parameters<typeof sent>[0], prefix: string) =>
+    sent(deps).filter((p) => p.subject.startsWith(prefix));
+
   const threeIn = () =>
     setup([
       ['Mia', 'mia@example.test'],
       ['Raj', 'raj@example.test'],
     ]);
+
+  it('sends a committer their It\'s on email before their reminder', async () => {
+    const { deps, published, activities } = await threeIn();
+    const lee = await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+    if (lee.outcome !== 'committed') throw new Error('Lee should commit');
+
+    await activities.sendToCommitters(published.planId, 'reminder_24h');
+
+    const leeSubjects = sent(deps)
+      .filter((p) => p.to === 'lee@example.test')
+      .map((p) => p.subject);
+    expect(leeSubjects).toEqual([
+      "It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM",
+      'Tomorrow: Coffee at Blue Bottle, 10:00 AM',
+    ]);
+  });
+
+  it("skips a committer whose It's on email is refused, for the reminder too", async () => {
+    const { deps, published, activities } = await threeIn();
+    deps.fakes.email.rejectTo('mia@example.test');
+
+    await activities.sendToCommitters(published.planId, 'reminder_24h');
+
+    expect(recipients(deps)).toEqual([
+      'ann@example.test',
+      'ann@example.test',
+      'raj@example.test',
+      'raj@example.test',
+    ]);
+  });
 
   it('sends the 24h reminder to every active committer, once', async () => {
     const { deps, published, activities } = await threeIn();
@@ -269,7 +302,7 @@ describe('reminders', () => {
     await activities.sendToCommitters(published.planId, 'reminder_24h');
     await activities.sendToCommitters(published.planId, 'reminder_24h');
 
-    const payloads = sent(deps);
+    const payloads = reminders(deps, 'Tomorrow:');
     expect(payloads).toHaveLength(3);
     for (const p of payloads) expect(p.text).toContain("Who's in: Ann, Mia, Raj.");
   });
@@ -280,8 +313,9 @@ describe('reminders', () => {
 
     await activities.sendToCommitters(published.planId, 'reminder_morning');
 
-    expect(recipients(deps)).toEqual(['ann@example.test', 'mia@example.test']);
-    for (const p of sent(deps)) {
+    const payloads = reminders(deps, 'Today:');
+    expect(payloads.map((p) => p.to)).toEqual(['ann@example.test', 'mia@example.test']);
+    for (const p of payloads) {
       expect(p.text).toContain("Who's in: Ann, Mia.");
       expect(p.text).not.toContain('Raj');
     }
@@ -304,7 +338,7 @@ describe('reminders', () => {
 
     await activities.sendToOne(published.planId, 'reminder_morning', mia.id);
 
-    expect(recipients(deps)).toEqual(['mia@example.test']);
+    expect(reminders(deps, 'Today:').map((p) => p.to)).toEqual(['mia@example.test']);
   });
 
   it('a committer who withdraws and rejoins gets exactly one 24h reminder', async () => {
@@ -316,7 +350,7 @@ describe('reminders', () => {
 
     await activities.sendToCommitters(published.planId, 'reminder_24h');
 
-    expect(recipients(deps).filter((to) => to === 'mia@example.test')).toHaveLength(1);
+    expect(reminders(deps, 'Tomorrow:').filter((p) => p.to === 'mia@example.test')).toHaveLength(1);
   });
 });
 

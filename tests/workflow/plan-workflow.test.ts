@@ -493,6 +493,39 @@ describe('planWorkflow reminders', () => {
     expect(lee.filter((s) => s.startsWith('Today:'))).toHaveLength(1);
   });
 
+  it(
+    "gives Lee his It's on email before any reminder when he commits while the 24h reminder is retrying (AC3)",
+    { timeout: 120_000 },
+    async () => {
+      const { deps, published } = await confirmedPlan();
+      const mail = timedEmail(deps, (p) => p.subject.startsWith('Tomorrow:'));
+
+      await runSchedule(deps, published.planId, {
+        schedule: EXAMPLE,
+        confirmAt: '2026-11-12T18:00:00Z',
+        sendEmail: mail.send,
+        act: async (h, shift) => {
+          mail.failUntil = Date.parse('2026-11-13T18:20:00Z') + shift;
+          await env.sleep(Date.parse('2026-11-13T18:10:00Z') - Date.parse('2026-11-12T18:00:00Z'));
+          const lee = await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+          if (lee.outcome !== 'committed') throw new Error('Lee should commit');
+          await h.signal(committed, lee.commitId);
+          await env.sleep(3_000_000);
+        },
+      });
+
+      // The workflow runs on to the morning reminder; AC3 is about what precedes the 24h one.
+      const lee = mail.records.filter((r) => r.to === 'lee@example.test' && !r.subject.startsWith('Today:'));
+      expect(lee.map((r) => r.subject)).toEqual([
+        "It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM",
+        'Tomorrow: Coffee at Blue Bottle, 10:00 AM',
+      ]);
+      for (const to of ['ann@example.test', 'mia@example.test', 'raj@example.test']) {
+        expect(startingWith(mail.records, 'Tomorrow:').filter((r) => r.to === to)).toHaveLength(1);
+      }
+    },
+  );
+
   it('skips the morning reminder when the 24h one only went out at 3:00 AM', { timeout: 120_000 }, async () => {
     const { deps, published } = await confirmedPlan();
     const mail = timedEmail(deps, (p) => p.subject.startsWith('Tomorrow:'));
