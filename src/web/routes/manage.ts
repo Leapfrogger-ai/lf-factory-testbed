@@ -15,6 +15,23 @@ function notFound(c: Context) {
   return c.html(layout('Plan not found', notFoundPage(), { noindex: true }), 404);
 }
 
+const SIGNAL_ATTEMPTS = 3;
+
+type SignalOutcome = { signalled: true } | { signalled: false; errorName: string };
+
+async function signalCalledOff(deps: AppDeps, planId: string): Promise<SignalOutcome> {
+  let errorName = 'unknown';
+  for (let attempt = 0; attempt < SIGNAL_ATTEMPTS; attempt += 1) {
+    try {
+      await deps.planWorkflows.signal(planId, 'calledOff');
+      return { signalled: true };
+    } catch (error) {
+      errorName = error instanceof Error ? error.name : 'unknown';
+    }
+  }
+  return { signalled: false, errorName };
+}
+
 export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
   const routes = new Hono();
   routes.get('/m/:token', async (c) => {
@@ -39,14 +56,9 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
     if (result.outcome === 'not_found') return notFound(c);
     if (result.outcome === 'too_late') return c.redirect(`/m/${token}?notice=too-late`, 303);
     if (result.outcome === 'called_off') {
-      try {
-        await deps.planWorkflows.signal(result.planId, 'calledOff');
-      } catch (error) {
-        log.error('plan signal failed', {
-          planId: result.planId,
-          signal: 'calledOff',
-          errorName: error instanceof Error ? error.name : 'unknown',
-        });
+      const outcome = await signalCalledOff(deps, result.planId);
+      if (!outcome.signalled) {
+        log.error('plan signal failed', { planId: result.planId, signal: 'calledOff', errorName: outcome.errorName });
       }
     }
     return c.redirect(`/m/${token}`, 303);

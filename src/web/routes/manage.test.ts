@@ -321,6 +321,78 @@ describe('POST /m/:token/call-off', () => {
   describe('when the signal fails', () => {
     afterEach(() => vi.restoreAllMocks());
 
+    function captureStdout(): Record<string, unknown>[] {
+      const lines: Record<string, unknown>[] = [];
+      vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: string | Uint8Array) => {
+        for (const l of String(chunk).split('\n').filter(Boolean)) {
+          try {
+            lines.push(JSON.parse(l));
+          } catch {
+            // not a log line
+          }
+        }
+        return true;
+      }) as typeof process.stdout.write);
+      return lines;
+    }
+
+    it('tries again and logs nothing when the signal fails twice and then succeeds (AC3)', async () => {
+      const lines = captureStdout();
+      const received: { planId: string; signal: string }[] = [];
+      let calls = 0;
+      const deps = testDeps({
+        planWorkflows: {
+          ...fakePlanWorkflows(),
+          signal: async (planId, name) => {
+            calls += 1;
+            if (calls < 3) throw new Error('temporal down');
+            received.push({ planId, signal: name });
+          },
+        },
+      });
+      const { manageToken } = await publishPlan(deps, creator);
+      const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+      const res = await postCallOff(app, manageToken);
+
+      const plan = (await loadPlan(deps.db, manageToken))!;
+      expect(res.status).toBe(303);
+      expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+      expect(received).toEqual([{ planId: plan.id, signal: 'calledOff' }]);
+      expect(calls).toBe(3);
+      expect(lines.filter((l) => l.level === 'error')).toEqual([]);
+    });
+
+    it('makes three attempts, then logs one error naming the plan and calledOff (AC4)', async () => {
+      const lines = captureStdout();
+      let calls = 0;
+      const deps = testDeps({
+        planWorkflows: {
+          ...fakePlanWorkflows(),
+          signal: async () => {
+            calls += 1;
+            throw new Error('temporal down');
+          },
+        },
+      });
+      const { manageToken } = await publishPlan(deps, creator);
+      const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+      const res = await postCallOff(app, manageToken);
+
+      const plan = (await loadPlan(deps.db, manageToken))!;
+      expect(calls).toBe(3);
+      expect(res.status).toBe(303);
+      expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+      expect(plan.state).toBe('called_off');
+      const errors = lines.filter((l) => l.level === 'error' && l.msg === 'plan signal failed');
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({ planId: plan.id, signal: 'calledOff' });
+      const logged = JSON.stringify(lines);
+      expect(logged).not.toContain(manageToken);
+      expect(logged).not.toContain('temporal down');
+    });
+
     it('still calls the plan off and logs an error (AC5)', async () => {
       const lines: Record<string, unknown>[] = [];
       vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: string | Uint8Array) => {
