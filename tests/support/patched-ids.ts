@@ -19,6 +19,42 @@ const escape = (s: string): string => s.replace(/[.*+?^$()|[\]{}\\]/g, '\\$&');
 const inName = (id: string): RegExp => new RegExp(`(?<![\\w-])${escape(id)}(?![\\w-])`);
 const inFixture = (id: string): RegExp => new RegExp(`(?<!\\w)${escape(id)}(?![\\w-])`);
 
+// Blank out // and /* */ comments, leaving string literals (and newlines) intact.
+function stripComments(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; ) {
+    const c = text[i]!;
+    if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== c) j += text[j] === '\\' ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (text.startsWith('//', i) || text.startsWith('/*', i)) {
+      const end = text.startsWith('//', i) ? text.indexOf('\n', i) : text.indexOf('*/', i) + 1;
+      const stop = end <= i ? text.length : text.startsWith('//', i) ? end : end + 1;
+      out += text.slice(i, stop).replace(/[^\n]/g, ' ');
+      i = stop;
+    } else {
+      out += c;
+      i += 1;
+    }
+  }
+  return out;
+}
+
+// The text after each plain it( or test( that calls runReplayHistory(. A
+// variant such as it.skip( or it.each( ends the previous block but is not kept.
+function replayBlocks(text: string): string[] {
+  const parts = text.split(/^[ \t]*((?:it|test)(?:\.\w+)*)\(/m);
+  const blocks: string[] = [];
+  for (let i = 1; i < parts.length; i += 2) {
+    if (/^(it|test)$/.test(parts[i]!) && parts[i + 1]!.includes('runReplayHistory(')) {
+      blocks.push(parts[i + 1]!);
+    }
+  }
+  return blocks;
+}
+
 export function patchedIdProblems(workflows: Source[], tests: Source[]): string[] {
   const ids = new Set<string>();
   for (const { text } of workflows) {
@@ -26,13 +62,7 @@ export function patchedIdProblems(workflows: Source[], tests: Source[]): string[
   }
   const named = tests
     .filter(({ file }) => /(^|\/)tests\/workflow\//.test(file))
-    .flatMap(({ text }) =>
-    text
-      .split(/^[ \t]*(?:it|test)\(/m)
-      .slice(1)
-      .filter((block) => block.includes('runReplayHistory('))
-      .map(namingStrings),
-  );
+    .flatMap(({ text }) => replayBlocks(stripComments(text)).map(namingStrings));
   return [...ids]
     .filter(
       (id) =>

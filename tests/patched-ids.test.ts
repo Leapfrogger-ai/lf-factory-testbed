@@ -73,6 +73,42 @@ test('a replay test outside tests/workflow does not count', () => {
   ]);
 });
 
+test('a commented-out loadHistory inside a replay test does not name the id', () => {
+  const commented: Source = {
+    file: 'tests/workflow/x.test.ts',
+    text: "it('replays', async () => {\n  // loadHistory('call-off-3-5')\n  /* loadHistory('call-off-3-5') */\n  await Worker.runReplayHistory(opts, loadHistory('recorded'));\n});\n",
+  };
+  expect(patchedIdProblems(workflow('call-off-3-5'), [commented])).toEqual([
+    expect.stringContaining('call-off-3-5'),
+  ]);
+});
+
+test('a commented-out whole test does not name the id', () => {
+  const commented: Source = {
+    file: 'tests/workflow/x.test.ts',
+    text: "it('replays', async () => {\n  await Worker.runReplayHistory(opts, loadHistory('recorded'));\n});\n// it('old', async () => {\n//   await Worker.runReplayHistory(opts, loadHistory('call-off-3-5'));\n// });\n",
+  };
+  expect(patchedIdProblems(workflow('call-off-3-5'), [commented])).toEqual([
+    expect.stringContaining('call-off-3-5'),
+  ]);
+});
+
+test('a skipped test does not name the id', () => {
+  const skipped: Source = {
+    file: 'tests/workflow/x.test.ts',
+    text: "it('replays', async () => {\n  await Worker.runReplayHistory(opts, loadHistory('recorded'));\n});\nit.skip('old', async () => {\n  await Worker.runReplayHistory(opts, loadHistory('call-off-3-5'));\n});\n",
+  };
+  expect(patchedIdProblems(workflow('call-off-3-5'), [skipped])).toEqual([
+    expect.stringContaining('call-off-3-5'),
+  ]);
+});
+
+test('a name that merely ends with the id does not name it', () => {
+  expect(patchedIdProblems(workflow('reminders-3-3'), [replay('replays xreminders-3-3')])).toEqual([
+    expect.stringContaining('reminders-3-3'),
+  ]);
+});
+
 test('the same id in two workflow sources is one problem', () => {
   const problems = patchedIdProblems(
     [...workflow('example-x'), ...workflow('example-x')],
