@@ -4,6 +4,8 @@ Maturity: **poc**. A docs-only initiative: both stories change one line of the r
 
 The readme today has three lines: the title `# lf-factory-testbed`, a blank line, and the description line `The factory's testbed. Reset before each run.` Both stories change that description line. They're independent and may run at the same time.
 
+**Design documents.** The brief, architecture, test strategy, UX spec, database schema, API specification and research are calvin's, copied unchanged from `specs/calvin-4` (readiness `ready` there on 2026-11-04). They describe the app this repository already holds, and this initiative changes none of it. The repository already has its test runner, its CI (`.github/workflows/ci.yml` runs gitleaks, `npx tsc --noEmit` and `npx vitest run` on every PR) and its app shell, so there's no starter or guardrails story. The Secrets table in architecture.md's Security Architecture applies as it is, and this initiative adds no secret.
+
 ## Epic 1: Readme wording
 
 The readme's description line says what the testbed holds and when it's reset. It covers FR001 and FR002.

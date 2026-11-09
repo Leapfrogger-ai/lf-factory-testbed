@@ -21,4 +21,4 @@ Nothing else changes. There's no code, no new test, no data and no user interfac
 
 ## Out of scope
 
-Everything else. Architecture, data, API, UX and the test strategy are calvin's, unchanged, and don't apply to a readme change.
+Everything else. The brief, architecture, data, API, UX and test strategy documents in this folder are calvin's, copied unchanged from `specs/calvin-4`. They describe the app as it stands, and a readme change touches none of them.
