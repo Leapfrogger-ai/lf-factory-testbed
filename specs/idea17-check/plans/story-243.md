@@ -80,3 +80,7 @@ git commit -m "Readme: the testbed is never reset during a run"
 
 Ruling: Verify with shell checks, not a vitest test — epics.md says no story adds a test for a readme edit, and a test pinning the readme's text would break the sibling story's edit to the same line — if a reviewer wants a vitest test they must add one; the RED/GREEN shell runs stand in for it.
 Ruling: Compare AC2 and AC3 against `main` at build time, not a hard-coded line — main's line may or may not include story 1.1's sentence — if local `main` is stale the check compares the wrong base, so use `origin/main` after fetching.
+
+## Conflict with story 1.1
+
+Main's line gained story 1.1's sentence (` Home of calvin, the small-gatherings app.`). The merge kept it after the reworded reset sentence, as the story's second criterion requires: every other sentence on main's line stays, in the same order. The readme is unchanged by this note.
