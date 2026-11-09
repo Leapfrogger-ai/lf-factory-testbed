@@ -1,3 +1,4 @@
+import { ApplicationFailure } from '@temporalio/activity';
 import type { Schedule } from '../../src/domain/plan-rules.ts';
 import type { SuggestRequest, SuggestResponse } from '../../src/suggest/suggest.ts';
 
@@ -5,14 +6,29 @@ export function fakeEmail() {
   const calls: { payload: unknown; idempotencyKey: string }[] = [];
   const attempts: { payload: unknown; idempotencyKey: string }[] = [];
   let failures = 0;
+  const rejected = new Set<string>();
+  const failOnce = new Set<string>();
   return {
     calls,
     attempts,
     failNext(): void {
       failures += 1;
     },
+    /** Every later send to this address fails with a non-retryable error. */
+    rejectTo(address: string): void {
+      rejected.add(address);
+    },
+    /** The next send to this address fails with a plain (retryable) error. */
+    failNextTo(address: string): void {
+      failOnce.add(address);
+    },
     send: async (payload: unknown, idempotencyKey: string): Promise<{ id: string }> => {
       attempts.push({ payload, idempotencyKey });
+      const to = (payload as { to?: string }).to;
+      if (to !== undefined && rejected.has(to)) {
+        throw ApplicationFailure.nonRetryable('Resend send failed: validation_error (422)', 'ResendError');
+      }
+      if (to !== undefined && failOnce.delete(to)) throw new Error('email send failed');
       if (failures > 0) {
         failures -= 1;
         throw new Error('email send failed');

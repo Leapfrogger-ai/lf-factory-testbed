@@ -146,6 +146,20 @@ describe('planWorkflow open phase', () => {
     expect(plan?.state).toBe('called_off');
     expect(deps.fakes.email.calls).toHaveLength(2);
   });
+
+  it('sends Not this time to every other committer when the send to Mia is refused (AC5)', async () => {
+    const deps = testDeps();
+    const published = await publishPlan(deps, { minimum: '4' });
+    await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
+    await commit(deps, published.publicToken, form('Raj', 'raj@example.test'));
+    deps.fakes.email.rejectTo('mia@example.test');
+
+    await run(deps, published.planId);
+
+    const emails = sent(deps);
+    expect(emails.map((e) => e.to)).toEqual(['ann@example.test', 'raj@example.test']);
+    for (const e of emails) expect(e.subject).toBe('Not this time: Coffee on Sat 14 Nov');
+  });
 });
 
 type Sent = { to: string; subject: string; text: string };
@@ -276,6 +290,15 @@ describe('planWorkflow confirmed phase', () => {
     });
 
     expect(deps.fakes.email.calls).toHaveLength(3);
+  });
+
+  it('sends each committer exactly one confirmation when a send to Mia fails once and is retried (AC3)', async () => {
+    const { deps, published } = await confirmedPlan();
+    deps.fakes.email.failNextTo('mia@example.test');
+
+    await run(deps, published.planId, 3_600_000, (h) => h.signal(confirmed));
+
+    expect(sent(deps).map((e) => e.to).sort()).toEqual(['ann@example.test', 'mia@example.test', 'raj@example.test']);
   });
 });
 
@@ -558,6 +581,60 @@ describe('planWorkflow reminders', () => {
     expect(today).toHaveLength(3);
     for (const r of tomorrow) expectAt(r.at, c.tomorrowAt, shift);
     for (const r of today) expectAt(r.at, c.todayAt, shift);
+  });
+
+  it("carries on to the reminders when one committer's address is refused (AC2)", async () => {
+    const { deps, published } = await confirmedPlan();
+    deps.fakes.email.rejectTo('mia@example.test');
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await env.sleep(169_200_000);
+        expect((await h.describe()).status.name).toBe('RUNNING');
+      },
+    });
+
+    expect(mail.records).toHaveLength(6);
+    const others = ['ann@example.test', 'raj@example.test'];
+    for (const prefix of ["It's on:", 'Tomorrow:', 'Today:']) {
+      expect(
+        startingWith(mail.records, prefix)
+          .map((r) => r.to)
+          .sort(),
+      ).toEqual(others);
+    }
+    expect(mail.records.some((r) => r.to === 'mia@example.test')).toBe(false);
+  });
+
+  it('a late commit whose send is refused leaves the workflow running and the next reminder reaches everyone else (AC4)', async () => {
+    const { deps, published } = await confirmedPlan();
+    deps.fakes.email.rejectTo('lee@example.test');
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await waitForEmails(deps, 3);
+        const lee = await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+        if (lee.outcome !== 'committed') throw new Error('Lee should commit');
+        await h.signal(committed, lee.commitId);
+        await env.sleep(3_600_000);
+        expect((await h.describe()).status.name).toBe('RUNNING');
+      },
+    });
+
+    expect(
+      startingWith(mail.records, 'Tomorrow:')
+        .map((r) => r.to)
+        .sort(),
+    ).toEqual(['ann@example.test', 'mia@example.test', 'raj@example.test']);
+    expect(mail.records.some((r) => r.to === 'lee@example.test')).toBe(false);
   });
 });
 
