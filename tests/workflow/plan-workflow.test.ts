@@ -20,9 +20,10 @@ const workflowsPath = fileURLToPath(new URL('../../src/temporal/workflows.ts', i
 // A recorded history, stored as protobufjs toObject JSON (longs, enums and bytes as strings). The SDK's
 // historyFromJSON fails here ("type must be a Type"): @temporalio/common and @temporalio/proto each get
 // their own copy of protobufjs 8.8.1 in this install.
-const loadHistory = (path: string) =>
-  proto.temporal.api.history.v1.History.fromObject(JSON.parse(readFileSync(path, 'utf8')));
-const confirmed32Path = fileURLToPath(new URL('../fixtures/workflow/confirmed-3-2.json', import.meta.url));
+const loadHistory = (name: string) =>
+  proto.temporal.api.history.v1.History.fromObject(
+    JSON.parse(readFileSync(fileURLToPath(new URL(`../fixtures/workflow/${name}.json`, import.meta.url)), 'utf8')),
+  );
 
 let env: TestWorkflowEnvironment;
 let queueCount = 0;
@@ -191,6 +192,12 @@ describe('planWorkflow confirmed phase', () => {
     );
     const ann = emails.find((e) => e.to === 'ann@example.test')!;
     expect(ann.text).toBe(E1_HEAD.join('\n'));
+  });
+
+  it('replays a history recorded before confirmed-emails-3-2', async () => {
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-confirmed-emails-3-2')),
+    ).resolves.toBeUndefined();
   });
 
   it('sends it once each when the confirmed signal arrives twice', async () => {
@@ -505,7 +512,7 @@ describe('planWorkflow reminders', () => {
     for (const e of today) expect(e.text).not.toContain('Raj');
   });
 
-  it('replays a history recorded before the reminders patch', async () => {
+  it('replays a history recorded before reminders-3-3', async () => {
     const { deps, published } = await confirmedPlan();
     let handle: WorkflowHandle | undefined;
     await runSchedule(deps, published.planId, {
@@ -518,7 +525,9 @@ describe('planWorkflow reminders', () => {
     await Worker.runReplayHistory({ workflowsPath }, await handle!.fetchHistory());
 
     // Recorded once from the 3.2-era planWorkflow (git 2fc774d): confirmed signal, then a late commit's signal.
-    await expect(Worker.runReplayHistory({ workflowsPath }, loadHistory(confirmed32Path))).resolves.toBeUndefined();
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-reminders-3-3')),
+    ).resolves.toBeUndefined();
   });
 
   it.each([
@@ -643,7 +652,13 @@ describe('planWorkflow call-off', () => {
     ]);
   });
 
-  it('replays a history recorded after this patch', async () => {
+  it('replays a history recorded before call-off-3-5', async () => {
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-call-off-3-5')),
+    ).resolves.toBeUndefined();
+  });
+
+  it('replays a history recorded with the call-off applied', async () => {
     const { deps, published } = await confirmedPlan();
     let handle: WorkflowHandle | undefined;
 
