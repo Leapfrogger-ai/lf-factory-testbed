@@ -1,7 +1,9 @@
+import { ApplicationFailure } from '@temporalio/activity';
 import type { Db } from '../db/client.ts';
 import { loadSendTargets, resolveDeadline } from '../domain/plans.ts';
 import type { SendEmail } from '../email/send-email.ts';
 import { sendOnce, type EmailKind } from '../email/send.ts';
+import { log } from '../log.ts';
 
 export type Activities = ReturnType<typeof createActivities>;
 
@@ -19,6 +21,16 @@ function requiredState(kind: EmailKind): string {
   return required;
 }
 
+/** Runs one send; a non-retryable failure is logged and skipped so it cannot block the others. Anything else is rethrown. */
+async function sendOrSkip(planId: string, kind: EmailKind, send: () => Promise<void>): Promise<void> {
+  try {
+    await send();
+  } catch (error) {
+    if (!(error instanceof ApplicationFailure) || !error.nonRetryable) throw error;
+    log.error('email skipped: non-retryable send failure', { planId, kind, errorName: error.type });
+  }
+}
+
 export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: string }) {
   return {
     async resolveDeadline(planId: string): Promise<'open' | 'confirmed' | 'called_off'> {
@@ -30,7 +42,9 @@ export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: 
       const required = requiredState(kind);
       const { plan, commits } = await loadSendTargets(deps.db, planId);
       if (plan.state !== required) return;
-      for (const commit of commits) await sendOnce(deps, kind, plan, commit, commits);
+      for (const commit of commits) {
+        await sendOrSkip(planId, kind, () => sendOnce(deps, kind, plan, commit, commits));
+      }
     },
 
     /** Sends one committer their email, if the plan is still in the kind's state and that commit is still active. */

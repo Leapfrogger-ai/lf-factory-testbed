@@ -1,4 +1,6 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { ApplicationFailure } from '@temporalio/activity';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { emailSends } from '../db/schema.ts';
 import { commit, loadPlan, loadSendTargets, withdraw } from '../domain/plans.ts';
 import { commitFormSchema } from '../web/forms.ts';
 import { publishPlan, TEST_BASE_URL, testDeps } from '../../tests/support/builders.ts';
@@ -292,5 +294,109 @@ describe('resolveDeadline', () => {
     ]);
 
     expect(await activities.resolveDeadline(published.planId)).toBe('confirmed');
+  });
+});
+
+function captureLog() {
+  const lines: Record<string, unknown>[] = [];
+  const raw: string[] = [];
+  vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: string | Uint8Array) => {
+    for (const l of String(chunk).split('\n').filter(Boolean)) {
+      raw.push(l);
+      try {
+        lines.push(JSON.parse(l));
+      } catch {
+        // not a log line
+      }
+    }
+    return true;
+  }) as typeof process.stdout.write);
+  return { lines, text: () => raw.join('\n') };
+}
+
+describe('a committer whose send fails non-retryably', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const ann = 'ann@example.test';
+  const mia = 'mia@example.test';
+  const raj = 'raj@example.test';
+  const threeIn = () =>
+    setup([
+      ['Mia', mia],
+      ['Raj', raj],
+    ]);
+  const errorLines = (log: ReturnType<typeof captureLog>) => log.lines.filter((l) => l.level === 'error');
+
+  it('skips Mia, sends Ann and Raj once each, and logs the failure', async () => {
+    const log = captureLog();
+    const { deps, published, withdrawTokens, activities } = await threeIn();
+    deps.fakes.email.rejectTo(mia);
+
+    await activities.sendToCommitters(published.planId, 'confirmed');
+
+    expect(recipients(deps)).toEqual([ann, raj]);
+    const rows = (await db.select().from(emailSends)).filter((r) => r.kind === 'confirmed');
+    expect(rows).toHaveLength(3);
+    const unsent = rows.filter((r) => r.sentAt === null);
+    expect(unsent).toHaveLength(1);
+    const miaCommit = (await loadSendTargets(db, published.planId)).commits[1]!;
+    expect(unsent[0]!.commitId).toBe(miaCommit.id);
+    const errors = errorLines(log);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ planId: published.planId, kind: 'confirmed', errorName: 'ResendError' });
+    expect(log.text()).not.toContain(mia);
+    expect(log.text()).not.toContain(withdrawTokens[0]!);
+  });
+
+  it('still throws a retryable failure', async () => {
+    const { deps, published, activities } = await threeIn();
+    deps.fakes.email.failNextTo(mia);
+
+    await expect(activities.sendToCommitters(published.planId, 'confirmed')).rejects.toThrow('email send failed');
+    expect(recipients(deps)).toEqual([ann]);
+    expect(deps.fakes.email.attempts.map((a) => (a.payload as { to: string }).to)).toEqual([ann, mia]);
+
+    await activities.sendToCommitters(published.planId, 'confirmed');
+
+    expect(recipients(deps)).toEqual([ann, mia, raj]);
+  });
+
+  it('skips two failing committers and still sends the third', async () => {
+    const log = captureLog();
+    const { deps, published, activities } = await threeIn();
+    deps.fakes.email.rejectTo(ann);
+    deps.fakes.email.rejectTo(raj);
+
+    await activities.sendToCommitters(published.planId, 'confirmed');
+
+    expect(recipients(deps)).toEqual([mia]);
+    expect(errorLines(log)).toHaveLength(2);
+  });
+
+  it('rethrows a retryable ApplicationFailure', async () => {
+    const { deps, published } = await threeIn();
+    const activities = createActivities({
+      db,
+      baseUrl: TEST_BASE_URL,
+      sendEmail: async () => {
+        throw ApplicationFailure.retryable('x', 'ResendError');
+      },
+    });
+
+    await expect(activities.sendToCommitters(published.planId, 'confirmed')).rejects.toThrow('x');
+    expect(deps.fakes.email.calls).toHaveLength(0);
+  });
+
+  it('a non-retryable Mia plus a retryable Raj: the retry sends Raj only', async () => {
+    const { deps, published, activities } = await threeIn();
+    deps.fakes.email.rejectTo(mia);
+    deps.fakes.email.failNextTo(raj);
+
+    await expect(activities.sendToCommitters(published.planId, 'confirmed')).rejects.toThrow('email send failed');
+    expect(recipients(deps)).toEqual([ann]);
+
+    await activities.sendToCommitters(published.planId, 'confirmed');
+
+    expect(recipients(deps)).toEqual([ann, raj]);
   });
 });
