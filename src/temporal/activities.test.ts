@@ -1,7 +1,7 @@
 import { ApplicationFailure } from '@temporalio/activity';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emailSends } from '../db/schema.ts';
-import { commit, loadPlan, loadSendTargets, withdraw } from '../domain/plans.ts';
+import { callOff, commit, loadPlan, loadSendTargets, withdraw } from '../domain/plans.ts';
 import { commitFormSchema } from '../web/forms.ts';
 import { publishPlan, TEST_BASE_URL, testDeps } from '../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../tests/support/db.ts';
@@ -359,6 +359,27 @@ describe('reminders', () => {
     await activities.sendToCommitters(published.planId, 'reminder_24h');
 
     expect(reminders(deps, 'Tomorrow:').filter((p) => p.to === 'mia@example.test')).toHaveLength(1);
+  });
+});
+
+describe('planState', () => {
+  it('reports the stored state, even when no signal was sent', async () => {
+    const { deps, published, activities } = await setup([
+      ['Mia', 'mia@example.test'],
+      ['Raj', 'raj@example.test'],
+    ]);
+
+    expect(await activities.planState(published.planId)).toBe('confirmed');
+
+    await callOff(deps, published.manageToken);
+
+    expect(await activities.planState(published.planId)).toBe('called_off');
+  });
+
+  it('rejects for an unknown plan id', async () => {
+    const { activities } = await setup([]);
+
+    await expect(activities.planState(crypto.randomUUID())).rejects.toThrow('No plan for that id');
   });
 });
 

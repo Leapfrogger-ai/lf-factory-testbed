@@ -57,6 +57,11 @@ export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: 
       return state;
     },
 
+    /** The plan's state in Postgres right now; read-only. */
+    async planState(planId: string): Promise<'open' | 'confirmed' | 'called_off'> {
+      return (await loadSendTargets(deps.db, planId)).plan.state;
+    },
+
     async sendToCommitters(planId: string, kind: EmailKind): Promise<void> {
       const required = requiredState(kind);
       const { plan, commits } = await loadSendTargets(deps.db, planId);
