@@ -910,4 +910,10 @@ describe('planWorkflow call-off', () => {
 
     await expect(Worker.runReplayHistory({ workflowsPath }, await handle!.fetchHistory())).resolves.toBeUndefined();
   });
+
+  it('replays a history recorded before call-off-from-db-4-4', async () => {
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-call-off-from-db-4-4')),
+    ).resolves.toBeUndefined();
+  });
 });
