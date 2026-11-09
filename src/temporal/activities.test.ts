@@ -283,8 +283,16 @@ describe('reminders', () => {
   });
 
   it("skips a committer whose It's on email is refused, for the reminder too", async () => {
-    const { deps, published, activities } = await threeIn();
-    deps.fakes.email.rejectTo('mia@example.test');
+    const { deps, published } = await threeIn();
+    // Refuse only Mia's It's on email; her reminder would go through if it were sent on its own.
+    const refuseMiaConfirmed: typeof deps.sendEmail = async (payload, key) => {
+      const p = payload as { to: string; subject: string };
+      if (p.to === 'mia@example.test' && p.subject.startsWith("It's on:")) {
+        throw ApplicationFailure.nonRetryable('Resend send failed: validation_error (422)', 'ResendError');
+      }
+      return deps.sendEmail(payload, key);
+    };
+    const activities = createActivities({ db, sendEmail: refuseMiaConfirmed, baseUrl: TEST_BASE_URL });
 
     await activities.sendToCommitters(published.planId, 'reminder_24h');
 

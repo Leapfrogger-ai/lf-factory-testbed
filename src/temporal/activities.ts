@@ -34,6 +34,7 @@ async function sendOrSkip(planId: string, kind: EmailKind, send: () => Promise<v
 type SendDeps = Parameters<typeof sendOnce>[0];
 type SendPlan = Parameters<typeof sendOnce>[2];
 type SendCommit = Parameters<typeof sendOnce>[3];
+type SendCommits = Parameters<typeof sendOnce>[4];
 
 const REMINDER_KINDS: EmailKind[] = ['reminder_24h', 'reminder_morning'];
 
@@ -43,7 +44,7 @@ async function sendWithPrerequisite(
   kind: EmailKind,
   plan: SendPlan,
   commit: SendCommit,
-  commits: Parameters<typeof sendOnce>[4],
+  commits: SendCommits,
 ): Promise<void> {
   if (REMINDER_KINDS.includes(kind)) await sendOnce(deps, 'confirmed', plan, commit, commits);
   await sendOnce(deps, kind, plan, commit, commits);
