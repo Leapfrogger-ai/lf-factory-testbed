@@ -887,6 +887,103 @@ describe('planWorkflow call-off', () => {
     ]);
   });
 
+  it('sends Not this time once each at the 24h reminder time when no signal arrived, and no reminder (AC1)', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async () => {
+        await waitForEmails(deps, 3);
+        await callOff(deps, published.manageToken);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    const notThisTime = startingWith(mail.records, 'Not this time:');
+    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
+    for (const r of notThisTime) {
+      expect(r.subject).toBe(NOT_THIS_TIME);
+      expect(r.text).toBe(NOT_THIS_TIME_TEXT);
+      // Sent when the 24h reminder was due, not at call-off.
+      expect(r.at).toBeGreaterThanOrEqual(Date.parse('2026-11-13T18:00:00Z') + shift);
+      expect(r.at).toBeLessThan(Date.parse('2026-11-14T16:00:00Z') + shift);
+    }
+    expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+  });
+
+  it('sends Ana no check-in email when no signal arrived (AC2)', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async () => {
+        await waitForEmails(deps, 3);
+        await callOff(deps, published.manageToken);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    expect(mail.records.filter((r) => r.to === 'ann@example.test').map((r) => r.subject)).toEqual([
+      "It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM",
+      NOT_THIS_TIME,
+    ]);
+    for (const r of mail.records) expect(r.at).toBeLessThan(Date.parse('2026-11-14T18:01:00Z') + shift);
+  });
+
+  it('sends no morning reminder or check-in when a call-off after the 24h reminder never signalled', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async () => {
+        await env.sleep(Date.parse('2026-11-13T18:00:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000);
+        await vi.waitFor(() => expect(startingWith(mail.records, 'Tomorrow:')).toHaveLength(3), {
+          timeout: 10_000,
+          interval: 20,
+        });
+        await callOff(deps, published.manageToken);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    expect(startingWith(mail.records, 'Tomorrow:').map((r) => r.to).sort()).toEqual(EVERYONE);
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+    const notThisTime = startingWith(mail.records, 'Not this time:');
+    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
+    // Sent when the morning reminder was due, as no signal told the workflow sooner.
+    for (const r of notThisTime) expect(r.at).toBeGreaterThanOrEqual(Date.parse('2026-11-14T16:00:00Z') + shift);
+  });
+
+  it('sends Not this time exactly once each when the signal arrived and the plan is called off in Postgres (AC5)', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await waitForEmails(deps, 3);
+        await callOff(deps, published.manageToken);
+        await h.signal(calledOff);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    expect(startingWith(mail.records, 'Not this time:').map((r) => r.to).sort()).toEqual(EVERYONE);
+    expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
+  });
+
   it('replays a history recorded before call-off-3-5', async () => {
     await expect(
       Worker.runReplayHistory({ workflowsPath }, loadHistory('before-call-off-3-5')),
