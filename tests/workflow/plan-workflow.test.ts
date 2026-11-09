@@ -984,6 +984,14 @@ describe('planWorkflow call-off', () => {
     expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
   });
 
+  it('replays a history recorded before call-off-from-db-4-4 where no signal arrived', async () => {
+    // Recorded once from the 8cf6b71 planWorkflow: uncalled-off plan run through both reminders to the check-in time,
+    // so endedByCallOff ran with no call-off signal (the case where the new workflow asks the database).
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-call-off-from-db-4-4-no-signal')),
+    ).resolves.toBeUndefined();
+  });
+
   it('replays a history recorded before call-off-3-5', async () => {
     await expect(
       Worker.runReplayHistory({ workflowsPath }, loadHistory('before-call-off-3-5')),
