@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '../src/db/client.ts';
-import { commit, resolveDeadline } from '../src/domain/plans.ts';
+import { commit, loadPlan, recordCheckInAnswer, resolveDeadline } from '../src/domain/plans.ts';
 import { loadSuggestion, recordSuggestion } from '../src/domain/suggestions.ts';
 import { suggest, type SuggestInput } from '../src/suggest/suggest.ts';
 import { publishPlan, testDeps } from './support/builders.ts';
@@ -92,5 +92,26 @@ describe('trial metric queries', () => {
 
     expect(rows).toHaveLength(1);
     expect(Number(rows[0]?.edited_rate)).toBe(0.5);
+  });
+
+  it('outcomes: a confirmed plan with answers, then a plan called off at its deadline (AC2)', async () => {
+    const deps = testDeps();
+    const first = await publishPlan(deps, { name: 'Ana', email: 'ana@example.test' });
+    await commit(deps, first.publicToken, commitFormSchema.parse({ name: 'Mia', email: 'mia@example.test' }));
+    await commit(deps, first.publicToken, commitFormSchema.parse({ name: 'Raj', email: 'raj@example.test' }));
+    const view = await loadPlan(db, first.manageToken);
+    if (!view) throw new Error('expected the plan to load');
+    await recordCheckInAnswer(deps, view.checkInToken, 'happened', true);
+    await recordCheckInAnswer(deps, view.checkInToken, 'attended', false);
+    const second = await publishPlan(deps);
+    await resolveDeadline(db, second.planId);
+
+    const rows = await runQuery(db, 'creator_attended');
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ state: 'confirmed', called_off_reason: null, was_confirmed: true, minimum: 3, happened: 1, creator_attended: 0 });
+    expect(Number(rows[0]?.count)).toBe(3);
+    expect(rows[1]).toMatchObject({ state: 'called_off', called_off_reason: 'deadline', was_confirmed: false, minimum: 3, happened: null, creator_attended: null });
+    expect(Number(rows[1]?.count)).toBe(1);
   });
 });
