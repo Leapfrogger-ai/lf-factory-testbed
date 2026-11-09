@@ -1,3 +1,3 @@
 # lf-factory-testbed
 
-The factory's testbed. Reset before each run.
+The factory's testbed. Reset before each run, never during one.
