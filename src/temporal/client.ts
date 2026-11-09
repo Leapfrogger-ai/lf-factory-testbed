@@ -23,6 +23,7 @@ export function createPlanWorkflows(client: Client): AppDeps['planWorkflows'] {
             reminder24At: epochMs(schedule.reminder24At),
             reminderMorningAt: schedule.reminderMorningAt === null ? null : epochMs(schedule.reminderMorningAt),
             checkInAt: epochMs(schedule.checkInAt),
+            gatheringAt: epochMs(schedule.gatheringAt),
           },
         ],
       });

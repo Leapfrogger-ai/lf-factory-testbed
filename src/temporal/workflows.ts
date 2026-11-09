@@ -1,4 +1,12 @@
-import { condition, defineSignal, patched, proxyActivities, setHandler } from '@temporalio/workflow';
+import {
+  CancellationScope,
+  condition,
+  defineSignal,
+  isCancellation,
+  patched,
+  proxyActivities,
+  setHandler,
+} from '@temporalio/workflow';
 import type { Activities } from './activities.ts';
 
 export type PlanWorkflowInput = {
@@ -7,6 +15,7 @@ export type PlanWorkflowInput = {
   reminder24At: number;
   reminderMorningAt: number | null;
   checkInAt: number;
+  gatheringAt?: number;
 };
 
 export const confirmed = defineSignal<[]>('confirmed');
@@ -20,7 +29,8 @@ const activities = proxyActivities<Activities>({
 });
 
 // The reminder sends keep retrying for up to 20h, so a send failing overnight still goes out late (and the
-// 6h rule then skips the morning one). An exhausted reminder send fails the workflow.
+// 6h rule then skips the morning one). The morning reminder still retrying when the gathering starts is
+// dropped; the 24h reminder's 20h window ends before the gathering, so an exhausted 24h send fails the workflow.
 const reminders = proxyActivities<Activities>({
   startToCloseTimeout: '30s',
   scheduleToCloseTimeout: '20h',
@@ -87,19 +97,37 @@ export async function planWorkflow(input: PlanWorkflowInput): Promise<void> {
         await activities.sendToCommitters(input.planId, 'not_this_time');
         return true;
       };
+      // Gated so a history recorded by story 4.2's workflow (reminders retried past the gathering) still replays.
+      const inTime = patched('reminders-in-time-4-3');
+      /** Sends a reminder, dropped if still retrying when the gathering starts; reports whether it went out. */
+      const sendReminder = async (kind: 'reminder_24h' | 'reminder_morning'): Promise<boolean> => {
+        const gatheringAt = input.gatheringAt;
+        if (!inTime || gatheringAt === undefined) {
+          await reminders.sendToCommitters(input.planId, kind);
+          return true;
+        }
+        const remaining = gatheringAt - Date.now();
+        if (remaining <= 0) return false;
+        try {
+          await CancellationScope.withTimeout(remaining, () => reminders.sendToCommitters(input.planId, kind));
+          return true;
+        } catch (error) {
+          if (isCancellation(error) && !CancellationScope.current().consideredCancelled) return false;
+          throw error;
+        }
+      };
       let sent24At: number | null = null;
       if (input.reminder24At > Date.now()) {
         await waitUntil(input.reminder24At, stopOnCallOff);
         if (await endedByCallOff()) return;
-        await reminders.sendToCommitters(input.planId, 'reminder_24h');
-        sent24At = Date.now();
+        if (await sendReminder('reminder_24h')) sent24At = Date.now();
       }
       const morningAt = input.reminderMorningAt;
       // FR021: skip the morning reminder when the 24h one actually went out less than 6h before it.
       if (morningAt !== null && morningAt > Date.now() && !(sent24At !== null && morningAt - sent24At < SIX_HOURS_MS)) {
         await waitUntil(morningAt, stopOnCallOff);
         if (await endedByCallOff()) return;
-        await reminders.sendToCommitters(input.planId, 'reminder_morning');
+        await sendReminder('reminder_morning');
       }
       // Placeholder end of the confirmed phase: Epic 4 adds the check-in here.
       await waitUntil(input.checkInAt, stopOnCallOff);

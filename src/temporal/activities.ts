@@ -31,6 +31,25 @@ async function sendOrSkip(planId: string, kind: EmailKind, send: () => Promise<v
   }
 }
 
+type SendDeps = Parameters<typeof sendOnce>[0];
+type SendPlan = Parameters<typeof sendOnce>[2];
+type SendCommit = Parameters<typeof sendOnce>[3];
+type SendCommits = Parameters<typeof sendOnce>[4];
+
+const REMINDER_KINDS: EmailKind[] = ['reminder_24h', 'reminder_morning'];
+
+/** A reminder reaches a committer only after their "It's on" email, so a late committer gets both in order. */
+async function sendWithPrerequisite(
+  deps: SendDeps,
+  kind: EmailKind,
+  plan: SendPlan,
+  commit: SendCommit,
+  commits: SendCommits,
+): Promise<void> {
+  if (REMINDER_KINDS.includes(kind)) await sendOnce(deps, 'confirmed', plan, commit, commits);
+  await sendOnce(deps, kind, plan, commit, commits);
+}
+
 export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: string }) {
   return {
     async resolveDeadline(planId: string): Promise<'open' | 'confirmed' | 'called_off'> {
@@ -43,7 +62,7 @@ export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: 
       const { plan, commits } = await loadSendTargets(deps.db, planId);
       if (plan.state !== required) return;
       for (const commit of commits) {
-        await sendOrSkip(planId, kind, () => sendOnce(deps, kind, plan, commit, commits));
+        await sendOrSkip(planId, kind, () => sendWithPrerequisite(deps, kind, plan, commit, commits));
       }
     },
 
@@ -54,7 +73,7 @@ export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: 
       if (plan.state !== required) return;
       const target = commits.find((c) => c.id === commitId);
       if (!target) return;
-      await sendOrSkip(planId, kind, () => sendOnce(deps, kind, plan, target, commits));
+      await sendOrSkip(planId, kind, () => sendWithPrerequisite(deps, kind, plan, target, commits));
     },
   };
 }

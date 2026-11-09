@@ -20,10 +20,9 @@ const workflowsPath = fileURLToPath(new URL('../../src/temporal/workflows.ts', i
 // A recorded history, stored as protobufjs toObject JSON (longs, enums and bytes as strings). The SDK's
 // historyFromJSON fails here ("type must be a Type"): @temporalio/common and @temporalio/proto each get
 // their own copy of protobufjs 8.8.1 in this install.
-const loadHistory = (name: string) =>
-  proto.temporal.api.history.v1.History.fromObject(
-    JSON.parse(readFileSync(fileURLToPath(new URL(`../fixtures/workflow/${name}.json`, import.meta.url)), 'utf8')),
-  );
+const readHistoryJson = (name: string) =>
+  JSON.parse(readFileSync(fileURLToPath(new URL(`../fixtures/workflow/${name}.json`, import.meta.url)), 'utf8'));
+const loadHistory = (name: string) => proto.temporal.api.history.v1.History.fromObject(readHistoryJson(name));
 
 let env: TestWorkflowEnvironment;
 let queueCount = 0;
@@ -311,6 +310,7 @@ const EXAMPLE: Schedule = {
   reminder24At: '2026-11-13T18:00:00Z',
   reminderMorningAt: '2026-11-14T16:00:00Z',
   checkInAt: '2026-11-14T18:01:00Z',
+  gatheringAt: '2026-11-14T18:00:00Z',
 };
 
 /**
@@ -347,6 +347,8 @@ async function runSchedule(
     confirmAt: string;
     sendEmail?: SendEmail;
     act?: (handle: WorkflowHandle, shift: number) => Promise<void>;
+    /** Starts the workflow without `gatheringAt`, as a pre-4.3 start did. */
+    omitGatheringAt?: boolean;
   },
 ): Promise<number> {
   const { schedule } = options;
@@ -357,6 +359,7 @@ async function runSchedule(
     reminder24At: Date.parse(schedule.reminder24At) + shift,
     reminderMorningAt: schedule.reminderMorningAt === null ? null : Date.parse(schedule.reminderMorningAt) + shift,
     checkInAt: Date.parse(schedule.checkInAt) + shift,
+    ...(options.omitGatheringAt ? {} : { gatheringAt: Date.parse(schedule.gatheringAt) + shift }),
   };
   queueCount += 1;
   const taskQueue = `plan-workflow-test-${queueCount}`;
@@ -425,6 +428,7 @@ describe('planWorkflow reminders', () => {
       reminder24At: '2026-11-13T17:30:00Z',
       reminderMorningAt: null,
       checkInAt: '2026-11-15T18:00:00Z', // FR027: 10:00 the day after
+      gatheringAt: '2026-11-14T17:30:00Z',
     });
     const mail = timedEmail(deps);
 
@@ -493,6 +497,39 @@ describe('planWorkflow reminders', () => {
     expect(lee.filter((s) => s.startsWith('Today:'))).toHaveLength(1);
   });
 
+  it(
+    "gives Lee his It's on email before any reminder when he commits while the 24h reminder is retrying (AC3)",
+    { timeout: 120_000 },
+    async () => {
+      const { deps, published } = await confirmedPlan();
+      const mail = timedEmail(deps, (p) => p.subject.startsWith('Tomorrow:'));
+
+      await runSchedule(deps, published.planId, {
+        schedule: EXAMPLE,
+        confirmAt: '2026-11-12T18:00:00Z',
+        sendEmail: mail.send,
+        act: async (h, shift) => {
+          mail.failUntil = Date.parse('2026-11-13T18:20:00Z') + shift;
+          await env.sleep(Date.parse('2026-11-13T18:10:00Z') - Date.parse('2026-11-12T18:00:00Z'));
+          const lee = await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+          if (lee.outcome !== 'committed') throw new Error('Lee should commit');
+          await h.signal(committed, lee.commitId);
+          await env.sleep(3_000_000);
+        },
+      });
+
+      // The workflow runs on to the morning reminder; AC3 is about what precedes the 24h one.
+      const lee = mail.records.filter((r) => r.to === 'lee@example.test' && !r.subject.startsWith('Today:'));
+      expect(lee.map((r) => r.subject)).toEqual([
+        "It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM",
+        'Tomorrow: Coffee at Blue Bottle, 10:00 AM',
+      ]);
+      for (const to of ['ann@example.test', 'mia@example.test', 'raj@example.test']) {
+        expect(startingWith(mail.records, 'Tomorrow:').filter((r) => r.to === to)).toHaveLength(1);
+      }
+    },
+  );
+
   it('skips the morning reminder when the 24h one only went out at 3:00 AM', { timeout: 120_000 }, async () => {
     const { deps, published } = await confirmedPlan();
     const mail = timedEmail(deps, (p) => p.subject.startsWith('Tomorrow:'));
@@ -533,6 +570,26 @@ describe('planWorkflow reminders', () => {
     const today = sent(deps).filter((e) => e.subject.startsWith('Today:'));
     expect(today.map((e) => e.to).sort()).toEqual(['ann@example.test', 'mia@example.test']);
     for (const e of today) expect(e.text).not.toContain('Raj');
+  });
+
+  it('replays a history recorded before reminders-in-time-4-3', async () => {
+    // Recorded once from the 4.2-era planWorkflow: confirmed signal, then both reminders and the check-in timer.
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-reminders-in-time-4-3')),
+    ).resolves.toBeUndefined();
+  });
+
+  it('replays a pre-4.3 history whose input already carries gatheringAt', async () => {
+    // The same history with the gathering (10:00 AM, 2h after the morning reminder) added to its input: only the
+    // reminders-in-time-4-3 patch keeps the recorded reminder sends from gaining a timeout timer on replay.
+    const json = readHistoryJson('before-reminders-in-time-4-3');
+    const payload = json.events[0].workflowExecutionStartedEventAttributes.input.payloads[0];
+    const input = JSON.parse(Buffer.from(payload.data, 'base64').toString('utf8'));
+    payload.data = Buffer.from(JSON.stringify({ ...input, gatheringAt: 1794432895663 })).toString('base64');
+
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, proto.temporal.api.history.v1.History.fromObject(json)),
+    ).resolves.toBeUndefined();
   });
 
   it('replays a history recorded before reminders-3-3', async () => {
@@ -635,6 +692,107 @@ describe('planWorkflow reminders', () => {
         .sort(),
     ).toEqual(['ann@example.test', 'mia@example.test', 'raj@example.test']);
     expect(mail.records.some((r) => r.to === 'lee@example.test')).toBe(false);
+  });
+
+  it('drops the morning reminder that is still retrying when the gathering starts (AC1)', { timeout: 120_000 }, async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps, (p) => p.subject.startsWith('Today:'));
+
+    await runSchedule(deps, published.planId, {
+      schedule: { ...EXAMPLE, checkInAt: '2026-11-15T18:00:00Z' },
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h, shift) => {
+        mail.failUntil = Date.parse('2026-11-14T18:30:00Z') + shift;
+        await env.sleep(Date.parse('2026-11-14T18:30:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000);
+        // It waits for the check-in a day later.
+        expect((await h.describe()).status.name).toBe('RUNNING');
+      },
+    });
+
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+    expect(startingWith(mail.records, 'Tomorrow:')).toHaveLength(3);
+  });
+
+  it(
+    "drops Raj's morning reminder when his send is still failing at 10:05 AM, and Ann keeps hers (AC2)",
+    { timeout: 120_000 },
+    async () => {
+      const { deps, published } = await confirmedPlan();
+      const mail = timedEmail(deps, (p) => p.to === 'raj@example.test' && p.subject.startsWith('Today:'));
+
+      await runSchedule(deps, published.planId, {
+        schedule: { ...EXAMPLE, checkInAt: '2026-11-15T18:00:00Z' },
+        confirmAt: '2026-11-12T18:00:00Z',
+        sendEmail: mail.send,
+        act: async (_h, shift) => {
+          mail.failUntil = Date.parse('2026-11-14T18:05:00Z') + shift;
+          await env.sleep(Date.parse('2026-11-14T18:10:00Z') - Date.parse('2026-11-12T18:00:00Z'));
+        },
+      });
+
+      const today = startingWith(mail.records, 'Today:');
+      expect(today.map((r) => r.to).sort()).toEqual(['ann@example.test', 'mia@example.test']);
+    },
+  );
+
+  it('a workflow started without gatheringAt still sends a reminder that went through retries (AC4)', { timeout: 120_000 }, async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps, (p) => p.subject.startsWith('Today:'));
+
+    await runSchedule(deps, published.planId, {
+      schedule: { ...EXAMPLE, checkInAt: '2026-11-15T18:00:00Z' },
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      omitGatheringAt: true,
+      act: async (_h, shift) => {
+        mail.failUntil = Date.parse('2026-11-14T18:30:00Z') + shift;
+      },
+    });
+
+    const today = startingWith(mail.records, 'Today:');
+    expect(today.map((r) => r.to).sort()).toEqual(['ann@example.test', 'mia@example.test', 'raj@example.test']);
+    for (const r of today) expect(r.at).toBeGreaterThanOrEqual(mail.failUntil!);
+  });
+
+  it('sends the reminders at the example instants with the same text (AC4)', async () => {
+    const { deps, published, plan } = await confirmedPlan();
+    const mail = timedEmail(deps);
+    // The bodies src/email/templates.test.ts pins, with this plan's withdraw links (none for the creator, Ann).
+    const [mia, raj] = plan.commits.filter((c) => !c.isCreator);
+    const withdrawToken: Record<string, string | undefined> = {
+      'mia@example.test': mia!.withdrawToken,
+      'raj@example.test': raj!.withdrawToken,
+    };
+    const body = (lead: string, to: string) => {
+      const token = withdrawToken[to];
+      return [
+        `${lead} at 10:00 AM: Coffee at Blue Bottle, Oakland.`,
+        'Map: https://maps.google.com/?q=Blue+Bottle+Oakland',
+        "Who's in: Ann, Mia, Raj.",
+        ...(token === undefined ? [] : [`Can't make it? Withdraw: https://calvin.test/w/${token}`]),
+      ].join('\n');
+    };
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+    });
+
+    const everyone = ['ann@example.test', 'mia@example.test', 'raj@example.test'];
+    for (const [lead, at] of [
+      ['Tomorrow', '2026-11-13T18:00:00Z'],
+      ['Today', '2026-11-14T16:00:00Z'],
+    ] as const) {
+      const records = startingWith(mail.records, `${lead}:`);
+      expect(records.map((r) => r.to).sort()).toEqual(everyone);
+      for (const r of records) {
+        expectAt(r.at, at, shift);
+        expect(r.subject).toBe(`${lead}: Coffee at Blue Bottle, 10:00 AM`);
+        expect(r.text).toBe(body(lead, r.to));
+      }
+    }
   });
 });
 

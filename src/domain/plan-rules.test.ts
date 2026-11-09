@@ -35,6 +35,7 @@ test('computeSchedule gives the deadline, 24h reminder, morning reminder and che
     reminder24At: '2026-11-13T18:00:00Z',
     reminderMorningAt: '2026-11-14T16:00:00Z',
     checkInAt: '2026-11-15T18:00:00Z',
+    gatheringAt: '2026-11-14T18:00:00Z',
   });
 });
 
