@@ -13,17 +13,33 @@ export function buildEmail(
   baseUrl: string,
   activeCommits: CommitRow[] = [],
 ): EmailPayload {
-  if (
-    kind !== 'manage_link' && kind !== 'not_this_time' && kind !== 'confirmed'
-    && kind !== 'reminder_24h' && kind !== 'reminder_morning'
-  ) {
-    throw new Error(`No email template for ${kind}`);
-  }
   const format = plan.format.charAt(0).toUpperCase() + plan.format.slice(1);
   const day = formatDay(plan.gatheringAt.toTemporalInstant());
   const mapLine = () =>
     `Map: https://maps.google.com/?${new URLSearchParams({ q: `${plan.venue} ${plan.city}` }).toString()}`;
   const names = () => activeCommits.map((c) => firstName(c.name)).join(', ');
+  if (kind === 'check_in') {
+    const link = (question: 'happened' | 'attended', answer: 'yes' | 'no') =>
+      `${baseUrl}/c/${plan.checkInToken}/${question}/${answer}`;
+    const lines = [
+      `Hi ${firstName(commit.name)},`,
+      `${format} at ${plan.venue} was yesterday. Two quick taps, please.`,
+      'Did it happen?',
+      `Yes: ${link('happened', 'yes')}`,
+      `No: ${link('happened', 'no')}`,
+      'Were you there?',
+      `Yes: ${link('attended', 'yes')}`,
+      `No: ${link('attended', 'no')}`,
+      'Thanks!',
+      '',
+    ];
+    return {
+      to: commit.email,
+      subject: `Did it happen? ${format} on ${day}`,
+      text: lines.join('\n'),
+      tags: [{ name: 'kind', value: kind }],
+    };
+  }
   if (kind === 'reminder_24h' || kind === 'reminder_morning') {
     const instant = plan.gatheringAt.toTemporalInstant();
     const lead = kind === 'reminder_24h' ? 'Tomorrow' : 'Today';
