@@ -4,7 +4,9 @@ import { WorkflowNotFoundError, type WorkflowHandle } from '@temporalio/client';
 import proto from '@temporalio/proto';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { events } from '../../src/db/schema.ts';
 import { computeSchedule, type Schedule } from '../../src/domain/plan-rules.ts';
 import { callOff, commit, loadPlan, withdraw } from '../../src/domain/plans.ts';
 import type { SendEmail } from '../../src/email/send-email.ts';
@@ -119,7 +121,7 @@ describe('planWorkflow open phase', () => {
 
     const plan = await loadPlan(db, published.manageToken);
     expect(plan?.state).toBe('confirmed');
-    expect(deps.fakes.email.calls).toHaveLength(3);
+    expect(withoutCheckIn(sent(deps))).toHaveLength(3);
   });
 
   it('retries a failed first send and still sends one email each', async () => {
@@ -164,6 +166,9 @@ describe('planWorkflow open phase', () => {
 type Sent = { to: string; subject: string; text: string };
 const sent = (deps: ReturnType<typeof testDeps>) => deps.fakes.email.calls.map((c) => c.payload as Sent);
 
+/** The emails other than the creator's check-in, which every confirmed plan run to its check-in time now sends. */
+const withoutCheckIn = <T extends { subject: string }>(emails: T[]) => emails.filter((e) => !e.subject.startsWith('Did it happen?'));
+
 /** Waits (real time, short polls) until the fake mailbox holds `count` emails. */
 const waitForEmails = (deps: ReturnType<typeof testDeps>, count: number) =>
   vi.waitFor(() => expect(deps.fakes.email.calls.length).toBeGreaterThanOrEqual(count), { timeout: 10_000, interval: 20 });
@@ -195,7 +200,7 @@ describe('planWorkflow confirmed phase', () => {
 
     await run(deps, published.planId, 3_600_000, (h) => h.signal(confirmed));
 
-    const emails = sent(deps);
+    const emails = withoutCheckIn(sent(deps));
     expect(emails).toHaveLength(3);
     const mia = plan.commits.filter((c) => !c.isCreator)[0]!;
     const miaMail = emails.find((e) => e.to === 'mia@example.test')!;
@@ -221,7 +226,7 @@ describe('planWorkflow confirmed phase', () => {
       await h.signal(confirmed);
     });
 
-    expect(deps.fakes.email.calls).toHaveLength(3);
+    expect(withoutCheckIn(sent(deps))).toHaveLength(3);
   });
 
   it('gives a late commit the email straight away and nobody else a second one', async () => {
@@ -235,7 +240,7 @@ describe('planWorkflow confirmed phase', () => {
       await h.signal(committed, lee.commitId);
     });
 
-    const to = sent(deps).map((e) => e.to);
+    const to = withoutCheckIn(sent(deps)).map((e) => e.to);
     expect(to).toHaveLength(4);
     expect(to).toContain('lee@example.test');
     expect(new Set(to).size).toBe(4);
@@ -248,7 +253,7 @@ describe('planWorkflow confirmed phase', () => {
 
     const plan = await loadPlan(db, published.manageToken);
     expect(plan?.state).toBe('confirmed');
-    const emails = sent(deps);
+    const emails = withoutCheckIn(sent(deps));
     expect(emails).toHaveLength(3);
     for (const e of emails) expect(e.subject).toMatch(/^It's on: /);
   });
@@ -267,7 +272,7 @@ describe('planWorkflow confirmed phase', () => {
 
     await run(deps, published.planId, 3_600_000, (h) => h.signal(confirmed));
 
-    expect(sent(deps).map((e) => e.to).sort()).toEqual([
+    expect(withoutCheckIn(sent(deps)).map((e) => e.to).sort()).toEqual([
       'ann@example.test',
       'kim@example.test',
       'lee@example.test',
@@ -288,7 +293,7 @@ describe('planWorkflow confirmed phase', () => {
       await h.signal(committed, rejoin.commitId);
     });
 
-    expect(deps.fakes.email.calls).toHaveLength(3);
+    expect(withoutCheckIn(sent(deps))).toHaveLength(3);
   });
 
   it('sends each committer exactly one confirmation when a send to Mia fails once and is retried (AC3)', async () => {
@@ -297,7 +302,7 @@ describe('planWorkflow confirmed phase', () => {
 
     await run(deps, published.planId, 3_600_000, (h) => h.signal(confirmed));
 
-    expect(sent(deps).map((e) => e.to).sort()).toEqual(['ann@example.test', 'mia@example.test', 'raj@example.test']);
+    expect(withoutCheckIn(sent(deps)).map((e) => e.to).sort()).toEqual(['ann@example.test', 'mia@example.test', 'raj@example.test']);
   });
 });
 
@@ -402,7 +407,7 @@ describe('planWorkflow reminders', () => {
       sendEmail: mail.send,
     });
 
-    const subjects = mail.records.map((r) => r.subject);
+    const subjects = withoutCheckIn(mail.records).map((r) => r.subject);
     expect(subjects).toHaveLength(9);
     for (const s of subjects.slice(0, 3)) expect(s).toMatch(/^It's on: /);
     const tomorrow = mail.records.slice(3, 6);
@@ -470,7 +475,7 @@ describe('planWorkflow reminders', () => {
       sendEmail: mail.send,
     });
 
-    expect(mail.records.map((r) => r.subject.split(':')[0])).toEqual(["It's on", "It's on", "It's on"]);
+    expect(withoutCheckIn(mail.records).map((r) => r.subject.split(':')[0])).toEqual(["It's on", "It's on", "It's on"]);
   });
 
   it('gives a committer who joins after the 24h reminder the confirmation and the morning one only', async () => {
@@ -655,7 +660,7 @@ describe('planWorkflow reminders', () => {
       },
     });
 
-    expect(mail.records).toHaveLength(6);
+    expect(withoutCheckIn(mail.records)).toHaveLength(6);
     const others = ['ann@example.test', 'raj@example.test'];
     for (const prefix of ["It's on:", 'Tomorrow:', 'Today:']) {
       expect(
@@ -826,6 +831,7 @@ describe('planWorkflow call-off', () => {
     }
     expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
     expect(startingWith(mail.records, 'Today:')).toEqual([]);
+    expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
   it('sends no morning reminder or check-in after a call-off between the two reminders', async () => {
@@ -854,6 +860,31 @@ describe('planWorkflow call-off', () => {
     expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
     // Sent on the signal, not when the morning wait would have run out.
     for (const r of notThisTime) expect(r.at).toBeLessThan(Date.parse('2026-11-14T16:00:00Z') + shift);
+    expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
+  });
+
+  it('sends no check-in after a call-off between the morning reminder and the check-in time (AC3)', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await env.sleep(Date.parse('2026-11-14T16:00:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000);
+        await vi.waitFor(() => expect(startingWith(mail.records, 'Today:')).toHaveLength(3), {
+          timeout: 10_000,
+          interval: 20,
+        });
+        await callOff(deps, published.manageToken);
+        await h.signal(calledOff);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    expect(startingWith(mail.records, 'Not this time:').map((r) => r.to).sort()).toEqual(EVERYONE);
+    expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
   it('sends Not this time once each, and not to a committer who withdrew', async () => {
@@ -913,6 +944,7 @@ describe('planWorkflow call-off', () => {
     }
     expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
     expect(startingWith(mail.records, 'Today:')).toEqual([]);
+    expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
   it('sends Ana no check-in email when no signal arrived (AC2)', async () => {
@@ -935,6 +967,7 @@ describe('planWorkflow call-off', () => {
       NOT_THIS_TIME,
     ]);
     for (const r of mail.records) expect(r.at).toBeLessThan(Date.parse('2026-11-14T18:01:00Z') + shift);
+    expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
   it('sends no morning reminder or check-in when a call-off after the 24h reminder never signalled', async () => {
@@ -962,6 +995,7 @@ describe('planWorkflow call-off', () => {
     expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
     // Sent when the morning reminder was due, as no signal told the workflow sooner.
     for (const r of notThisTime) expect(r.at).toBeGreaterThanOrEqual(Date.parse('2026-11-14T16:00:00Z') + shift);
+    expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
   it('sends Not this time exactly once each when the signal arrived and the plan is called off in Postgres (AC5)', async () => {
@@ -1020,5 +1054,106 @@ describe('planWorkflow call-off', () => {
     await expect(
       Worker.runReplayHistory({ workflowsPath }, loadHistory('before-call-off-from-db-4-4')),
     ).resolves.toBeUndefined();
+  });
+
+  it('replays a history recorded before check-in-4-5', async () => {
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-check-in-4-5')),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe('planWorkflow check-in', () => {
+  const CHECK_IN_AT = '2026-11-15T18:00:00Z';
+  const CHECK_IN_SUBJECT = 'Did it happen? Coffee on Sat 14 Nov';
+
+  it('sends Ana one check-in at the check-in time and ends (AC1, AC5)', async () => {
+    const { deps, published, plan } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    const shift = await runSchedule(deps, published.planId, {
+      schedule: { ...EXAMPLE, checkInAt: CHECK_IN_AT },
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+    });
+
+    const checkIns = startingWith(mail.records, 'Did it happen?');
+    expect(checkIns).toHaveLength(1);
+    const [checkIn] = checkIns;
+    expect(checkIn!.to).toBe('ann@example.test');
+    expect(checkIn!.subject).toBe(CHECK_IN_SUBJECT);
+    const link = (question: string, answer: string) => `${TEST_BASE_URL}/c/${plan.checkInToken}/${question}/${answer}`;
+    expect(checkIn!.text).toBe(
+      [
+        'Hi Ann,',
+        'Coffee at Blue Bottle was yesterday. Two quick taps, please.',
+        'Did it happen?',
+        `Yes: ${link('happened', 'yes')}`,
+        `No: ${link('happened', 'no')}`,
+        'Were you there?',
+        `Yes: ${link('attended', 'yes')}`,
+        `No: ${link('attended', 'no')}`,
+        'Thanks!',
+        '',
+      ].join('\n'),
+    );
+    expectAt(checkIn!.at, CHECK_IN_AT, shift);
+    const sentEvents = await db.select().from(events).where(eq(events.type, 'email.sent'));
+    expect(sentEvents.some((e) => (e.data as { kind: string }).kind === 'check_in')).toBe(true);
+  });
+
+  it('sends no check-in to a plan called off at its deadline (AC3)', async () => {
+    const deps = testDeps();
+    const published = await publishPlan(deps, { minimum: '4' });
+    await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
+    await commit(deps, published.publicToken, form('Raj', 'raj@example.test'));
+
+    await run(deps, published.planId);
+
+    expect((await loadPlan(db, published.manageToken))?.state).toBe('called_off');
+    expect(sent(deps).filter((e) => e.subject.startsWith('Not this time:'))).toHaveLength(3);
+    expect(sent(deps).filter((e) => e.subject.startsWith('Did it happen?'))).toEqual([]);
+  });
+
+  it('a first check-in send that fails retryably is retried and Ana still gets one email (AC4)', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps, (p) => p.subject.startsWith('Did it happen?'));
+
+    await runSchedule(deps, published.planId, {
+      schedule: { ...EXAMPLE, checkInAt: CHECK_IN_AT },
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (_h, shift) => {
+        mail.failUntil = Date.parse(CHECK_IN_AT) + shift + 2000;
+      },
+    });
+
+    const checkIns = startingWith(mail.records, 'Did it happen?');
+    expect(checkIns).toHaveLength(1);
+    expect(checkIns[0]!.to).toBe('ann@example.test');
+    expect(checkIns[0]!.at).toBeGreaterThan(mail.failUntil!);
+  });
+
+  it('sends the check-in to Ana only when a committer joined after the 24h reminder (AC5)', async () => {
+    const { deps, published } = await confirmedPlan();
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: { ...EXAMPLE, checkInAt: CHECK_IN_AT },
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await env.sleep(Date.parse('2026-11-13T18:00:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000);
+        await vi.waitFor(() => expect(startingWith(mail.records, 'Tomorrow:')).toHaveLength(3), {
+          timeout: 10_000,
+          interval: 20,
+        });
+        const lee = await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+        if (lee.outcome !== 'committed') throw new Error('Lee should commit');
+        await h.signal(committed, lee.commitId);
+      },
+    });
+
+    expect(startingWith(mail.records, 'Did it happen?').map((r) => r.to)).toEqual(['ann@example.test']);
   });
 });

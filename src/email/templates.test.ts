@@ -61,11 +61,41 @@ describe('buildEmail not_this_time', () => {
     expect(text).not.toContain(c.name);
     expect(text).not.toMatch(/\d/);
   });
+});
 
-  it('throws for a kind without a template', () => {
-    expect(() => buildEmail('check_in', plan, commit(true), 'https://example.test')).toThrow(
-      'No email template for check_in',
+describe('buildEmail check_in', () => {
+  const base = 'https://example.test';
+  const link = '/c/checkintokencheckintoken';
+
+  it('builds the subject and exact body for the creator (AC1)', () => {
+    const payload = buildEmail('check_in', plan, commit(true), base);
+    expect(payload.to).toBe('casey@example.test');
+    expect(payload.subject).toBe('Did it happen? Coffee on Sat 14 Nov');
+    expect(payload.tags).toEqual([{ name: 'kind', value: 'check_in' }]);
+    expect(payload.text).toBe(
+      [
+        'Hi Casey,',
+        'Coffee at Blue Bottle was yesterday. Two quick taps, please.',
+        'Did it happen?',
+        `Yes: ${base}${link}/happened/yes`,
+        `No: ${base}${link}/happened/no`,
+        'Were you there?',
+        `Yes: ${base}${link}/attended/yes`,
+        `No: ${base}${link}/attended/no`,
+        'Thanks!',
+        '',
+      ].join('\n'),
     );
+  });
+
+  it('has no withdraw URL and no other committer name (AC2)', () => {
+    const joiner = commit(false);
+    const { text } = buildEmail('check_in', plan, joiner, base, [commit(true), joiner]);
+    expect(text).not.toContain('/w/');
+    expect(text).not.toContain('withdrawtokenwithdrawtoken');
+    expect(text).not.toContain('Casey');
+    const creatorText = buildEmail('check_in', plan, commit(true), base, [commit(true), joiner]).text;
+    expect(creatorText).not.toContain('Pat');
   });
 });
 

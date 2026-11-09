@@ -13,6 +13,7 @@ const REQUIRED_STATE: Partial<Record<EmailKind, string>> = {
   confirmed: 'confirmed',
   reminder_24h: 'confirmed',
   reminder_morning: 'confirmed',
+  check_in: 'confirmed',
 };
 
 function requiredState(kind: EmailKind): string {
@@ -79,6 +80,16 @@ export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: 
       const target = commits.find((c) => c.id === commitId);
       if (!target) return;
       await sendOrSkip(planId, kind, () => sendWithPrerequisite(deps, kind, plan, target, commits));
+    },
+
+    /** Asks the plan's creator whether it happened, if the plan is confirmed and the creator is still active. */
+    async sendCheckIn(planId: string): Promise<void> {
+      const required = requiredState('check_in');
+      const { plan, commits } = await loadSendTargets(deps.db, planId);
+      if (plan.state !== required) return;
+      const creator = commits.find((c) => c.isCreator);
+      if (!creator) return;
+      await sendOrSkip(planId, 'check_in', () => sendOnce(deps, 'check_in', plan, creator, commits));
     },
   };
 }

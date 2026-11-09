@@ -125,12 +125,4 @@ describe('sendOnce manage_link', () => {
     expect(payload.subject).toContain(venue);
     expect(payload.text).toContain(venue);
   });
-
-  it('throws for a kind with no template', async () => {
-    const { deps, plan, commit } = await setup();
-
-    await expect(
-      sendOnce({ db, sendEmail: deps.sendEmail, baseUrl: TEST_BASE_URL }, 'check_in', plan, commit),
-    ).rejects.toThrow('No email template for check_in');
-  });
 });

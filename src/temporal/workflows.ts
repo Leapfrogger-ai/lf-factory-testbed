@@ -136,9 +136,10 @@ export async function planWorkflow(input: PlanWorkflowInput): Promise<void> {
         if (await endedByCallOff()) return;
         await sendReminder('reminder_morning');
       }
-      // Placeholder end of the confirmed phase: Epic 4 adds the check-in here.
       await waitUntil(input.checkInAt, stopOnCallOff);
       if (await endedByCallOff()) return;
+      // Gated so a history recorded by story 4.4's workflow (placeholder end at the check-in time) still replays.
+      if (patched('check-in-4-5')) await activities.sendCheckIn(input.planId);
     } else {
       // Placeholder end of the confirmed phase: story 3.3 replaces this wait with the reminder timers.
       const endAt = input.checkInAt;
