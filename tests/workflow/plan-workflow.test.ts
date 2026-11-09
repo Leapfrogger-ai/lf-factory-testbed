@@ -311,6 +311,7 @@ const EXAMPLE: Schedule = {
   reminder24At: '2026-11-13T18:00:00Z',
   reminderMorningAt: '2026-11-14T16:00:00Z',
   checkInAt: '2026-11-14T18:01:00Z',
+  gatheringAt: '2026-11-14T18:00:00Z',
 };
 
 /**
@@ -357,6 +358,7 @@ async function runSchedule(
     reminder24At: Date.parse(schedule.reminder24At) + shift,
     reminderMorningAt: schedule.reminderMorningAt === null ? null : Date.parse(schedule.reminderMorningAt) + shift,
     checkInAt: Date.parse(schedule.checkInAt) + shift,
+    gatheringAt: Date.parse(schedule.gatheringAt) + shift,
   };
   queueCount += 1;
   const taskQueue = `plan-workflow-test-${queueCount}`;
@@ -425,6 +427,7 @@ describe('planWorkflow reminders', () => {
       reminder24At: '2026-11-13T17:30:00Z',
       reminderMorningAt: null,
       checkInAt: '2026-11-15T18:00:00Z', // FR027: 10:00 the day after
+      gatheringAt: '2026-11-14T17:30:00Z',
     });
     const mail = timedEmail(deps);
 

@@ -7,6 +7,7 @@ export type Schedule = {
   reminder24At: string;
   reminderMorningAt: string | null;
   checkInAt: string;
+  gatheringAt: string;
 };
 
 export type DisplayState = 'needs_more' | 'not_this_time' | 'on' | 'happening_now' | 'was_on';
@@ -30,6 +31,7 @@ export function computeSchedule(gatheringAt: Temporal.Instant, deadlineAt: Tempo
     reminder24At: gatheringAt.subtract({ hours: 24 }).toString(),
     reminderMorningAt: localHour(gatheringAt) < 10 ? null : localOn(gatheringAt, 8, 0).toString(),
     checkInAt: localOn(gatheringAt, 10, 1).toString(),
+    gatheringAt: gatheringAt.toString(),
   };
 }
 

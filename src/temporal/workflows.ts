@@ -7,6 +7,7 @@ export type PlanWorkflowInput = {
   reminder24At: number;
   reminderMorningAt: number | null;
   checkInAt: number;
+  gatheringAt?: number;
 };
 
 export const confirmed = defineSignal<[]>('confirmed');
