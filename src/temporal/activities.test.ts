@@ -1,6 +1,7 @@
 import { ApplicationFailure } from '@temporalio/activity';
+import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { emailSends } from '../db/schema.ts';
+import { emailSends, events } from '../db/schema.ts';
 import { callOff, commit, loadPlan, loadSendTargets, withdraw } from '../domain/plans.ts';
 import { commitFormSchema } from '../web/forms.ts';
 import { publishPlan, TEST_BASE_URL, testDeps } from '../../tests/support/builders.ts';
@@ -503,5 +504,78 @@ describe('a committer whose send fails non-retryably', () => {
     await activities.sendToCommitters(published.planId, 'confirmed');
 
     expect(recipients(deps)).toEqual([ann, raj]);
+  });
+});
+
+describe('sendCheckIn', () => {
+  it('sends one check-in to the creator only, and an email.sent event with kind check_in (AC1, AC5)', async () => {
+    const { deps, published, activities } = await setup([
+      ['Mia', 'mia@example.test'],
+      ['Raj', 'raj@example.test'],
+    ]);
+    await commit(deps, published.publicToken, form('Lee', 'lee@example.test'));
+
+    await activities.sendCheckIn(published.planId);
+
+    const emails = sent(deps);
+    expect(emails).toHaveLength(1);
+    expect(emails[0]!.to).toBe('ann@example.test');
+    expect(emails[0]!.subject).toBe('Did it happen? Coffee on Sat 14 Nov');
+    const rows = await db.select().from(events).where(eq(events.type, 'email.sent'));
+    expect(rows).toHaveLength(1);
+    expect((rows[0]!.data as { kind: string }).kind).toBe('check_in');
+  });
+
+  it('sends nothing for an open or called-off plan (AC3)', async () => {
+    const open = await setup([['Mia', 'mia@example.test']]);
+    await open.activities.sendCheckIn(open.published.planId);
+
+    const off = await setup([
+      ['Mia', 'mia@example.test'],
+      ['Raj', 'raj@example.test'],
+    ]);
+    await callOff(off.deps, off.published.manageToken);
+    await off.activities.sendCheckIn(off.published.planId);
+
+    expect(open.deps.fakes.email.calls).toHaveLength(0);
+    expect(off.deps.fakes.email.calls).toHaveLength(0);
+  });
+
+  it('a retry after a failed first send still sends exactly one email (AC4)', async () => {
+    const { deps, published } = await setup([
+      ['Mia', 'mia@example.test'],
+      ['Raj', 'raj@example.test'],
+    ]);
+    let failed = false;
+    const flaky = createActivities({
+      db,
+      baseUrl: TEST_BASE_URL,
+      sendEmail: async (payload, key) => {
+        if (!failed) {
+          failed = true;
+          throw new Error('email send failed');
+        }
+        return deps.sendEmail(payload, key);
+      },
+    });
+
+    await expect(flaky.sendCheckIn(published.planId)).rejects.toThrow('email send failed');
+    await flaky.sendCheckIn(published.planId);
+
+    expect(recipients(deps)).toEqual(['ann@example.test']);
+    const rows = await db.select().from(events).where(eq(events.type, 'email.sent'));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('is idempotent', async () => {
+    const { deps, published, activities } = await setup([
+      ['Mia', 'mia@example.test'],
+      ['Raj', 'raj@example.test'],
+    ]);
+
+    await activities.sendCheckIn(published.planId);
+    await activities.sendCheckIn(published.planId);
+
+    expect(deps.fakes.email.calls).toHaveLength(1);
   });
 });
