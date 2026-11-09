@@ -19,12 +19,37 @@ const escape = (s: string): string => s.replace(/[.*+?^$()|[\]{}\\]/g, '\\$&');
 const inName = (id: string): RegExp => new RegExp(`(?<![\\w-])${escape(id)}(?![\\w-])`);
 const inFixture = (id: string): RegExp => new RegExp(`(?<!\\w)${escape(id)}(?![\\w-])`);
 
-// Blank out // and /* */ comments, leaving string literals (and newlines) intact.
+// A "/" starts a regex literal, not a division, after an operator, an opening
+// bracket, the start of the text, or the keyword return.
+const startsRegex = (before: string): boolean => {
+  const code = before.trimEnd();
+  return code === '' || /[(,=:[!&|?{};]$/.test(code) || /(^|\W)return$/.test(code);
+};
+
+// The end of the regex literal that starts at text[i] (past its closing "/").
+function regexEnd(text: string, i: number): number {
+  let j = i + 1;
+  let inClass = false;
+  while (j < text.length && text[j] !== '\n' && (inClass || text[j] !== '/')) {
+    if (text[j] === '\\') j += 1;
+    else if (text[j] === '[') inClass = true;
+    else if (text[j] === ']') inClass = false;
+    j += 1;
+  }
+  return j + 1;
+}
+
+// Blank out // and /* */ comments, leaving string and regex literals (and
+// newlines) intact.
 function stripComments(text: string): string {
   let out = '';
   for (let i = 0; i < text.length; ) {
     const c = text[i]!;
-    if (c === "'" || c === '"' || c === '`') {
+    if (c === '/' && !'/*'.includes(text[i + 1] ?? '') && startsRegex(out)) {
+      const end = regexEnd(text, i);
+      out += text.slice(i, end);
+      i = end;
+    } else if (c === "'" || c === '"' || c === '`') {
       let j = i + 1;
       while (j < text.length && text[j] !== c) j += text[j] === '\\' ? 2 : 1;
       out += text.slice(i, j + 1);
@@ -43,9 +68,10 @@ function stripComments(text: string): string {
 }
 
 // The text after each plain it( or test( that calls runReplayHistory(. A
-// variant such as it.skip( or it.each( ends the previous block but is not kept.
+// variant such as it.skip( or it.each( or it.each` ends the previous block but
+// is not kept.
 function replayBlocks(text: string): string[] {
-  const parts = text.split(/^[ \t]*((?:it|test)(?:\.\w+)*)\(/m);
+  const parts = text.split(/^[ \t]*((?:it|test)(?:\.\w+)*)(?:\(|(?=`))/m);
   const blocks: string[] = [];
   for (let i = 1; i < parts.length; i += 2) {
     if (/^(it|test)$/.test(parts[i]!) && parts[i + 1]!.includes('runReplayHistory(')) {

@@ -116,3 +116,23 @@ test('the same id in two workflow sources is one problem', () => {
   );
   expect(problems).toEqual([expect.stringContaining('example-x')]);
 });
+
+test('a regex literal holding an apostrophe does not hide a later comment', () => {
+  const regex: Source = {
+    file: 'tests/workflow/x.test.ts',
+    text: "it('replays', async () => {\n  expect(msg).toMatch(/^It's on: /);\n  // loadHistory('call-off-3-5')\n  await Worker.runReplayHistory(opts, loadHistory('recorded'));\n});\n",
+  };
+  expect(patchedIdProblems(workflow('call-off-3-5'), [regex])).toEqual([
+    expect.stringContaining('call-off-3-5'),
+  ]);
+});
+
+test('a tagged-template it.each ends the previous block', () => {
+  const each: Source = {
+    file: 'tests/workflow/x.test.ts',
+    text: "it('replays', async () => {\n  await Worker.runReplayHistory(opts, loadHistory('recorded'));\n});\nit.each`\n  a\n`('old', async () => {\n  await Worker.runReplayHistory(opts, loadHistory('call-off-3-5'));\n});\n",
+  };
+  expect(patchedIdProblems(workflow('call-off-3-5'), [each])).toEqual([
+    expect.stringContaining('call-off-3-5'),
+  ]);
+});
