@@ -535,6 +535,13 @@ describe('planWorkflow reminders', () => {
     for (const e of today) expect(e.text).not.toContain('Raj');
   });
 
+  it('replays a history recorded before reminders-in-time-4-3', async () => {
+    // Recorded once from the 4.2-era planWorkflow: confirmed signal, then both reminders and the check-in timer.
+    await expect(
+      Worker.runReplayHistory({ workflowsPath }, loadHistory('before-reminders-in-time-4-3')),
+    ).resolves.toBeUndefined();
+  });
+
   it('replays a history recorded before reminders-3-3', async () => {
     const { deps, published } = await confirmedPlan();
     let handle: WorkflowHandle | undefined;
