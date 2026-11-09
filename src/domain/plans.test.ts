@@ -7,7 +7,7 @@ import { resetDb, testDb } from '../../tests/support/db.ts';
 import { fixedClock } from '../../tests/support/fakes.ts';
 import { loadFixture } from '../../tests/support/fixtures.ts';
 import { commitFormSchema } from '../web/forms.ts';
-import { callOff, commit, countPlans, loadFromPlan, loadPlan, loadManagePlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, resolveDeadline, withdraw } from './plans.ts';
+import { callOff, commit, countPlans, loadFromPlan, loadPlan, loadManagePlan, loadPublicPlan, loadSendTargets, loadWithdrawTarget, recordCheckInAnswer, resolveDeadline, withdraw } from './plans.ts';
 import { loadSuggestion, recordSuggestion } from './suggestions.ts';
 import { newToken } from './tokens.ts';
 
@@ -820,5 +820,95 @@ describe('callOff', () => {
     const deps = testDeps();
 
     expect(await callOff(deps, newToken())).toEqual({ outcome: 'not_found' });
+  });
+});
+
+describe('recordCheckInAnswer', () => {
+  const form = (name: string, email: string) => commitFormSchema.parse({ name, email });
+
+  // Ann plus Mia and Raj make 3 of 3, which confirms the plan.
+  async function confirmedPlan(deps: ReturnType<typeof testDeps>) {
+    const published = await publishPlan(deps, { name: 'Ann', email: 'ann@example.test' });
+    await commit(deps, published.publicToken, form('Mia Chen', 'mia@example.test'));
+    await commit(deps, published.publicToken, form('Raj Patel', 'raj@example.test'));
+    return published;
+  }
+
+  const answeredEvents = async (manageToken: string) =>
+    ((await loadPlan(db, manageToken))?.events ?? []).filter((e) => e.type === 'check_in.answered');
+
+  it('records an answer and an event, and reports the other question unanswered', async () => {
+    const deps = testDeps();
+    const { manageToken } = await confirmedPlan(deps);
+    const plan = await loadPlan(db, manageToken);
+
+    const result = await recordCheckInAnswer(deps, plan!.checkInToken, 'happened', true);
+
+    expect(result).toEqual({ outcome: 'recorded', other: 'attended', otherAnswered: false });
+    expect((await loadPlan(db, manageToken))?.checkInAnswers).toEqual([{ question: 'happened', answer: true }]);
+    expect(await answeredEvents(manageToken)).toEqual([
+      { type: 'check_in.answered', data: { question: 'happened', answer: true } },
+    ]);
+  });
+
+  it('replaces a repeated answer and records a second event', async () => {
+    const deps = testDeps();
+    const { manageToken } = await confirmedPlan(deps);
+    const { checkInToken } = (await loadPlan(db, manageToken))!;
+
+    await recordCheckInAnswer(deps, checkInToken, 'happened', true);
+    await recordCheckInAnswer(deps, checkInToken, 'happened', false);
+
+    expect((await loadPlan(db, manageToken))?.checkInAnswers).toEqual([{ question: 'happened', answer: false }]);
+    expect((await answeredEvents(manageToken)).map((e) => e.data.answer)).toEqual([true, false]);
+  });
+
+  it('reports the other question answered once both exist', async () => {
+    const deps = testDeps();
+    const { manageToken } = await confirmedPlan(deps);
+    const { checkInToken } = (await loadPlan(db, manageToken))!;
+
+    await recordCheckInAnswer(deps, checkInToken, 'happened', true);
+    const result = await recordCheckInAnswer(deps, checkInToken, 'attended', false);
+
+    expect(result).toEqual({ outcome: 'recorded', other: 'happened', otherAnswered: true });
+    expect((await loadPlan(db, manageToken))?.checkInAnswers).toEqual([
+      { question: 'attended', answer: false },
+      { question: 'happened', answer: true },
+    ]);
+  });
+
+  it.each([
+    [
+      'a called-off plan',
+      async (deps: ReturnType<typeof testDeps>) => {
+        const published = await confirmedPlan(deps);
+        await callOff(deps, published.manageToken);
+        return { manageToken: published.manageToken, token: (await loadPlan(db, published.manageToken))!.checkInToken };
+      },
+    ],
+    [
+      'an open plan',
+      async (deps: ReturnType<typeof testDeps>) => {
+        const published = await publishPlan(deps);
+        return { manageToken: published.manageToken, token: (await loadPlan(db, published.manageToken))!.checkInToken };
+      },
+    ],
+    [
+      'an unknown token',
+      async (deps: ReturnType<typeof testDeps>) => {
+        const published = await confirmedPlan(deps);
+        return { manageToken: published.manageToken, token: newToken() };
+      },
+    ],
+  ])('records nothing for %s', async (_name, setup) => {
+    const deps = testDeps();
+    const { manageToken, token } = await setup(deps);
+
+    const result = await recordCheckInAnswer(deps, token, 'happened', true);
+
+    expect(result).toEqual({ outcome: 'not_found' });
+    expect((await loadPlan(db, manageToken))?.checkInAnswers).toEqual([]);
+    expect(await answeredEvents(manageToken)).toEqual([]);
   });
 });

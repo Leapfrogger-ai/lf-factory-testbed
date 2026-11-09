@@ -1,6 +1,6 @@
 import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
-import { commits, emailSends, events, plans } from '../db/schema.ts';
+import { checkInAnswers, commits, emailSends, events, plans } from '../db/schema.ts';
 import type { AppDeps } from '../web/app.ts';
 import type { CommitForm, PublishForm } from '../web/forms.ts';
 import { appendEvent } from './events.ts';
@@ -28,6 +28,7 @@ export type PlanView = {
   calledOffAt: string | null;
   commits: { isCreator: boolean; withdrawToken: string }[];
   events: { type: string; data: Record<string, unknown> }[];
+  checkInAnswers: { question: CheckInQuestion; answer: boolean }[];
 };
 
 /** An old plan to publish a new one from; name and email are the old plan's creator commit. */
@@ -193,6 +194,11 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
   if (!plan) return null;
   const planCommits = await db.select().from(commits).where(eq(commits.planId, plan.id)).orderBy(asc(commits.createdAt));
   const planEvents = await db.select().from(events).where(eq(events.planId, plan.id)).orderBy(asc(events.id));
+  const answers = await db
+    .select({ question: checkInAnswers.question, answer: checkInAnswers.answer })
+    .from(checkInAnswers)
+    .where(eq(checkInAnswers.planId, plan.id))
+    .orderBy(asc(checkInAnswers.question));
   const creator = planCommits.find((c) => c.isCreator);
   const [sent] = creator
     ? await db
@@ -216,6 +222,7 @@ export async function loadPlan(db: Db, manageToken: string): Promise<PlanView | 
     calledOffAt: plan.calledOffAt?.toTemporalInstant().toString() ?? null,
     commits: planCommits.map((c) => ({ isCreator: c.isCreator, withdrawToken: c.withdrawToken })),
     events: planEvents.map((e) => ({ type: e.type, data: e.data as Record<string, unknown> })),
+    checkInAnswers: answers,
   };
 }
 
@@ -475,6 +482,39 @@ export async function callOff(deps: Pick<AppDeps, 'db' | 'now'>, manageToken: st
       data: { reason: 'creator', wasConfirmed: plan.state === 'confirmed', activeCount: active!.value },
     });
     return { outcome: 'called_off', planId: plan.id };
+  });
+}
+
+export type CheckInQuestion = 'happened' | 'attended';
+
+export type CheckInResult =
+  | { outcome: 'not_found' }
+  | { outcome: 'recorded'; other: CheckInQuestion; otherAnswered: boolean };
+
+/** Records (or replaces) an answer to a check-in question; only a confirmed plan takes answers. */
+export async function recordCheckInAnswer(
+  deps: Pick<AppDeps, 'db'>,
+  checkInToken: string,
+  question: CheckInQuestion,
+  answer: boolean,
+): Promise<CheckInResult> {
+  return deps.db.transaction(async (tx) => {
+    const [plan] = await tx.select().from(plans).where(eq(plans.checkInToken, checkInToken)).for('update');
+    if (!plan || plan.state !== 'confirmed') return { outcome: 'not_found' };
+    await tx
+      .insert(checkInAnswers)
+      .values({ planId: plan.id, question, answer })
+      .onConflictDoUpdate({
+        target: [checkInAnswers.planId, checkInAnswers.question],
+        set: { answer, answeredAt: sql`now()` },
+      });
+    await appendEvent(tx, { planId: plan.id, type: 'check_in.answered', data: { question, answer } });
+    const other: CheckInQuestion = question === 'happened' ? 'attended' : 'happened';
+    const [otherRow] = await tx
+      .select({ question: checkInAnswers.question })
+      .from(checkInAnswers)
+      .where(and(eq(checkInAnswers.planId, plan.id), eq(checkInAnswers.question, other)));
+    return { outcome: 'recorded', other, otherAnswered: otherRow !== undefined };
   });
 }
 

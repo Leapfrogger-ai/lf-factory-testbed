@@ -12,6 +12,7 @@ import { responseHeaders } from './headers.ts';
 import { publicRoutes } from './routes/public.ts';
 import { createRateLimiter } from './rate-limit.ts';
 import { requestLogger } from './request-logger.ts';
+import { checkInRoutes } from './routes/check-in.ts';
 import { createRoutes } from './routes/create.ts';
 import { manageRoutes } from './routes/manage.ts';
 import { withdrawRoutes } from './routes/withdraw.ts';
@@ -60,6 +61,7 @@ export function createApp(deps: AppDeps, config: AppConfig): Hono {
   app.route('/', manageRoutes(deps, config));
   app.route('/', publicRoutes(deps, config));
   app.route('/', withdrawRoutes(deps));
+  app.route('/', checkInRoutes(deps));
   app.onError((err, c) => {
     if (err instanceof HTTPException && err.status === 403) {
       log.warn('csrf rejected');
