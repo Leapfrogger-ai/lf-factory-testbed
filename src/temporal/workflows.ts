@@ -91,9 +91,16 @@ export async function planWorkflow(input: PlanWorkflowInput): Promise<void> {
     if (patched('reminders-3-3')) {
       // Gated so a history recorded by story 3.3's workflow (which ignored a call-off once confirmed) still replays.
       const stopOnCallOff = patched('call-off-3-5');
-      /** After a call-off, sends "Not this time" once and reports that the workflow should end. */
+      // Gated so a history recorded before the database was consulted for a call-off still replays.
+      const fromDb = patched('call-off-from-db-4-4');
+      /**
+       * After a call-off, sends "Not this time" once and reports that the workflow should end. The signal can be
+       * lost, so when it has not arrived the plan's state in the database decides.
+       */
       const endedByCallOff = async (): Promise<boolean> => {
-        if (!stopOnCallOff || !isCalledOff) return false;
+        if (!stopOnCallOff) return false;
+        if (!isCalledOff && fromDb) isCalledOff = (await activities.planState(input.planId)) === 'called_off';
+        if (!isCalledOff) return false;
         await activities.sendToCommitters(input.planId, 'not_this_time');
         return true;
       };
