@@ -29,7 +29,8 @@ const activities = proxyActivities<Activities>({
 });
 
 // The reminder sends keep retrying for up to 20h, so a send failing overnight still goes out late (and the
-// 6h rule then skips the morning one). A reminder still retrying when the gathering starts is dropped.
+// 6h rule then skips the morning one). The morning reminder still retrying when the gathering starts is
+// dropped; the 24h reminder's 20h window ends before the gathering, so an exhausted 24h send fails the workflow.
 const reminders = proxyActivities<Activities>({
   startToCloseTimeout: '30s',
   scheduleToCloseTimeout: '20h',
