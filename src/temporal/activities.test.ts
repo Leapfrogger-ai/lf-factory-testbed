@@ -214,6 +214,46 @@ describe('sendToOne', () => {
 
     expect(deps.fakes.email.calls).toHaveLength(before);
   });
+
+  describe('when the send fails', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    async function withLee() {
+      const s = await setup([
+        ['Mia', 'mia@example.test'],
+        ['Raj', 'raj@example.test'],
+      ]);
+      const lee = await commit(s.deps, s.published.publicToken, form('Lee', 'lee@example.test'));
+      if (lee.outcome !== 'committed') throw new Error('Lee should commit');
+      return { ...s, lee };
+    }
+
+    it('skips a late committer whose send fails non-retryably', async () => {
+      const log = captureLog();
+      const { deps, published, activities, lee } = await withLee();
+      deps.fakes.email.rejectTo('lee@example.test');
+
+      await expect(activities.sendToOne(published.planId, 'confirmed', lee.commitId)).resolves.toBeUndefined();
+
+      expect(recipients(deps)).toEqual([]);
+      const rows = (await db.select().from(emailSends)).filter((r) => r.commitId === lee.commitId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.sentAt).toBeNull();
+      const errors = log.lines.filter((l) => l.level === 'error');
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({ kind: 'confirmed' });
+      expect(log.text()).not.toContain('lee@example.test');
+    });
+
+    it('rethrows a plain error', async () => {
+      const { deps, published, activities, lee } = await withLee();
+      deps.fakes.email.failNextTo('lee@example.test');
+
+      await expect(activities.sendToOne(published.planId, 'confirmed', lee.commitId)).rejects.toThrow(
+        'email send failed',
+      );
+    });
+  });
 });
 
 describe('reminders', () => {

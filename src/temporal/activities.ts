@@ -54,7 +54,7 @@ export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: 
       if (plan.state !== required) return;
       const target = commits.find((c) => c.id === commitId);
       if (!target) return;
-      await sendOnce(deps, kind, plan, target, commits);
+      await sendOrSkip(planId, kind, () => sendOnce(deps, kind, plan, target, commits));
     },
   };
 }
