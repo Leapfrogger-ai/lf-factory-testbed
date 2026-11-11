@@ -116,6 +116,10 @@ describe('formatDeadlineHint', () => {
     ['fall back, 24 h elapsed, same local date', '2026-11-01T07:30:00Z', '2026-11-02T07:30:00Z', 'in 24 hours'],
     ['25 h across 2026-11-01, dates 31 Oct to 1 Nov', '2026-10-31T17:00:00Z', '2026-11-01T18:00:00Z', 'tomorrow'],
     ['spring forward 2027-03-14, 22.5 h real', '2027-03-13T17:30:00Z', '2027-03-14T16:00:00Z', 'in 22 hours'],
+    ['23 h across local midnight', '2026-11-11T17:00:00Z', '2026-11-12T16:00:00Z', 'in 23 hours'],
+    ['spring forward, 23 h real', '2027-03-13T17:00:00Z', '2027-03-14T16:00:00Z', 'in 23 hours'],
+    ['spring forward, 24 h real', '2027-03-13T17:00:00Z', '2027-03-14T17:00:00Z', 'tomorrow'],
+    ['multi-day across 2026-11-01', '2026-10-31T17:00:00Z', '2026-11-02T18:00:00Z', 'in 2 days'],
   ])('%s', (_why, now, deadline, expected) => {
     expect(hint(now, deadline)).toBe(expected);
   });
