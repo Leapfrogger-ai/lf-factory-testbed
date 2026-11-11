@@ -121,8 +121,11 @@ export function publicPlanPage({
     state === 'not_this_time'
       ? html`<p class="copy">This one isn't going ahead. No harm done. Maybe next time.</p>
           <p><a class="quiet" href="/">Suggest a plan</a></p>`
-      : state === 'happening_now' || state === 'was_on'
-        ? filledSeats(plan, state === 'happening_now', justOn)
+      : state === 'happening_now'
+        ? filledSeats(plan, true, justOn)
+        : state === 'was_on'
+          ? html`${filledSeats(plan, false, justOn)}
+          <p><a class="quiet" href="/">Suggest a plan</a></p>`
         : state === 'on'
           ? html`${filledSeats(plan, true, justOn)}
           <p class="meta">More people are welcome until it starts.</p>`

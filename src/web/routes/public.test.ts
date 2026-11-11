@@ -449,6 +449,30 @@ describe('POST /p/:token/commit', () => {
     expect(body).toContain('<li class="seat"');
   });
 
+  it('a plan that was on ends with a quiet Suggest a plan link to /', async () => {
+    const deps = testDeps();
+    const { publicToken } = await confirmedPlan(deps);
+    await post(createApp(deps, { baseUrl: TEST_BASE_URL }), publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+    const app = createApp({ ...deps, now: fixedClock('2026-11-14T22:00:00Z') }, { baseUrl: TEST_BASE_URL });
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).toContain('This was on Sat 14 Nov');
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
+    expect(body).not.toContain('name="email"');
+  });
+
+  it('a plan happening now has no Suggest a plan link', async () => {
+    const deps = testDeps();
+    const { publicToken } = await confirmedPlan(deps);
+    await post(createApp(deps, { baseUrl: TEST_BASE_URL }), publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+    const app = createApp({ ...deps, now: fixedClock('2026-11-14T20:59:59Z') }, { baseUrl: TEST_BASE_URL });
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).not.toContain('Suggest a plan');
+  });
+
   it('a POST once the gathering has started on a confirmed plan is refused with notice=closed and no signal', async () => {
     const deps = testDeps();
     const { publicToken } = await confirmedPlan(deps);
