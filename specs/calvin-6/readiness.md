@@ -1,24 +1,18 @@
 # Readiness: calvin-6
 
-Decision: not_ready
+Decision: ready
 Security signoff: yes
-Reopen stage: epics
+Reopen stage: none
 Maturity: poc
 
 ## Findings
 
-1. Story 5.1's last criterion ("at 360px ... nothing scrolls sideways (checked by hand against frames P8, W3, W4, W5 and X2)") needs a browser, and a headless story session can't check it. The story doesn't say the operator checks it after the merge. Reword it as an operator check after the merge, or drop it.
-2. Story 5.2's last criterion (inputs form and empty card at 360px match frames C1 and C7, "checked by hand") has the same problem. It needs a browser, with no "operator, after the merge" wording.
-3. Story 5.6's last criterion (Yes/No buttons side by side, at least 48px tall, no sideways scroll at 360px, "checked by hand against frames K1–K3") has the same problem. Name it as an operator check after the merge, or turn the 48px and layout parts into CSS-assertion tests.
-4. Story 5.3's phone Copy-button criterion is fine, because it says "checked by hand after the merge, on a phone". The 5.1, 5.2 and 5.6 criteria should use the same wording.
-5. Minor, not blocking: CODING_STANDARDS.md still links `specs/calvin/...` for the research findings. Those files exist under `specs/calvin/`, so the links resolve.
-Everything else checks out.
-- All documents are present: brief (poc), PRD, epics, ux-spec, architecture, database-schema, api-specification, and test-strategy (required). Research findings exist for all five technologies.
-- Platform Capabilities rows link research findings, and CODING_STANDARDS.md has a rule for each row.
-- Security: the poc `secrets` gate is met. Architecture has the Secrets table for ANTHROPIC_API_KEY, RESEND_API_KEY, TEMPORAL_API_KEY and DATABASE_URL, with handling rules, so `security_signoff` is true.
-- The brownfield claim holds. `.github/workflows/ci.yml` runs gitleaks, `npx tsc --noEmit` and `npx vitest run`, and the guardrail tests exist under `tests/`.
-- Stories 5.1 to 5.6 are in the publisher format, with backward-only prerequisites and Given/When/Then criteria.
-- The FR024 change (creator call-off email) is recorded in PRD §FR024 and ux-spec §8.9, and the story keeps the workflow unchanged (no new `patched()` id, replay tests unchanged).
-- No TBD or TODO placeholders were found.
+The earlier findings are resolved, and no new blocking findings turned up.
+- Stories 5.1, 5.2, 5.3 and 5.6 now name their 360px and phone checks as operator checks after the merge, in each story's text and not as criteria. Every acceptance criterion in 5.1 to 5.6 is a Given/When/Then that a test can check headlessly (HTML, CSS text, emails, replay tests).
+- Security: the `secrets` gate is met. `architecture.md` has the Secrets table (ANTHROPIC_API_KEY, RESEND_API_KEY, TEMPORAL_API_KEY, DATABASE_URL) with handling rules, and CI runs gitleaks. `security_signoff` is true.
+- Platform Capabilities: every row links a finding under `specs/calvin-6/research/` that exists, and `CODING_STANDARDS.md` has a rule for each row. No story hand-rolls a platform feature. Story 5.5 keeps the workflow unchanged, with no new `patched()` id, and requires the replay tests to pass unchanged.
+- Brownfield claim holds: `.github/workflows/ci.yml` exists and runs gitleaks, `npx tsc --noEmit` and `npx vitest run`. Omitting a starter story and a guardrails story is justified.
+- Stories are in the publisher format, with backward-only prerequisites (5.1 has None, then 5.2 through 5.6 in order). The FR024 change is recorded as decided.
+- Minor, not blocking: `CODING_STANDARDS.md` links `specs/calvin/...` for the research findings. Those files exist there, so the links resolve.
 
 Written by the factory's readiness check (ADR 0017), from its structured output.
