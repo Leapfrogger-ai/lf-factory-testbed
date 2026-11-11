@@ -486,6 +486,7 @@ describe('loadWithdrawTarget', () => {
       venue: 'Blue Bottle',
       gatheringAt: Temporal.Instant.from('2026-11-14T18:00:00Z'),
       withdrawn: false,
+      publicToken,
     });
     expect(after?.withdrawn).toBe(true);
   });

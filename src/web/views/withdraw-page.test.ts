@@ -8,6 +8,7 @@ const target = (overrides: Partial<WithdrawTarget> = {}): WithdrawTarget => ({
   venue: 'Blue Bottle',
   gatheringAt: Temporal.Instant.from('2026-11-14T18:00:00Z'),
   withdrawn: false,
+  publicToken: 'ptok123',
   ...overrides,
 });
 
