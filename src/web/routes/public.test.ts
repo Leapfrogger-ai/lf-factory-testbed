@@ -60,10 +60,47 @@ describe('GET /p/:token', () => {
     expect(body).not.toContain('Ruiz');
     expect(body).toContain('you?');
     expect(body).toContain('aria-label="1 of 3 people in"');
-    expect(body).toContain('Goes ahead with a minimum of 3. Decide by Wed 11 Nov, 10:00 PM.');
+    expect(body).toContain('Goes ahead with a minimum of 3. Decide by Wed 11 Nov, 10:00 PM (in 2 days).');
     expect(body).toContain('name="email"');
     expect(body).not.toContain('<script');
     expect(body.match(/<link rel="stylesheet"/g)).toHaveLength(1);
+  });
+
+  it('the decide-by sentence ends with the relative hint (AC3)', async () => {
+    const deps = testDeps();
+    const { publicToken } = await publishPlan(deps, { deadlineDate: '2026-11-12', deadlineTime: '10:00' });
+    const app = createApp({ ...deps, now: fixedClock('2026-11-10T18:00:00Z') }, { baseUrl: TEST_BASE_URL });
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).toContain('Goes ahead with a minimum of 3. Decide by Thu 12 Nov, 10:00 AM (in 2 days).');
+  });
+
+  it.each([
+    { now: '2026-11-11T17:00:00Z', hint: '(tomorrow)' },
+    { now: '2026-11-12T13:00:00Z', hint: '(in 5 hours)' },
+    { now: '2026-11-12T17:30:00Z', hint: '(in under an hour)' },
+  ])('the hint reads $hint at $now (AC4)', async ({ now, hint }) => {
+    const deps = testDeps();
+    const { publicToken } = await publishPlan(deps, { deadlineDate: '2026-11-12', deadlineTime: '10:00' });
+    const app = createApp({ ...deps, now: fixedClock(now) }, { baseUrl: TEST_BASE_URL });
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).toContain(`Decide by Thu 12 Nov, 10:00 AM ${hint}.`);
+  });
+
+  it('a confirmed plan says the email is used for details and reminders (AC5)', async () => {
+    const deps = testDeps();
+    const { publicToken } = await publishPlan(deps, creator);
+    await commit(deps, publicToken, commitFormSchema.parse({ name: 'Raj Rao', email: 'raj@example.test' }));
+    await commit(deps, publicToken, commitFormSchema.parse({ name: 'Mia Chen', email: 'mia@example.test' }));
+    const app = createApp({ ...deps, now: fixedClock('2026-11-10T18:00:00Z') }, { baseUrl: TEST_BASE_URL });
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).toContain('Only used to send you the details and reminders. Never shown to anyone.');
+    expect(body).not.toContain("Only used to tell you if it's on.");
   });
 
   it('renders no email address and escapes the creator name (AC4, AC3)', async () => {
@@ -232,6 +269,20 @@ describe('POST /p/:token/commit', () => {
     expect(body).toContain(`id="${id}"`);
     expect(body).toContain(kept);
     expect((await loadPlan(deps.db, manageToken))!.count).toBe(1);
+  });
+
+  it('an invalid commit on a confirmed plan re-renders with the details-and-reminders help line', async () => {
+    const deps = testDeps();
+    const { publicToken } = await confirmedPlan(deps);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    await post(app, publicToken, { name: 'Mia Chen', email: 'mia@example.test' });
+
+    const res = await post(app, publicToken, { name: '', email: 'sam@example.test' });
+
+    expect(res.status).toBe(422);
+    const body = decodeEntities(await res.text());
+    expect(body).toContain('Add your name.');
+    expect(body).toContain('Only used to send you the details and reminders. Never shown to anyone.');
   });
 
   it('a commit after the commit deadline is refused', async () => {

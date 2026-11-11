@@ -228,35 +228,33 @@
 
   // --- Published page: Copy and Share… ---
   const link = byId('public-link');
-  const copy = byId('copy');
   const share = byId('share');
   const copyStatus = byId('copy-status');
 
-  if (link && copy) {
+  document.querySelectorAll('button[data-copy]').forEach((copy) => {
+    const input = byId(copy.dataset.copy);
+    if (!input) return;
     let restore = null;
-    const selectLink = () => {
-      link.focus();
-      link.select();
+    const selectInput = () => {
+      input.focus();
+      input.select();
     };
     copy.addEventListener('click', () => {
       if (!navigator.clipboard || !navigator.clipboard.writeText) {
-        selectLink();
+        selectInput();
         return;
       }
-      navigator.clipboard.writeText(link.value).then(
-        () => {
-          copy.textContent = 'Copied';
-          if (copyStatus) copyStatus.textContent = 'Copied';
-          clearTimeout(restore);
-          restore = setTimeout(() => {
-            copy.textContent = 'Copy';
-            if (copyStatus) copyStatus.textContent = '';
-          }, 2000);
-        },
-        selectLink,
-      );
+      navigator.clipboard.writeText(input.value).then(() => {
+        copy.textContent = 'Copied';
+        if (copyStatus) copyStatus.textContent = 'Copied';
+        clearTimeout(restore);
+        restore = setTimeout(() => {
+          copy.textContent = 'Copy';
+          if (copyStatus) copyStatus.textContent = '';
+        }, 2000);
+      }, selectInput);
     });
-  }
+  });
 
   if (link && share && typeof navigator.share === 'function') {
     share.hidden = false;

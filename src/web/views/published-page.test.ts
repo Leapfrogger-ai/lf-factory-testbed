@@ -6,6 +6,7 @@ const render = (emailed: boolean) =>
     publishedPage({
       publicLink: 'https://example.test/p/tok',
       manageLink: 'https://example.test/m/secret',
+      manageUrl: 'https://example.test/m/secret',
       emailed,
       shareText: 'Join us',
     }),
@@ -46,10 +47,49 @@ describe('publishedPage', () => {
     expect(render(true)).toContain('<a class="quiet" href="https://example.test/m/secret">Manage your plan</a>');
   });
 
-  it('renders both emailed variants', () => {
-    expect(render(true)).toContain("We've emailed you a private link to manage the plan. Keep it to yourself.");
-    expect(render(false)).toContain(
-      "We couldn't email you your private link. Bookmark the link below to manage the plan.",
+  it('emailed: single box and manage link (AC2)', () => {
+    const body = render(true);
+    expect(body.match(/class="linkbox"/g)).toHaveLength(1);
+    expect(body).toContain("We've emailed you a private link to manage the plan. Keep it to yourself.");
+    expect(body).toContain('<a class="quiet" href="https://example.test/m/secret">Manage your plan</a>');
+    expect(body).not.toContain('id="manage-link"');
+    expect(body).not.toContain('Your private link');
+  });
+
+  it('failed email: private link box (AC1)', () => {
+    const body = render(false);
+    expect(body).toContain(
+      "We couldn't email you your private link. Copy it now and keep it somewhere safe: it's the only way to manage the plan.",
     );
+    expect(body).toContain('<label for="manage-link">Your private link</label>');
+    expect(body).toMatch(/<input[^>]*id="manage-link"[^>]*value="https:\/\/example\.test\/m\/secret"/);
+    const button = body.match(/<button[^>]*id="copy-manage"[^>]*>\s*Copy\s*<\/button>/);
+    expect(button).not.toBeNull();
+    expect(button![0]).toContain('btn btn-secondary');
+    expect(body).not.toContain('Bookmark');
+    expect(body).not.toContain('Manage your plan');
+  });
+
+  describe('copy script contract', () => {
+    const copyPairs = (body: string) =>
+      [...body.matchAll(/<div class="linkbox">([\s\S]*?)<\/div>/g)].flatMap((box) =>
+        [...box[1]!.matchAll(/<button[^>]*data-copy="([^"]+)"/g)].map((button) => ({
+          target: button[1]!,
+          inBox: new RegExp(`<input[^>]*id="${button[1]!}"`).test(box[1]!),
+        })),
+      );
+
+    it('failed email: each Copy button names an input in its own box', () => {
+      expect(copyPairs(render(false))).toEqual([
+        { target: 'public-link', inBox: true },
+        { target: 'manage-link', inBox: true },
+      ]);
+      expect(render(false).match(/data-copy=/g)).toHaveLength(2);
+    });
+
+    it('emailed: exactly one Copy button', () => {
+      expect(copyPairs(render(true))).toEqual([{ target: 'public-link', inBox: true }]);
+      expect(render(true).match(/data-copy=/g)).toHaveLength(1);
+    });
   });
 });

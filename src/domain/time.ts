@@ -56,6 +56,23 @@ export function formatDeadline(instant: Temporal.Instant): string {
   return `${day}, ${clock}`;
 }
 
+/**
+ * Relative commit-deadline hint, the text inside the brackets, e.g. `in 5 hours` or `tomorrow`.
+ * Under 24 real hours it counts hours; beyond that it counts calendar days in PLAN_TIME_ZONE.
+ */
+export function formatDeadlineHint(deadline: Temporal.Instant, now: Temporal.Instant): string {
+  const hours = Math.floor(now.until(deadline, { largestUnit: 'hour' }).total('hour'));
+  const hoursText = hours === 1 ? 'in 1 hour' : `in ${hours} hours`;
+  if (hours < 1) return 'in under an hour';
+  if (hours < 24) return hoursText;
+  const days = now
+    .toZonedDateTimeISO(PLAN_TIME_ZONE)
+    .toPlainDate()
+    .until(deadline.toZonedDateTimeISO(PLAN_TIME_ZONE).toPlainDate(), { largestUnit: 'day' }).days;
+  if (days === 0) return hoursText;
+  return days === 1 ? 'tomorrow' : `in ${days} days`;
+}
+
 /** The wall-clock hour (0-23) of the instant in PLAN_TIME_ZONE. */
 export function localHour(instant: Temporal.Instant): number {
   return instant.toZonedDateTimeISO(PLAN_TIME_ZONE).hour;

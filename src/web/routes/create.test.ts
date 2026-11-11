@@ -128,7 +128,7 @@ describe('POST /plans manage-link email', () => {
     expect(location).toMatch(/^\/m\/[A-Za-z0-9_-]{43}\/published$/);
     const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
     expect(await page.text()).toContain(
-      "We couldn't email you your private link. Bookmark the link below to manage the plan.",
+      "We couldn't email you your private link. Copy it now and keep it somewhere safe: it's the only way to manage the plan.",
     );
     const plan = await publishedPlan(res);
     const errors = lines.map((l) => JSON.parse(l) as Record<string, unknown>).filter((l) => l.level === 'error');

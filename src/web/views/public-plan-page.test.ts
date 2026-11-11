@@ -20,13 +20,16 @@ const plan = (overrides: Partial<PublicPlan> = {}): PublicPlan => ({
   ...overrides,
 });
 
-type PageOptions = Omit<Parameters<typeof publicPlanPage>[0], 'plan' | 'state'>;
+type PageOptions = Omit<Parameters<typeof publicPlanPage>[0], 'plan' | 'state' | 'now'>;
+
+const NOW = Temporal.Instant.from('2026-11-10T18:00:00Z');
 
 const render = (
   p: PublicPlan,
   state: DisplayState = 'needs_more',
   options: Partial<PageOptions> = {},
-) => String(publicPlanPage({ plan: p, state, publicToken: 'tok123', ...options }));
+  now: Temporal.Instant = NOW,
+) => String(publicPlanPage({ plan: p, state, publicToken: 'tok123', now, ...options }));
 
 describe('publicPlanPage', () => {
   it('renders the open plan with pill, venue, time, seats and deadline line', () => {
@@ -42,7 +45,7 @@ describe('publicPlanPage', () => {
     expect(body.match(/you\?/g)).toHaveLength(1);
     expect(body.match(/<li/g)).toHaveLength(3);
     expect(body).toContain('aria-label="1 of 3 people in"');
-    expect(body).toContain('Goes ahead with a minimum of 3. Decide by Wed 11 Nov, 10:00 PM.');
+    expect(body).toContain('Goes ahead with a minimum of 3. Decide by Wed 11 Nov, 10:00 PM (tomorrow).');
     expect(body.match(/<h1/g)).toHaveLength(1);
   });
 
@@ -183,11 +186,19 @@ describe('publicPlanPage commit form', () => {
     expect(nameInput).toContain('autocapitalize="words"');
     expect(emailInput).toContain('type="email"');
     expect(emailInput).toContain('inputmode="email"');
-    expect(body).toContain("Only used to tell you if it's on. Never shown to anyone.");
+    expect(body).toMatch(/Only used to tell you if it(&#39;|')s on\. Never shown to anyone\./);
     expect(body).toMatch(/<button[^>]*>\s*I(&#39;|')m in\s*<\/button>/);
     expect(body).not.toContain('<script');
-    const wrapped = String(layout('Plan', publicPlanPage({ plan: plan(), state: 'needs_more', publicToken: 'tok123' })));
+    const wrapped = String(layout('Plan', publicPlanPage({ plan: plan(), state: 'needs_more', publicToken: 'tok123', now: NOW })));
     expect(wrapped.match(/<link rel="stylesheet"/g)).toHaveLength(1);
+  });
+
+  it('shows the details-and-reminders help line when the plan is on, and the old one otherwise', () => {
+    const on = render(plan({ state: 'confirmed' }), 'on');
+
+    expect(on).toContain('Only used to send you the details and reminders. Never shown to anyone.');
+    expect(on).not.toMatch(/Only used to tell you if/);
+    expect(render(plan())).toMatch(/Only used to tell you if it(&#39;|')s on\. Never shown to anyone\./);
   });
 
   it('updated notice replaces the form', () => {

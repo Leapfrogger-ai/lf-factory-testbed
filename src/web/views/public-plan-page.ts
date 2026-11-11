@@ -3,7 +3,7 @@ import { html } from 'hono/html';
 import type { HtmlEscapedString } from 'hono/utils/html';
 import type { DisplayState } from '../../domain/plan-rules.ts';
 import type { PublicPlan } from '../../domain/plans.ts';
-import { formatDay, formatDeadline, formatWhen } from '../../domain/time.ts';
+import { formatDay, formatDeadline, formatDeadlineHint, formatWhen } from '../../domain/time.ts';
 import type { FieldErrors } from './create-page.ts';
 import type { LayoutOptions } from './layout.ts';
 
@@ -64,7 +64,10 @@ function seats(plan: PublicPlan): HtmlEscapedString {
 
 export type CommitFormState = { values: { name?: string; email?: string }; errors: FieldErrors };
 
-function commitForm(publicToken: string, form: CommitFormState | undefined): HtmlEscapedString {
+function commitForm(publicToken: string, form: CommitFormState | undefined, confirmed: boolean): HtmlEscapedString {
+  const emailHelp = confirmed
+    ? 'Only used to send you the details and reminders. Never shown to anyone.'
+    : "Only used to tell you if it's on. Never shown to anyone.";
   const values = form?.values ?? {};
   const errors = form?.errors ?? {};
   const error = (field: string) =>
@@ -81,7 +84,7 @@ function commitForm(publicToken: string, form: CommitFormState | undefined): Htm
       <label for="email">Email</label>
       <input id="email" type="email" name="email" value="${values.email ?? ''}" inputmode="email" autocomplete="email" ${invalid('email')} />
       ${error('email')}
-      <p class="help">Only used to tell you if it's on. Never shown to anyone.</p>
+      <p class="help">${emailHelp}</p>
     </div>
     <button type="submit" class="btn btn-primary">I'm in</button>
   </form>` as HtmlEscapedString;
@@ -105,12 +108,14 @@ export function publicPlanPage({
   plan,
   state,
   publicToken,
+  now,
   notice,
   form,
 }: {
   plan: PublicPlan;
   state: DisplayState;
   publicToken: string;
+  now: Temporal.Instant;
   notice?: PublicNotice;
   form?: CommitFormState;
 }): HtmlEscapedString {
@@ -131,7 +136,7 @@ export function publicPlanPage({
           <p class="meta">More people are welcome until it starts.</p>`
         : html`${seats(plan)}
           <p class="meta">
-            Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)}.
+            Goes ahead with a minimum of ${plan.minimum}. Decide by ${formatDeadline(plan.commitDeadlineAt)} (${formatDeadlineHint(plan.commitDeadlineAt, now)}).
           </p>`;
   const noticeHtml =
     noticeCopy === undefined ? '' : html`<p class="${notice?.code === 'on' ? 'notice notice-on' : 'notice'}" role="status">${noticeCopy}</p>`;
@@ -144,7 +149,7 @@ export function publicPlanPage({
     <p class="when">${formatWhen(plan.gatheringAt)}</p>
     <p class="where">${plan.city}</p>
     ${body}
-    ${state === 'not_this_time' || state === 'happening_now' || state === 'was_on' || replacesForm ? '' : commitForm(publicToken, form)}
+    ${state === 'not_this_time' || state === 'happening_now' || state === 'was_on' || replacesForm ? '' : commitForm(publicToken, form, state === 'on')}
   </main>` as HtmlEscapedString;
 }
 

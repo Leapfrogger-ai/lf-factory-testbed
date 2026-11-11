@@ -56,7 +56,7 @@ export function managePage({
   const linkBox = state === 'not_this_time'
     ? ''
     : html`<label for="public-link">Link to share</label>
-    <div class="linkbox"><input id="public-link" type="text" readonly value="${publicLink}" /><button class="btn btn-primary" id="copy" type="button">Copy</button></div>
+    <div class="linkbox"><input id="public-link" type="text" readonly value="${publicLink}" /><button class="btn btn-primary" id="copy" type="button" data-copy="public-link">Copy</button></div>
     <p id="copy-status" aria-live="polite"></p>`;
   const startAgain = html`<a class="${state === 'not_this_time' ? 'btn btn-primary' : 'btn btn-secondary'}" href="${manage}/new">Start a new plan from this</a>`;
   const actions =

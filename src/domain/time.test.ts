@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatClock, formatDay, formatDeadline, formatShareWhen, formatWhen, localDateTime } from './time.ts';
+import { formatClock, formatDay, formatDeadline, formatDeadlineHint, formatShareWhen, formatWhen, localDateTime } from './time.ts';
 
 const when = (iso: string) => formatWhen(Temporal.Instant.from(iso));
 const day = (iso: string) => formatDay(Temporal.Instant.from(iso));
@@ -94,6 +94,35 @@ test.each([
   ['2027-03-14T18:00:00Z', '11:00 AM'],
 ])('formatClock of %s is %s in plan time', (iso, expected) => {
   expect(formatClock(Temporal.Instant.from(iso))).toBe(expected);
+});
+
+describe('formatDeadlineHint', () => {
+  const hint = (now: string, deadline: string) =>
+    formatDeadlineHint(Temporal.Instant.from(deadline), Temporal.Instant.from(now));
+
+  test('counts calendar days for 48 h away (AC3)', () => {
+    expect(hint('2026-11-10T18:00:00Z', '2026-11-12T18:00:00Z')).toBe('in 2 days');
+  });
+
+  test.each([
+    ['25 h, local dates 11 to 12', '2026-11-11T17:00:00Z', '2026-11-12T18:00:00Z', 'tomorrow'],
+    ['5 h', '2026-11-12T13:00:00Z', '2026-11-12T18:00:00Z', 'in 5 hours'],
+    ['30 min', '2026-11-12T17:30:00Z', '2026-11-12T18:00:00Z', 'in under an hour'],
+    ['59 min 59 s', '2026-11-12T17:00:01Z', '2026-11-12T18:00:00Z', 'in under an hour'],
+    ['exactly 60 min', '2026-11-12T17:00:00Z', '2026-11-12T18:00:00Z', 'in 1 hour'],
+    ['4 h 30 min rounds down', '2026-11-12T13:30:00Z', '2026-11-12T18:00:00Z', 'in 4 hours'],
+    ['exactly 24 h, dates 11 to 12', '2026-11-11T18:00:00Z', '2026-11-12T18:00:00Z', 'tomorrow'],
+    ['34 h, local dates 10 to 12', '2026-11-11T07:00:00Z', '2026-11-12T09:00:00Z', 'in 2 days'],
+    ['fall back, 24 h elapsed, same local date', '2026-11-01T07:30:00Z', '2026-11-02T07:30:00Z', 'in 24 hours'],
+    ['25 h across 2026-11-01, dates 31 Oct to 1 Nov', '2026-10-31T17:00:00Z', '2026-11-01T18:00:00Z', 'tomorrow'],
+    ['spring forward 2027-03-14, 22.5 h real', '2027-03-13T17:30:00Z', '2027-03-14T16:00:00Z', 'in 22 hours'],
+    ['23 h across local midnight', '2026-11-11T17:00:00Z', '2026-11-12T16:00:00Z', 'in 23 hours'],
+    ['spring forward, 23 h real', '2027-03-13T17:00:00Z', '2027-03-14T16:00:00Z', 'in 23 hours'],
+    ['spring forward, 24 h real', '2027-03-13T17:00:00Z', '2027-03-14T17:00:00Z', 'tomorrow'],
+    ['multi-day across 2026-11-01', '2026-10-31T17:00:00Z', '2026-11-02T18:00:00Z', 'in 2 days'],
+  ])('%s', (_why, now, deadline, expected) => {
+    expect(hint(now, deadline)).toBe(expected);
+  });
 });
 
 test('no output contains a narrow or no-break space', () => {
