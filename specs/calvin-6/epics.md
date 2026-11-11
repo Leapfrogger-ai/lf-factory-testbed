@@ -32,6 +32,8 @@ As anyone who opens calvin, I want every page to look finished and every end pag
 - The "nothing to withdraw from" and "already started" withdraw pages keep their headings and gain the same link.
 - The system error page's sentence becomes "That didn't go through on our side. Go back and try again in a minute." Its heading and "Start over" link stay.
 
+After the merge, the operator checks by hand, on a phone at 360px, that these pages match frames P8, W3, W4, W5 and X2 and nothing scrolls sideways. It isn't a criterion, because a story session has no browser.
+
 Prerequisites: None
 
 Acceptance criteria:
@@ -41,13 +43,13 @@ Acceptance criteria:
 - Given Raj has withdrawn, when his withdraw page is shown after the POST, then its `h1` is exactly "You're out", the next paragraph is exactly "You've withdrawn from Coffee on Sat 14 Nov. No more emails about it.", and a "Suggest a plan" link points to `/`.
 - Given a called-off plan's withdraw token, and separately a withdraw token after the gathering has started, when each withdraw page is requested, then each keeps its current heading and has a "Suggest a plan" link to `/`.
 - Given a request that fails with a server error, when the error page renders, then it reads "Something went wrong", then "That didn't go through on our side. Go back and try again in a minute.", then a "Start over" link to `/`.
-- Given each page this story changes, at 360px, when it's checked, then nothing scrolls sideways (checked by hand against frames P8, W3, W4, W5 and X2).
-
 ### Story 5.2 (v1): Creating a plan, first visit to empty card
 
 As a creator using calvin for the first time, I want to be told what it does and shown what to type, so that I get to a plan without guessing.
 
 On the inputs form, a `.lede` paragraph under the heading reads "Say roughly where and when. We'll suggest one specific plan you can share in your chat." (frame C1). The rough-area field's placeholder is "e.g. Rockridge, near the BART" and the rough-time field's is "e.g. Saturday morning". The lede shows on the inputs form only, including with errors, and not on the card. On the empty card shown when no suggestion came back (frame C7), the What field's placeholder is "e.g. coffee, drinks, a walk" and the Where field's is "e.g. Blue Bottle, College Ave", and a help line under the card reads "Leave Decide by empty and we'll pick a sensible time." When a suggestion request is rate-limited, the page shows that same empty card, with the context line, the "Try suggesting again" button and the notice "Lots of suggestions just now. Fill in your own below, or try again in a few minutes." in place of the fallback notice (operator, 2026-11-11). A plan published from it works like any fallback plan. The suggestion card itself is unchanged.
+
+After the merge, the operator checks by hand, on a phone at 360px, that the inputs form and the empty card match frames C1 and C7 and nothing scrolls sideways.
 
 Prerequisites: Story 5.1
 
@@ -57,8 +59,6 @@ Acceptance criteria:
 - Given a suggestion that fails, when the fallback card renders, then What and Where have the placeholders above, the help line reads exactly "Leave Decide by empty and we'll pick a sensible time.", and the notice is "We couldn't come up with a suggestion just now. Fill in your own below, or try again."
 - Given the suggest rate limit is reached, when Ana asks for a suggestion for Oakland, Rockridge, Saturday morning, then the response shows the empty card (What, Where, Date, Time, Minimum 3, Decide by), the context line "Oakland · Rockridge · Saturday morning", the notice "Lots of suggestions just now. Fill in your own below, or try again in a few minutes.", and no suggestion is requested from Claude.
 - Given that empty card filled in with coffee at Blue Bottle on the example date, when Ana publishes it with her name and email, then the plan is published as any fallback plan is, and the suggestion-request record shows no suggestion was used.
-- Given the inputs form and the empty card at 360px, when they're checked, then they match frames C1 and C7 and nothing scrolls sideways (checked by hand).
-
 ### Story 5.3 (v1): Sharing and committing
 
 As a creator, I want my private link kept safe even when its email fails, and as an invitee, I want to see how long is left to decide, so that nobody loses their way into the plan.
@@ -66,6 +66,8 @@ As a creator, I want my private link kept safe even when its email fails, and as
 When the manage-link email couldn't be sent, the published page (frame S2) shows the share link box as now. Below it, a notice reads "We couldn't email you your private link. Copy it now and keep it somewhere safe: it's the only way to manage the plan.", followed by a second link box labelled "Your private link", holding the manage link with its own Copy button (`btn btn-secondary`). It replaces today's "Bookmark the link below" sentence and the "Manage your plan" link. The emailed case is unchanged. The copy script copies whichever box's button was pressed.
 
 On the public page of an open plan (frame P1), the decide-by sentence ends with a relative hint in brackets, worked out from the time of the request: under 1 hour, "(in under an hour)"; under 24 hours, "(in N hours)", rounded down; otherwise by calendar days in the plan's time zone, "(tomorrow)" for 1 and "(in N days)" for more. On the public page of a plan that's on (frame P6), the email help line reads "Only used to send you the details and reminders. Never shown to anyone."; on an open plan it stays "Only used to tell you if it's on. Never shown to anyone."
+
+After the merge, the operator checks by hand, on a phone, that each Copy button on the published page copies the right link.
 
 Prerequisites: Story 5.2
 
@@ -75,8 +77,6 @@ Acceptance criteria:
 - Given the example plan viewed at Tue 10 Nov 2026 10:00 AM, when its public page renders, then the sentence reads "Goes ahead with a minimum of 3. Decide by Thu 12 Nov, 10:00 AM (in 2 days)."
 - Given the example plan viewed at Wed 11 Nov 2026 9:00 AM, at Thu 12 Nov 2026 5:00 AM, and at Thu 12 Nov 2026 9:30 AM, when its public page renders, then the hint reads "(tomorrow)", "(in 5 hours)" and "(in under an hour)" respectively.
 - Given the example plan, confirmed, when its public page renders, then the help line under the email field reads exactly "Only used to send you the details and reminders. Never shown to anyone."
-- Given the published page on a phone, when each Copy button is tapped, then the right link is copied (checked by hand after the merge, on a phone).
-
 ### Story 5.4 (v1): Withdrawing, with a way back
 
 As a committer, I want to know what withdrawing does and be able to change my mind, so that I don't leave by accident or feel I've let the group down.
@@ -125,6 +125,8 @@ As a creator answering the check-in, I want to see which plan I'm answering abou
 
 Every check-in thank-you page (frames K1, K2, K3) opens, under the wordmark, with a `.context` block naming the plan: the format and venue ("Coffee at Blue Bottle") as `.kind`, and the date and time ("Sat 14 Nov · 10:00 AM") as `.when`. The thank-you heading follows it, unchanged. When the other question still has no answer, its Yes and No links sit side by side in `.answers`, Yes as `btn btn-primary` and No as `btn btn-secondary` (today No has only `btn`). "Were you there?" is still asked after "it didn't happen" (operator, 2026-11-11). When both questions are answered, the page ends with the line "Tapped the wrong one? Use the links in the email again; the last tap counts." (`.meta`) and a quiet "Suggest another plan" link to `/`. The pages keep `noindex` and generic OG tags, and show no committer's name or email address.
 
+After the merge, the operator checks by hand, on a phone at 360px, that the check-in pages match frames K1–K3 and nothing scrolls sideways.
+
 Prerequisites: Story 5.5
 
 Acceptance criteria:
@@ -132,4 +134,4 @@ Acceptance criteria:
 - Given `happened` was answered no first, when its page renders, then it reads "Thanks! Got it: it didn't happen." and still asks "Were you there?" with both links.
 - Given both questions answered, when `GET /c/<checkInToken>/attended/yes` is requested, then the page shows the plan block, "Thanks! Got it: you were there.", the line "Tapped the wrong one? Use the links in the email again; the last tap counts.", a "Suggest another plan" link to `/`, and no Yes or No links.
 - Given any check-in page, when its HTML is read, then it carries `noindex` and generic OG tags, and has no email address or committer's name.
-- Given the check-in pages at 360px, when they're checked, then the Yes and No buttons sit side by side, are at least 48px tall, and nothing scrolls sideways (checked by hand against frames K1–K3).
+- Given `app.css`, when it's read, then `.answers` is a flex row with a gap, `.answers .btn` grows to share the row (`flex: 1`), and `.btn` keeps `min-height: 48px`, so the Yes and No buttons sit side by side at least 48px tall.
