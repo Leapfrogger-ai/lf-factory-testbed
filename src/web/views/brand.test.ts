@@ -25,6 +25,7 @@ const target = (overrides: Partial<WithdrawTarget> = {}): WithdrawTarget => ({
   venue: 'Blue Bottle',
   gatheringAt: plan.gatheringAt,
   withdrawn: false,
+  publicToken: 'ptok123',
   ...overrides,
 });
 const before = Temporal.Instant.from('2026-11-10T12:00:00Z');

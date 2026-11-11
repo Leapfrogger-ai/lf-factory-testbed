@@ -396,6 +396,7 @@ export type WithdrawTarget = {
   venue: string;
   gatheringAt: Temporal.Instant;
   withdrawn: boolean;
+  publicToken: string;
 };
 
 /** What the withdraw page shows; null when no commit has the token, or it is the creator's. */
@@ -407,6 +408,7 @@ export async function loadWithdrawTarget(db: Db, withdrawToken: string): Promise
       venue: plans.venue,
       gatheringAt: plans.gatheringAt,
       withdrawnAt: commits.withdrawnAt,
+      publicToken: plans.publicToken,
     })
     .from(commits)
     .innerJoin(plans, eq(plans.id, commits.planId))
@@ -418,6 +420,7 @@ export async function loadWithdrawTarget(db: Db, withdrawToken: string): Promise
     venue: row.venue,
     gatheringAt: row.gatheringAt.toTemporalInstant(),
     withdrawn: row.withdrawnAt !== null,
+    publicToken: row.publicToken,
   };
 }
 

@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { publishPlan, sameOrigin, testDeps, TEST_BASE_URL } from '../../../tests/support/builders.ts';
 import { resetDb, testDb } from '../../../tests/support/db.ts';
 import { fixedClock } from '../../../tests/support/fakes.ts';
-import { loadPlan, resolveDeadline } from '../../domain/plans.ts';
+import { callOff, loadPlan, resolveDeadline } from '../../domain/plans.ts';
 import { newToken } from '../../domain/tokens.ts';
 import { createApp } from '../app.ts';
 
@@ -234,5 +234,77 @@ describe('the withdraw link in other situations', () => {
     expect(decodeEntities(await get.text())).toContain(NOT_FOUND_COPY);
     expect(post.status).toBe(404);
     expect(decodeEntities(await post.text())).toContain(NOT_FOUND_COPY);
+  });
+});
+
+describe('the withdraw page copy and way back', () => {
+  const COME_OFF = "You'll come off the list, and we won't email you about it again.";
+  const raj = { name: 'Raj Rao', email: 'raj@example.test' };
+
+  it('an open plan needing 1 more shows the heading, the sentence, Withdraw and Stay in (AC1)', async () => {
+    const { app, published, miaToken } = await pageWith('3');
+
+    const res = await app.request(`/w/${miaToken}`);
+
+    const body = decodeEntities(await res.text());
+    expect(body).toContain(CONFIRM_HEADING);
+    expect(body).toContain(COME_OFF);
+    expect(body).toContain('>Withdraw</button>');
+    expect(body).toContain(`<a class="quiet" href="/p/${published.publicToken}">Stay in</a>`);
+    expect(body).not.toContain('It stays on for everyone else.');
+  });
+
+  it('a confirmed plan reads "It stays on for everyone else." first (AC2)', async () => {
+    const { app, miaToken } = await pageWith('3', [raj]);
+
+    const body = decodeEntities(await (await app.request(`/w/${miaToken}`)).text());
+
+    expect(body).toContain(`It stays on for everyone else. ${COME_OFF}`);
+  });
+
+  it('following Stay in leaves him in and the count unchanged (AC3)', async () => {
+    const { deps, app, published, miaToken } = await pageWith('3');
+    const body = decodeEntities(await (await app.request(`/w/${miaToken}`)).text());
+    const href = /href="(\/p\/[^"]+)">Stay in<\/a>/.exec(body)?.[1];
+
+    const res = await app.request(href!);
+
+    expect(res.status).toBe(200);
+    const plan = await loadPlan(deps.db, published.manageToken);
+    expect(plan?.count).toBe(2);
+    expect(plan?.events.map((e) => e.type)).not.toContain('commit.withdrawn');
+  });
+
+  it('every withdraw page has no email, no committer name and carries noindex (AC4)', async () => {
+    const bodies: string[] = [];
+    const get = async (app: ReturnType<typeof createApp>, token: string, suffix = '') =>
+      bodies.push(decodeEntities(await (await app.request(`/w/${token}${suffix}`)).text()));
+
+    const confirm = await pageWith('3', [raj]);
+    await get(confirm.app, confirm.miaToken);
+    await postWithdraw(confirm.app, confirm.miaToken);
+    await get(confirm.app, confirm.miaToken, '?done=1');
+
+    const startedPlan = await pageWith('3', [raj]);
+    // Raj committed before Mia, so he is the first non-creator commit.
+    const rajToken = (await loadPlan(startedPlan.deps.db, startedPlan.published.manageToken))!.commits.filter(
+      (c) => !c.isCreator,
+    )[0]!.withdrawToken;
+    const started = createApp(
+      { ...startedPlan.deps, now: fixedClock('2026-11-14T18:00:00Z') },
+      { baseUrl: TEST_BASE_URL },
+    );
+    await get(started, rajToken);
+
+    const calledOff = await pageWith('3', [raj]);
+    await callOff(calledOff.deps, calledOff.published.manageToken);
+    await get(calledOff.app, calledOff.miaToken);
+
+    expect(bodies).toHaveLength(4);
+    for (const body of bodies) {
+      expect(body).not.toMatch(/@/);
+      for (const name of ['Ana', 'Mia', 'Raj']) expect(body).not.toContain(name);
+      expect(body).toContain('<meta name="robots" content="noindex"');
+    }
   });
 });
