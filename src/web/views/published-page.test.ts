@@ -69,4 +69,27 @@ describe('publishedPage', () => {
     expect(body).not.toContain('Bookmark');
     expect(body).not.toContain('Manage your plan');
   });
+
+  describe('copy script contract', () => {
+    const copyPairs = (body: string) =>
+      [...body.matchAll(/<div class="linkbox">([\s\S]*?)<\/div>/g)].flatMap((box) =>
+        [...box[1]!.matchAll(/<button[^>]*data-copy="([^"]+)"/g)].map((button) => ({
+          target: button[1]!,
+          inBox: new RegExp(`<input[^>]*id="${button[1]!}"`).test(box[1]!),
+        })),
+      );
+
+    it('failed email: each Copy button names an input in its own box', () => {
+      expect(copyPairs(render(false))).toEqual([
+        { target: 'public-link', inBox: true },
+        { target: 'manage-link', inBox: true },
+      ]);
+      expect(render(false).match(/data-copy=/g)).toHaveLength(2);
+    });
+
+    it('emailed: exactly one Copy button', () => {
+      expect(copyPairs(render(true))).toEqual([{ target: 'public-link', inBox: true }]);
+      expect(render(true).match(/data-copy=/g)).toHaveLength(1);
+    });
+  });
 });
