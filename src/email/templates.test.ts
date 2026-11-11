@@ -61,6 +61,31 @@ describe('buildEmail not_this_time', () => {
     expect(text).not.toContain(c.name);
     expect(text).not.toMatch(/\d/);
   });
+
+  describe('creator call-off', () => {
+    const calledOffByCreator: PlanRow = { ...plan, calledOffReason: 'creator' };
+    const creator = commit(true);
+    const joiner = commit(false);
+    const active = [creator, joiner];
+
+    it('a creator call-off builds the Called off email', () => {
+      const payload = buildEmail('not_this_time', calledOffByCreator, joiner, 'https://example.test', active);
+      expect(payload.subject).toBe('Called off: Coffee on Sat 14 Nov');
+      expect(payload.text).toBe('Casey called off Coffee at Blue Bottle. Nothing to do.\n');
+      expect(payload.to).toBe(joiner.email);
+      expect(payload.tags).toEqual([{ name: 'kind', value: 'not_this_time' }]);
+    });
+
+    it('a creator call-off email has no link, count or other name (AC5)', () => {
+      const { text } = buildEmail('not_this_time', calledOffByCreator, joiner, 'https://example.test', active);
+      expect(text).not.toContain('/w/');
+      expect(text).not.toContain(joiner.withdrawToken);
+      expect(text).not.toMatch(/\d/);
+      expect(text).not.toContain('Pat');
+      expect(text).toContain('Casey');
+      expect(text).not.toContain('Creator');
+    });
+  });
 });
 
 describe('buildEmail check_in', () => {

@@ -78,6 +78,15 @@ export function buildEmail(
     };
   }
   if (kind === 'not_this_time') {
+    const creator = activeCommits.find((c) => c.isCreator);
+    if (plan.calledOffReason === 'creator' && creator) {
+      return {
+        to: commit.email,
+        subject: `Called off: ${format} on ${day}`,
+        text: `${firstName(creator.name)} called off ${format} at ${plan.venue}. Nothing to do.\n`,
+        tags: [{ name: 'kind', value: kind }],
+      };
+    }
     return {
       to: commit.email,
       subject: `Not this time: ${format} on ${day}`,
