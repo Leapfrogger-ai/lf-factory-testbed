@@ -811,7 +811,7 @@ describe('planWorkflow call-off', () => {
   const OTHERS = ['mia@example.test', 'raj@example.test'];
   const PAST_CHECK_IN = Date.parse('2026-11-14T18:01:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000;
 
-  it('sends Not this time to everyone and no reminder after a call-off between confirmation and the 24h reminder (AC2)', async () => {
+  it('sends Called off to everyone but the creator and no reminder after a call-off between confirmation and the 24h reminder (AC2)', async () => {
     const { deps, published } = await confirmedPlan();
     const mail = timedEmail(deps);
 
@@ -891,7 +891,7 @@ describe('planWorkflow call-off', () => {
     expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
-  it('sends Not this time once each, and not to a committer who withdrew', async () => {
+  it('sends Called off once each to everyone but the creator, and not to a committer who withdrew', async () => {
     const { deps, published, plan } = await confirmedPlan();
     const raj = plan.commits.filter((c) => !c.isCreator)[1]!;
     const mail = timedEmail(deps);
@@ -919,7 +919,7 @@ describe('planWorkflow call-off', () => {
     ]);
   });
 
-  it('sends Not this time once each at the 24h reminder time when no signal arrived, and no reminder (AC1)', async () => {
+  it('sends Called off once each to everyone but the creator at the 24h reminder time when no signal arrived, and no reminder (AC1)', async () => {
     const { deps, published } = await confirmedPlan();
     const mail = timedEmail(deps);
 
@@ -998,7 +998,7 @@ describe('planWorkflow call-off', () => {
     expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
-  it('sends Not this time exactly once each when the signal arrived and the plan is called off in Postgres (AC5)', async () => {
+  it('sends Called off exactly once each to everyone but the creator when the signal arrived and the plan is called off in Postgres (AC5)', async () => {
     const { deps, published } = await confirmedPlan();
     const mail = timedEmail(deps);
 
