@@ -5,6 +5,8 @@ import type { WithdrawTarget } from '../../domain/plans.ts';
 import { formatDay } from '../../domain/time.ts';
 import { capitalise } from './public-plan-page.ts';
 
+const onward = html`<p><a class="quiet" href="/">Suggest a plan</a></p>`;
+
 export function withdrawPage({
   target,
   token,
@@ -18,18 +20,22 @@ export function withdrawPage({
     return html`<main>
     ${brand}
     <h1>This one isn't going ahead, so there's nothing to withdraw from.</h1>
+    ${onward}
   </main>` as HtmlEscapedString;
   }
   if (Temporal.Instant.compare(now, target.gatheringAt) >= 0) {
     return html`<main>
     ${brand}
     <h1>This one has already started.</h1>
+    ${onward}
   </main>` as HtmlEscapedString;
   }
   if (target.withdrawn) {
     return html`<main>
     ${brand}
-    <h1>You're out. You've withdrawn from ${capitalise(target.format)} on ${formatDay(target.gatheringAt)}. No more emails about it.</h1>
+    <h1>You're out</h1>
+    <p class="copy">You've withdrawn from ${capitalise(target.format)} on ${formatDay(target.gatheringAt)}. No more emails about it.</p>
+    ${onward}
   </main>` as HtmlEscapedString;
   }
   return html`<main>

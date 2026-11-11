@@ -37,18 +37,26 @@ describe('withdrawPage', () => {
     expect(body).not.toContain('<input');
   });
 
-  it('the done view reads "You\'re out. You\'ve withdrawn from Coffee on Sat 14 Nov. No more emails about it." and has no button', () => {
+  it('the done view has an h1 "You\'re out", a copy paragraph, the Suggest a plan link and no button', () => {
     const body = render(target({ withdrawn: true }));
 
-    expect(body).toContain("You're out. You've withdrawn from Coffee on Sat 14 Nov. No more emails about it.");
+    expect(body).toMatch(
+      /<h1>You're out<\/h1>\s*<p[^>]*>You've withdrawn from Coffee on Sat 14 Nov\. No more emails about it\.<\/p>/,
+    );
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
     expect(body).not.toContain('<button');
     expect(body).not.toContain('<form');
   });
 
-  it('a started plan reads "This one has already started." with no button', () => {
+  it('the confirm view does not offer Suggest a plan', () => {
+    expect(render(target())).not.toContain('Suggest a plan');
+  });
+
+  it('a started plan reads "This one has already started." with the link and no button', () => {
     const body = render(target(), atStart);
 
     expect(body).toContain('This one has already started.');
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
     expect(body).not.toContain('<form');
     expect(body).not.toContain('<button');
   });
@@ -57,6 +65,7 @@ describe('withdrawPage', () => {
     const body = render(target({ state: 'called_off' }));
 
     expect(body).toContain("This one isn't going ahead, so there's nothing to withdraw from.");
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
     expect(body).not.toContain('<form');
     expect(body).not.toContain('<button');
   });
@@ -70,10 +79,17 @@ describe('withdrawPage', () => {
     expect(body).not.toContain('<i>');
   });
 
+  it('the format is escaped on the done view too', () => {
+    const body = render(target({ format: '<i>x</i>', withdrawn: true }));
+
+    expect(body).toContain('&lt;i&gt;x&lt;/i&gt;');
+    expect(body).not.toContain('<i>');
+  });
+
   it('the started view wins over withdrawn', () => {
     const body = render(target({ withdrawn: true }), atStart);
 
     expect(body).toContain('This one has already started.');
-    expect(body).not.toContain("You're out.");
+    expect(body).not.toContain("You're out");
   });
 });
