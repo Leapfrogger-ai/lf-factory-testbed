@@ -95,6 +95,25 @@ describe('public/app.css', () => {
     ).toHaveLength(0);
   });
 
+  it('has the Epic 5 additions (ux/epic-5.html proposed CSS)', () => {
+    const rule = (selector: string): string => {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const m = new RegExp(`(?:^|[}/])\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css);
+      return m ? m[1] : '';
+    };
+    expect(rule('.btn[disabled]')).toMatch(/opacity:\s*0?\.65/);
+    expect(rule('.btn[disabled]')).toMatch(/cursor:\s*progress/);
+    expect(rule('.btn[disabled]:hover')).toMatch(/background:\s*var\(--berry\)/);
+    expect(rule('input::placeholder')).toMatch(/color:\s*var\(--muted\)/);
+    expect(rule('select[aria-invalid="true"]')).toMatch(/border-color:\s*var\(--error\)/);
+    expect(rule('.errors')).toMatch(/list-style:\s*none/);
+    expect(rule('.errors')).toMatch(/padding:\s*0/);
+    expect(rule('.lede')).toMatch(/color:\s*var\(--ink-2\)/);
+    for (const s of ['.context', '.context .when', '.context .kind', '.answers', '.answers .btn']) {
+      expect(rule(s).trim(), s).not.toBe('');
+    }
+  });
+
   it('hides [hidden] elements even when a class sets display', () => {
     expect(css).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important/);
   });

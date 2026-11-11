@@ -118,3 +118,16 @@ input[aria-invalid="true"] { border-color: var(--error); }
 .row-summary { flex: 1; min-width: 0; }
 .row-edit { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .row-edit .quiet { margin-left: var(--s3); }
+
+/* Epic 5 */
+.btn[disabled] { opacity: .65; cursor: progress; }
+.btn[disabled]:hover { background: var(--berry); }
+.errors { list-style: none; padding: 0; margin: 0 0 12px; }
+input::placeholder { color: var(--muted); opacity: 1; }
+.lede { color: var(--ink-2); margin: -8px 0 20px; }
+.context { margin-bottom: 20px; }
+.context .when { font-size: 16px; }
+.context .kind { margin-bottom: 0; }
+.answers { display: flex; gap: 12px; }
+.answers .btn { flex: 1; }
+select[aria-invalid="true"] { border-color: var(--error); }
