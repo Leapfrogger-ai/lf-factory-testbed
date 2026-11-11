@@ -57,6 +57,12 @@ function unguardedMotion(source: string): string[] {
 }
 
 describe('public/app.css', () => {
+  const rule = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = new RegExp(`(?:^|[}/])\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css);
+    return m ? m[1] : '';
+  };
+
   const darkAt = css.indexOf(DARK);
 
   it('defines every ux-spec 4.1 token on :root (light) and in the dark media block', () => {
@@ -96,11 +102,6 @@ describe('public/app.css', () => {
   });
 
   it('has the Epic 5 additions (ux/epic-5.html proposed CSS)', () => {
-    const rule = (selector: string): string => {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const m = new RegExp(`(?:^|[}/])\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css);
-      return m ? m[1] : '';
-    };
     expect(rule('.btn[disabled]')).toMatch(/opacity:\s*0?\.65/);
     expect(rule('.btn[disabled]')).toMatch(/cursor:\s*progress/);
     expect(rule('.btn[disabled]:hover')).toMatch(/background:\s*var\(--berry\)/);
@@ -116,5 +117,12 @@ describe('public/app.css', () => {
 
   it('hides [hidden] elements even when a class sets display', () => {
     expect(css).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+  });
+
+  it('lays the Yes and No buttons side by side, at least 48px tall', () => {
+    expect(rule('.answers')).toMatch(/display:\s*flex/);
+    expect(rule('.answers')).toMatch(/gap:\s*\d+px/);
+    expect(rule('.answers .btn')).toMatch(/flex:\s*1\b/);
+    expect(rule('.btn')).toMatch(/min-height:\s*48px/);
   });
 });
