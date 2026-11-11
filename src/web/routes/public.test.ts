@@ -145,6 +145,25 @@ describe('GET /p/:token', () => {
     expect(body).not.toContain('<ul');
   });
 
+  it('a creator call-off says who called it off, and the link preview still says Not this time (AC8)', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, creator);
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    const off = await app.request(`/m/${manageToken}/call-off`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: TEST_BASE_URL, ...sameOrigin },
+      body: '',
+    });
+    expect(off.status).toBe(303);
+
+    const body = decodeEntities(await (await app.request(`/p/${publicToken}`)).text());
+
+    expect(body).toContain('Ana called this one off. Nothing to do.');
+    expect(body).toContain('Not this time');
+    expect(body).not.toContain('No harm done');
+    expect(body).toContain('<meta property="og:description" content="Not this time"');
+  });
+
   it('unknown token is the 404 page (AC7)', async () => {
     const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
 

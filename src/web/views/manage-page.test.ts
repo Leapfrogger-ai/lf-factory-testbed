@@ -12,6 +12,8 @@ const plan = (overrides: Partial<ManagePlan> = {}): ManagePlan => ({
   commitDeadlineAt: Temporal.Instant.from('2026-11-12T06:00:00Z'),
   minimum: 3,
   names: ['Ana Ruiz', 'Mia Chen'],
+  calledOffReason: null,
+  creatorName: null,
   publicToken: 'PUB',
   manageToken: 'MAN',
   ...overrides,
