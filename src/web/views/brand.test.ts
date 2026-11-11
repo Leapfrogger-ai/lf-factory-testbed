@@ -33,7 +33,13 @@ const withdraw = (t: WithdrawTarget, now = before) => String(withdrawPage({ targ
 const pages: Record<string, string> = {
   create: String(createPage({ kind: 'inputs', values: {} }, {})),
   published: String(
-    publishedPage({ publicLink: 'https://x/p/1', manageLink: 'https://x/m/1', emailed: true, shareText: 'x' }),
+    publishedPage({
+      publicLink: 'https://x/p/1',
+      manageLink: '/m/1',
+      manageUrl: 'https://x/m/1',
+      emailed: true,
+      shareText: 'x',
+    }),
   ),
   public: String(publicPlanPage({ plan, state: 'needs_more', publicToken: 'tok', now: Temporal.Instant.from('2026-11-10T18:00:00Z') })),
   'withdraw called off': withdraw(target({ state: 'called_off' })),

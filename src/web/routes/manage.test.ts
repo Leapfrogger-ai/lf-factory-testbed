@@ -13,7 +13,7 @@ beforeEach(() => resetDb(db));
 afterAll(() => pool.end());
 
 describe('GET /m/:token/published', () => {
-  it('shows the share link and the manage link', async () => {
+  it('failed email: shows the share link and the private link box (AC1)', async () => {
     const deps = testDeps();
     const { publicToken, manageToken } = await publishPlan(deps);
     const app = createApp(deps, { baseUrl: TEST_BASE_URL });
@@ -24,10 +24,31 @@ describe('GET /m/:token/published', () => {
     const body = await res.text();
     expect(body).toContain('Your plan is ready to share');
     expect(body).toContain(`https://calvin.test/p/${publicToken}`);
-    expect(body).toMatch(new RegExp(`href="/m/${manageToken}"[^>]*>\\s*Manage your plan`));
+    expect(body).toContain(`value="https://calvin.test/m/${manageToken}"`);
     expect(body).not.toContain('ann@example.test');
     expect(body).toContain('noindex');
-    expect(body).toContain("We couldn't email you your private link. Bookmark the link below to manage the plan.");
+    expect(body).toContain(
+      "We couldn't email you your private link. Copy it now and keep it somewhere safe: it's the only way to manage the plan.",
+    );
+    expect(body).not.toContain('Bookmark');
+  });
+
+  it('emailed: shows one box, the emailed line and the Manage link (AC2)', async () => {
+    const deps = testDeps();
+    const created = await createApp(deps, { baseUrl: TEST_BASE_URL }).request('/plans', {
+      method: 'POST',
+      headers: sameOrigin,
+      body: new URLSearchParams(planForm()),
+    });
+    const location = created.headers.get('location') ?? '';
+    const token = location.split('/')[2] ?? '';
+
+    const body = await (await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location)).text();
+
+    expect(body.match(/class="linkbox"/g)).toHaveLength(1);
+    expect(body).toContain("We've emailed you a private link to manage the plan. Keep it to yourself.");
+    expect(body).toContain(`<a class="quiet" href="/m/${token}">Manage your plan</a>`);
+    expect(body).not.toContain('id="manage-link"');
   });
 
   it('has the copy and share hooks and the share text (AC6)', async () => {

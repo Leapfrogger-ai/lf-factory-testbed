@@ -71,6 +71,7 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
     const page = publishedPage({
       publicLink: `${config.baseUrl}/p/${plan.publicToken}`,
       manageLink: `/m/${plan.manageToken}`,
+      manageUrl: `${config.baseUrl}/m/${plan.manageToken}`,
       emailed: plan.manageLinkSent,
       shareText: `${capitalise(shown.format)} at ${shown.venue}, ${formatShareWhen(shown.gatheringAt)} — I'm in, who else?`,
     });
