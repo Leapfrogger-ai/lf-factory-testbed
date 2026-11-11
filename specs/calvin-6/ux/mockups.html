@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>calvin screens</title>
+<!-- Visual reference for specs/calvin/ux-spec.md. Static mockups at 360px; not production code. -->
+<style>
+:root{
+  --bg:#FBF7F2; --surface:#FFFFFF; --text:#2B2420; --text-2:#5E534B; --muted:#766A61;
+  --border:#D9CFC4; --border-strong:#918275;
+  --accent:#B4502B; --accent-hover:#97411F; --accent-tint:#F6E4DA;
+  --on:#2F6B47; --on-tint:#E6F0E8; --error:#A8321E;
+  --font:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:12px; --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1E1A17; --surface:#2A2420; --text:#F3ECE4; --text-2:#CFC4BA; --muted:#A99D93;
+  --border:#40372F; --border-strong:#7A6E64; --accent:#E58A62; --accent-hover:#EFA584; --accent-tint:#3A2A22;
+  --on:#8FC7A3; --on-tint:#22332A; --error:#F08B76;}}
+:root[data-theme="dark"]{
+  --bg:#1E1A17; --surface:#2A2420; --text:#F3ECE4; --text-2:#CFC4BA; --muted:#A99D93;
+  --border:#40372F; --border-strong:#7A6E64; --accent:#E58A62; --accent-hover:#EFA584; --accent-tint:#3A2A22;
+  --on:#8FC7A3; --on-tint:#22332A; --error:#F08B76;}
+*{box-sizing:border-box}
+body{margin:0;background:#E9E3DC;font-family:var(--font);color:var(--text);padding:16px}
+@media (prefers-color-scheme:dark){body{background:#111}}
+h1.sheet{font-size:18px;margin:0 0 4px} p.sheet{margin:0 0 16px;color:#5E534B;font-size:14px}
+.grid{display:flex;flex-wrap:wrap;gap:24px}
+.frame{width:360px;max-width:100%}
+.frame>.label{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5E534B;margin:0 0 6px}
+.phone{background:var(--bg);border-radius:20px;padding:var(--s5) var(--s4);min-height:560px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.brand{font-weight:700;font-size:15px;color:var(--accent);margin-bottom:var(--s5)}
+h1{font-size:26px;line-height:1.2;margin:0 0 var(--s2);font-weight:700}
+h2{font-size:18px;line-height:1.3;margin:0 0 var(--s2);font-weight:600}
+p{font-size:16px;line-height:1.5;margin:0 0 var(--s3)}
+.meta{font-size:14px;color:var(--muted);line-height:1.4}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:var(--s4);margin-bottom:var(--s4)}
+label{display:block;font-size:14px;font-weight:600;color:var(--text-2);margin:0 0 var(--s1)}
+.field{margin-bottom:var(--s3)}
+.input,select{width:100%;min-height:48px;font:inherit;font-size:16px;color:var(--text);background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:0 var(--s3)}
+.row{display:flex;gap:var(--s2)} .row>*{flex:1}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px;border-radius:999px;font:inherit;font-size:16px;font-weight:600;border:0;cursor:pointer}
+.btn-primary{background:var(--accent);color:#fff} @media (prefers-color-scheme:dark){.btn-primary{color:#1E1A17}}
+.btn-secondary{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
+.btn-quiet{background:transparent;color:var(--text-2);text-decoration:underline;min-height:44px}
+.stack>*+*{margin-top:var(--s2)}
+.plan-format{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.editable{display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding:var(--s2) 0;font-size:16px}
+.editable small{color:var(--muted);font-size:13px;display:block}
+.editable .edit{color:var(--accent);font-size:14px;font-weight:600}
+.seats{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s3);margin:var(--s3) 0 var(--s2);padding:0;list-style:none}
+.seat{display:flex;align-items:center;gap:6px;font-size:15px}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--accent);flex:none}
+.dot.empty{background:transparent;border:2px solid var(--border-strong)}
+.on .dot{background:var(--on)}
+.pill{display:inline-block;font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px}
+.pill.open{background:var(--accent-tint);color:var(--accent)}
+.pill.on{background:var(--on-tint);color:var(--on)}
+.pill.off{background:var(--border);color:var(--text-2)}
+.link-box{display:flex;gap:var(--s2);align-items:center}
+.link-box code{flex:1;font-size:14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.copy{min-height:48px;padding:0 18px;border-radius:999px;background:var(--accent);color:#fff;border:0;font:inherit;font-weight:600}
+.notice{border-radius:var(--r);padding:var(--s3) var(--s4);font-size:15px;line-height:1.45;margin-bottom:var(--s4)}
+.notice.on{background:var(--on-tint);color:var(--on)}
+.notice.err{background:transparent;border:1px solid var(--error);color:var(--error)}
+.err-text{color:var(--error);font-size:14px;margin-top:var(--s1)}
+.center{text-align:center;padding-top:96px}
+.inline-confirm{border:1px solid var(--border-strong);border-radius:var(--r);padding:var(--s3)}
+.spinner{display:flex;align-items:center;gap:var(--s2);color:var(--muted);font-size:15px}
+.spinner::before{content:"";width:16px;height:16px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--accent)}
+</style>
+</head>
+<body>
+<h1 class="sheet">calvin, PoC screens at 360px</h1>
+<p class="sheet">The visual reference for ux-spec.md. Static and not interactive; the copy is the intended copy.</p>
+<div class="grid">
+
+<!-- 1. Create: inputs -->
+<section class="frame"><div class="label">1a · Create: inputs</div><div class="phone">
+  <div class="brand">calvin</div>
+  <h1>Let's get something on the calendar</h1>
+  <p class="meta">Tell us roughly where and when. We'll suggest a plan.</p>
+  <div class="field"><label>City</label><select><option>Oakland</option></select></div>
+  <div class="field"><label>Rough area</label><div class="input" style="display:flex;align-items:center">Rockridge</div></div>
+  <div class="field"><label>Rough time</label><div class="input" style="display:flex;align-items:center">next weekend, morning</div></div>
+  <button class="btn btn-primary">Suggest a plan</button>
+  <div style="margin-top:16px" class="spinner">Finding something nearby…</div>
+</div></section>
+
+<!-- 1b. Create: suggestion -->
+<section class="frame"><div class="label">1b · Create: suggestion + publish</div><div class="phone">
+  <div class="brand">calvin</div>
+  <div class="card">
+    <div class="plan-format">Coffee</div>
+    <div class="editable"><div><small>Where</small>Blue Bottle, College Ave</div><span class="edit">Edit</span></div>
+    <div class="editable"><div><small>When</small>Sat 9 Nov · 10:00 AM</div><span class="edit">Edit</span></div>
+    <div class="editable"><div><small>Minimum</small>3 people, you included</div><span class="edit">Edit</span></div>
+    <div class="editable" style="border:0"><div><small>Decide by</small>Thu 7 Nov · 10:00 AM</div><span class="edit">Edit</span></div>
+  </div>
+  <button class="btn btn-secondary">Suggest another</button>
+  <h2 style="margin-top:24px">You're the first one in</h2>
+  <div class="field"><label>Your name</label><div class="input"></div></div>
+  <div class="field"><label>Your email</label><div class="input"></div><div class="meta" style="margin-top:4px">We'll email you a private link to manage the plan.</div></div>
+  <button class="btn btn-primary">Publish plan</button>
+</div></section>
+
+<!-- 1c. Create: suggestion failed -->
+<section class="frame"><div class="label">1c · Create: suggestion failed</div><div class="phone">
+  <div class="brand">calvin</div>
+  <div class="notice err">We couldn't come up with a suggestion just now. Fill in your own below, or try again.</div>
+  <div class="field"><label>What</label><div class="input" style="display:flex;align-items:center;color:var(--muted)">Coffee, drinks, a walk…</div></div>
+  <div class="field"><label>Where</label><div class="input"></div></div>
+  <div class="row"><div class="field"><label>Date</label><div class="input"></div></div><div class="field"><label>Time</label><div class="input"></div></div></div>
+  <div class="field"><label>Decide by</label><div class="input"></div><div class="err-text">The decide-by time needs to be before the gathering.</div></div>
+  <button class="btn btn-quiet">Try suggesting again</button>
+</div></section>
+
+<!-- 2. Published -->
+<section class="frame"><div class="label">2 · Published</div><div class="phone">
+  <div class="brand">calvin</div>
+  <h1>Your plan is ready to share</h1>
+  <p>Paste this link into your group's chat. It goes ahead once the minimum of 3 people are in.</p>
+  <div class="link-box"><code>calvin.app/p/k3Jq9xT2vR…</code><button class="copy">Copy</button></div>
+  <button class="btn btn-secondary" style="margin-top:12px">Share…</button>
+  <p class="meta" style="margin-top:24px">We've emailed you a private link to manage the plan. Keep it to yourself.</p>
+  <a href="#" class="btn btn-quiet">Manage your plan</a>
+</div></section>
+
+<!-- 3a. Public: open -->
+<section class="frame"><div class="label">3a · Public page: open</div><div class="phone">
+  <div class="brand">calvin</div>
+  <span class="pill open">Needs 1 more</span>
+  <div class="plan-format" style="margin-top:16px">Coffee</div>
+  <h1>Blue Bottle, College Ave</h1>
+  <p class="meta">Oakland · Sat 9 Nov · 10:00 AM</p>
+  <ul class="seats" aria-label="2 of 3 people in"><li class="seat"><span class="dot"></span>Ana</li><li class="seat"><span class="dot"></span>Raj</li><li class="seat"><span class="dot empty"></span>you?</li></ul>
+  <p class="meta">Goes ahead with a minimum of 3. Decide by Thu 7 Nov, 10:00 AM.</p>
+  <div class="field" style="margin-top:20px"><label>Your name</label><div class="input"></div></div>
+  <div class="field"><label>Your email</label><div class="input"></div><div class="meta" style="margin-top:4px">Only used to tell you if it's on. Never shown to anyone.</div></div>
+  <button class="btn btn-primary">I'm in</button>
+</div></section>
+
+<!-- 3b. Public: just committed / confirmed -->
+<section class="frame"><div class="label">3b · Public page: confirmed</div><div class="phone on">
+  <div class="brand">calvin</div>
+  <span class="pill on">It's on</span>
+  <div class="plan-format" style="margin-top:16px">Coffee</div>
+  <h1>Blue Bottle, College Ave</h1>
+  <p class="meta">Oakland · Sat 9 Nov · 10:00 AM</p>
+  <div class="notice on" role="status">You're in, Mia. It's on! We've emailed you the details and we'll remind you the day before.</div>
+  <ul class="seats" aria-label="4 people in"><li class="seat"><span class="dot"></span>Ana</li><li class="seat"><span class="dot"></span>Raj</li><li class="seat"><span class="dot"></span>Mia</li><li class="seat"><span class="dot"></span>Jo</li></ul>
+  <p class="meta">More people are welcome until it starts.</p>
+</div></section>
+
+<!-- 3c. Public: not this time -->
+<section class="frame"><div class="label">3c · Public page: not this time</div><div class="phone">
+  <div class="brand">calvin</div>
+  <span class="pill off">Not this time</span>
+  <div class="plan-format" style="margin-top:16px;color:var(--muted)">Coffee</div>
+  <h1 style="color:var(--text-2)">Blue Bottle, College Ave</h1>
+  <p class="meta">Oakland · Sat 9 Nov · 10:00 AM</p>
+  <p style="margin-top:20px">This one isn't going ahead. No harm done. Maybe next time.</p>
+  <p class="meta">Want to try your own? <a href="#" style="color:var(--accent)">Suggest a plan</a></p>
+</div></section>
+
+<!-- 4. Manage -->
+<section class="frame"><div class="label">4 · Manage page</div><div class="phone">
+  <div class="brand">calvin</div>
+  <p class="meta">Your plan (only you can see this page)</p>
+  <span class="pill open">Needs 1 more · decide by Thu 7 Nov, 10:00 AM</span>
+  <h2 style="margin-top:16px">Coffee · Blue Bottle, College Ave</h2>
+  <p class="meta">Oakland · Sat 9 Nov · 10:00 AM</p>
+  <ul class="seats"><li class="seat"><span class="dot"></span>You</li><li class="seat"><span class="dot"></span>Raj</li><li class="seat"><span class="dot empty"></span></li></ul>
+  <div class="link-box" style="margin:16px 0"><code>calvin.app/p/k3Jq9xT2vR…</code><button class="copy">Copy</button></div>
+  <div class="stack">
+    <button class="btn btn-secondary">Start a new plan from this</button>
+    <div class="inline-confirm">
+      <p style="font-size:15px">Call it off? Everyone who's in gets a short "not this time" email.</p>
+      <div class="row"><button class="btn btn-quiet">Keep it</button><button class="btn btn-primary" style="background:var(--text-2)">Call it off</button></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- 5. Email loop closers -->
+<section class="frame"><div class="label">5 · Withdraw / check-in done</div><div class="phone">
+  <div class="brand">calvin</div>
+  <div class="center" style="padding-top:48px">
+    <h1>You're out</h1>
+    <p class="meta">You've withdrawn from Coffee on Sat 9 Nov. No more emails about it.</p>
+  </div>
+  <hr style="border:0;border-top:1px dashed var(--border);margin:48px 0">
+  <div class="center" style="padding-top:0">
+    <h1>Thanks!</h1>
+    <p class="meta">Got it: it happened, and you were there.</p>
+  </div>
+</div></section>
+
+</div>
+</body>
+</html>
