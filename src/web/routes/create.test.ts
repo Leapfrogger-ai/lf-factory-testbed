@@ -395,6 +395,14 @@ describe('POST /suggest', () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  it('has no lede on the card for the example inputs (AC2)', async () => {
+    const deps = testDeps();
+    const res = await postSuggest(deps, {});
+
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(res.headers.get('location') ?? '');
+    expect(await page.text()).not.toContain('class="lede"');
+  });
+
   it('keeps what was entered when it answers 422 (AC5)', async () => {
     const res = await postSuggest(testDeps(), { area: 'Rockridge', timeWindow: '' });
 
@@ -569,6 +577,15 @@ describe('POST /plans from a suggestion', () => {
 });
 
 describe('GET /', () => {
+  it('shows the lede and both placeholders on the first visit', async () => {
+    const res = await createApp(testDeps(), { baseUrl: TEST_BASE_URL }).request('/');
+
+    const body = await res.text();
+    expect(body).toContain('class="lede"');
+    expect(body).toContain('placeholder="e.g. Rockridge, near the BART"');
+    expect(body).toContain('placeholder="e.g. Saturday morning"');
+  });
+
   it('renders the inputs state linking the stylesheet', async () => {
     const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
 
@@ -733,7 +750,7 @@ describe('GET / suggest another, try again and change', () => {
     const body = await res.text();
     expect(body).toContain('action="/suggest"');
     expect(body).not.toContain('previousSuggestionId');
-    expect(inputTag(body, 'area')).not.toContain('Rockridge');
+    expect(inputTag(body, 'area')).toContain('value=""');
   });
 
   it('carries the failed suggestion id on the fallback (AC2)', async () => {

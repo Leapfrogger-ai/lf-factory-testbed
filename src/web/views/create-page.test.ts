@@ -36,6 +36,29 @@ const fallback = (
 });
 
 describe('createPage inputs state', () => {
+  it('renders the lede after the h1, with the area and time placeholders', () => {
+    const body = render({ kind: 'inputs', values: {} });
+
+    const lede =
+      '<p class="lede">Say roughly where and when. We&#39;ll suggest one specific plan you can share in your chat.</p>';
+    expect(body).toContain(lede);
+    expect(body.indexOf(lede)).toBeGreaterThan(body.indexOf('</h1>'));
+    expect(body.match(/<input[^>]*name="area"[^>]*>/)?.[0]).toContain('placeholder="e.g. Rockridge, near the BART"');
+    expect(body.match(/<input[^>]*name="timeWindow"[^>]*>/)?.[0]).toContain('placeholder="e.g. Saturday morning"');
+  });
+
+  it('keeps one lede when the inputs form has errors', () => {
+    const body = render({ kind: 'inputs', values: {} }, { area: 'Add a rough area.' });
+
+    expect(body.match(/class="lede"/g)).toHaveLength(1);
+  });
+
+  it('has no lede on the card, the fallback or the again page', () => {
+    for (const body of [render(card()), render(fallback()), render(again())]) {
+      expect(body).not.toContain('class="lede"');
+    }
+  });
+
   it('renders the cities in order after an unselected blank option', () => {
     const body = render({ kind: 'inputs', values: {} });
     const options = [...body.matchAll(/<option([^>]*)>([^<]*)<\/option>/g)];

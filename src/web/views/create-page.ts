@@ -31,7 +31,9 @@ export const PUBLISH_LIMIT_NOTICE = 'Lots of plans from here just now. Try again
 export const FALLBACK_NOTICE =
   "We couldn't come up with a suggestion just now. Fill in your own below, or try again.";
 
-type FieldOptions = { type?: string; autocomplete?: string };
+type FieldOptions = { type?: string; autocomplete?: string; placeholder?: string };
+
+export const LEDE = "Say roughly where and when. We'll suggest one specific plan you can share in your chat.";
 
 const CONTEXT_FIELDS = ['city', 'area', 'timeWindow'] as const;
 
@@ -55,6 +57,7 @@ export function createPage(
         type="${type}"
         name="${field}"
         value="${values[field] ?? fallback}"
+        ${options.placeholder ? html`placeholder="${options.placeholder}"` : ''}
         ${options.autocomplete ? html`autocomplete="${options.autocomplete}"` : ''}
         ${describe ? html`aria-describedby="${describe}" aria-invalid="true"` : ''}
       />
@@ -66,6 +69,7 @@ export function createPage(
     html`<main>
       ${brand}
       <h1>${state.kind === 'again' ? AGAIN_HEADING : 'Suggest a plan'}</h1>
+      ${state.kind === 'inputs' ? html`<p class="lede">${LEDE}</p>` : ''}
       ${state.kind === 'inputs' && state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
       ${body}
     </main>` as HtmlEscapedString;
@@ -84,7 +88,8 @@ export function createPage(
         </select>
         ${error('city')}
       </div>
-      ${input('area', 'Rough area')} ${input('timeWindow', 'Rough time')}
+      ${input('area', 'Rough area', '', { placeholder: 'e.g. Rockridge, near the BART' })}
+      ${input('timeWindow', 'Rough time', '', { placeholder: 'e.g. Saturday morning' })}
       <button type="submit" class="btn btn-primary">Suggest a plan</button>
     </form>`);
   }
