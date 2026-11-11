@@ -84,7 +84,9 @@ describe('POST /w/:token', () => {
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe(`/w/${miaToken}?done=1`);
     const body = decodeEntities(await (await app.request(`/w/${miaToken}?done=1`)).text());
-    expect(body).toContain("You're out. You've withdrawn from Coffee on Sat 14 Nov. No more emails about it.");
+    expect(body).toContain("<h1>You're out</h1>");
+    expect(body).toContain("You've withdrawn from Coffee on Sat 14 Nov. No more emails about it.");
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
     expect(body).not.toContain('<form');
     const plan = await loadPlan(deps.db, published.manageToken);
     expect(plan?.count).toBe(1);
@@ -192,6 +194,7 @@ describe('the withdraw link in other situations', () => {
 
     const body = decodeEntities(await get.text());
     expect(body).toContain('This one has already started.');
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
     expect(body).not.toContain('<form');
     expect(post.status).toBe(303);
     expect(post.headers.get('location')).toBe(`/w/${miaToken}`);
@@ -209,6 +212,7 @@ describe('the withdraw link in other situations', () => {
     expect(res.status).toBe(200);
     const body = decodeEntities(await res.text());
     expect(body).toContain("This one isn't going ahead, so there's nothing to withdraw from.");
+    expect(body).toContain('<a class="quiet" href="/">Suggest a plan</a>');
     expect(body).not.toContain('<button');
   });
 
