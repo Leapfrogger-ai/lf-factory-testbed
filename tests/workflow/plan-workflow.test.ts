@@ -805,6 +805,10 @@ describe('planWorkflow call-off', () => {
   const NOT_THIS_TIME = 'Not this time: Coffee on Sat 14 Nov';
   const NOT_THIS_TIME_TEXT = "This one didn't come together, and that's fine. Nobody's going, so there's nothing to do.\n";
   const EVERYONE = ['ann@example.test', 'mia@example.test', 'raj@example.test'];
+  const CALLED_OFF = 'Called off: Coffee on Sat 14 Nov';
+  const CALLED_OFF_TEXT = 'Ann called off Coffee at Blue Bottle. Nothing to do.\n';
+  // The creator called it off, so everyone but Ann hears of it.
+  const OTHERS = ['mia@example.test', 'raj@example.test'];
   const PAST_CHECK_IN = Date.parse('2026-11-14T18:01:00Z') - Date.parse('2026-11-12T18:00:00Z') + 60_000;
 
   it('sends Not this time to everyone and no reminder after a call-off between confirmation and the 24h reminder (AC2)', async () => {
@@ -823,11 +827,11 @@ describe('planWorkflow call-off', () => {
       },
     });
 
-    const notThisTime = startingWith(mail.records, 'Not this time:');
-    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
-    for (const r of notThisTime) {
-      expect(r.subject).toBe(NOT_THIS_TIME);
-      expect(r.text).toBe(NOT_THIS_TIME_TEXT);
+    const calledOffMail = startingWith(mail.records, 'Called off:');
+    expect(calledOffMail.map((r) => r.to).sort()).toEqual(OTHERS);
+    for (const r of calledOffMail) {
+      expect(r.subject).toBe(CALLED_OFF);
+      expect(r.text).toBe(CALLED_OFF_TEXT);
     }
     expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
     expect(startingWith(mail.records, 'Today:')).toEqual([]);
@@ -856,10 +860,10 @@ describe('planWorkflow call-off', () => {
 
     expect(startingWith(mail.records, 'Tomorrow:').map((r) => r.to).sort()).toEqual(EVERYONE);
     expect(startingWith(mail.records, 'Today:')).toEqual([]);
-    const notThisTime = startingWith(mail.records, 'Not this time:');
-    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
+    const calledOffMail = startingWith(mail.records, 'Called off:');
+    expect(calledOffMail.map((r) => r.to).sort()).toEqual(OTHERS);
     // Sent on the signal, not when the morning wait would have run out.
-    for (const r of notThisTime) expect(r.at).toBeLessThan(Date.parse('2026-11-14T16:00:00Z') + shift);
+    for (const r of calledOffMail) expect(r.at).toBeLessThan(Date.parse('2026-11-14T16:00:00Z') + shift);
     expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
@@ -883,7 +887,7 @@ describe('planWorkflow call-off', () => {
       },
     });
 
-    expect(startingWith(mail.records, 'Not this time:').map((r) => r.to).sort()).toEqual(EVERYONE);
+    expect(startingWith(mail.records, 'Called off:').map((r) => r.to).sort()).toEqual(OTHERS);
     expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
@@ -909,10 +913,7 @@ describe('planWorkflow call-off', () => {
       },
     });
 
-    expect(startingWith(mail.records, 'Not this time:').map((r) => r.to).sort()).toEqual([
-      'ann@example.test',
-      'mia@example.test',
-    ]);
+    expect(startingWith(mail.records, 'Called off:').map((r) => r.to).sort()).toEqual(['mia@example.test']);
     expect(mail.records.filter((r) => r.to === 'raj@example.test').map((r) => r.subject)).toEqual([
       "It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM",
     ]);
@@ -933,11 +934,11 @@ describe('planWorkflow call-off', () => {
       },
     });
 
-    const notThisTime = startingWith(mail.records, 'Not this time:');
-    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
-    for (const r of notThisTime) {
-      expect(r.subject).toBe(NOT_THIS_TIME);
-      expect(r.text).toBe(NOT_THIS_TIME_TEXT);
+    const calledOffMail = startingWith(mail.records, 'Called off:');
+    expect(calledOffMail.map((r) => r.to).sort()).toEqual(OTHERS);
+    for (const r of calledOffMail) {
+      expect(r.subject).toBe(CALLED_OFF);
+      expect(r.text).toBe(CALLED_OFF_TEXT);
       // Sent when the 24h reminder was due, not at call-off.
       expect(r.at).toBeGreaterThanOrEqual(Date.parse('2026-11-13T18:00:00Z') + shift);
       expect(r.at).toBeLessThan(Date.parse('2026-11-14T16:00:00Z') + shift);
@@ -964,7 +965,6 @@ describe('planWorkflow call-off', () => {
 
     expect(mail.records.filter((r) => r.to === 'ann@example.test').map((r) => r.subject)).toEqual([
       "It's on: Coffee at Blue Bottle, Sat 14 Nov 10:00 AM",
-      NOT_THIS_TIME,
     ]);
     for (const r of mail.records) expect(r.at).toBeLessThan(Date.parse('2026-11-14T18:01:00Z') + shift);
     expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
@@ -991,10 +991,10 @@ describe('planWorkflow call-off', () => {
 
     expect(startingWith(mail.records, 'Tomorrow:').map((r) => r.to).sort()).toEqual(EVERYONE);
     expect(startingWith(mail.records, 'Today:')).toEqual([]);
-    const notThisTime = startingWith(mail.records, 'Not this time:');
-    expect(notThisTime.map((r) => r.to).sort()).toEqual(EVERYONE);
+    const calledOffMail = startingWith(mail.records, 'Called off:');
+    expect(calledOffMail.map((r) => r.to).sort()).toEqual(OTHERS);
     // Sent when the morning reminder was due, as no signal told the workflow sooner.
-    for (const r of notThisTime) expect(r.at).toBeGreaterThanOrEqual(Date.parse('2026-11-14T16:00:00Z') + shift);
+    for (const r of calledOffMail) expect(r.at).toBeGreaterThanOrEqual(Date.parse('2026-11-14T16:00:00Z') + shift);
     expect(startingWith(mail.records, 'Did it happen?')).toEqual([]);
   });
 
@@ -1014,8 +1014,120 @@ describe('planWorkflow call-off', () => {
       },
     });
 
-    expect(startingWith(mail.records, 'Not this time:').map((r) => r.to).sort()).toEqual(EVERYONE);
+    expect(startingWith(mail.records, 'Called off:').map((r) => r.to).sort()).toEqual(OTHERS);
     expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
+  });
+
+  const ANA = 'ana@example.test';
+  const notItsOn = (emails: Sent[]) => emails.filter((e) => !e.subject.startsWith("It's on:"));
+
+  it('an open plan Ana calls off sends Mia and Raj Called off, and Ana nothing (AC1)', async () => {
+    const deps = testDeps();
+    const published = await publishPlan(deps, { minimum: '4', name: 'Ana', email: ANA });
+    await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
+    await commit(deps, published.publicToken, form('Raj', 'raj@example.test'));
+
+    await run(deps, published.planId, 3_600_000, async (h) => {
+      await callOff(deps, published.manageToken);
+      await h.signal(calledOff);
+    });
+
+    const emails = sent(deps);
+    expect(emails).toHaveLength(2);
+    expect(emails.map((e) => e.to).sort()).toEqual(OTHERS);
+    for (const e of emails) {
+      expect(e.subject).toBe(CALLED_OFF);
+      expect(e.text).toBe('Ana called off Coffee at Blue Bottle. Nothing to do.\n');
+    }
+    expect(emails.map((e) => e.to)).not.toContain(ANA);
+    const sentEvents = await db.select().from(events).where(eq(events.type, 'email.sent'));
+    expect(sentEvents).toHaveLength(2);
+    for (const e of sentEvents) expect((e.data as { kind: string }).kind).toBe('not_this_time');
+  });
+
+  it('a confirmed plan Ana calls off on Thu 12 Nov sends Called off once, no reminder, nothing to Ana (AC2)', async () => {
+    const { deps, published } = await confirmedPlan({ name: 'Ana', email: ANA });
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await waitForEmails(deps, 3);
+        await callOff(deps, published.manageToken);
+        await h.signal(calledOff);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    for (const to of OTHERS) {
+      expect(startingWith(mail.records.filter((r) => r.to === to), 'Called off:')).toHaveLength(1);
+    }
+    expect(startingWith(mail.records, 'Called off:')).toHaveLength(2);
+    expect(startingWith(mail.records, 'Tomorrow:')).toEqual([]);
+    expect(startingWith(mail.records, 'Today:')).toEqual([]);
+    const toAna = mail.records.filter((r) => r.to === ANA);
+    expect(startingWith(toAna, 'Called off:')).toEqual([]);
+    expect(startingWith(toAna, 'Not this time:')).toEqual([]);
+  });
+
+  it('a deadline call-off still sends Ana and Mia Not this time (AC3)', async () => {
+    const deps = testDeps();
+    const published = await publishPlan(deps, { minimum: '3', name: 'Ana', email: ANA });
+    await commit(deps, published.publicToken, form('Mia', 'mia@example.test'));
+
+    await run(deps, published.planId);
+
+    const emails = sent(deps);
+    expect(emails.map((e) => e.to).sort()).toEqual([ANA, 'mia@example.test']);
+    for (const e of emails) {
+      expect(e.subject).toBe(NOT_THIS_TIME);
+      expect(e.text).toBe(NOT_THIS_TIME_TEXT);
+    }
+  });
+
+  it('the signal path sends the creator no email of any kind for the call-off (AC9)', async () => {
+    const { deps, published } = await confirmedPlan({ name: 'Ana', email: ANA });
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async (h) => {
+        await waitForEmails(deps, 3);
+        await callOff(deps, published.manageToken);
+        await h.signal(calledOff);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    expect(startingWith(mail.records, 'Called off:').map((r) => r.to).sort()).toEqual(OTHERS);
+    expect(notItsOn(mail.records.filter((r) => r.to === ANA))).toEqual([]);
+  });
+
+  it('the database path, with every calledOff signal failing, sends the creator no email of any kind for the call-off (AC4, AC9)', async () => {
+    const { deps, published } = await confirmedPlan({ name: 'Ana', email: ANA });
+    const mail = timedEmail(deps);
+
+    await runSchedule(deps, published.planId, {
+      schedule: EXAMPLE,
+      confirmAt: '2026-11-12T18:00:00Z',
+      sendEmail: mail.send,
+      act: async () => {
+        await waitForEmails(deps, 3);
+        await callOff(deps, published.manageToken);
+        await env.sleep(PAST_CHECK_IN);
+      },
+    });
+
+    for (const to of OTHERS) {
+      expect(startingWith(mail.records.filter((r) => r.to === to), 'Called off:')).toHaveLength(1);
+    }
+    const toAna = mail.records.filter((r) => r.to === ANA);
+    for (const prefix of ['Called off:', 'Not this time:', 'Tomorrow:']) expect(startingWith(toAna, prefix)).toEqual([]);
+    expect(notItsOn(toAna)).toEqual([]);
   });
 
   it('replays a history recorded before call-off-from-db-4-4 where no signal arrived', async () => {
