@@ -67,7 +67,10 @@ export function createActivities(deps: { db: Db; sendEmail: SendEmail; baseUrl: 
       const required = requiredState(kind);
       const { plan, commits } = await loadSendTargets(deps.db, planId);
       if (plan.state !== required) return;
+      // The creator who called the plan off knows already; the template still needs them in `commits` to name them.
+      const skipCreator = kind === 'not_this_time' && plan.calledOffReason === 'creator';
       for (const commit of commits) {
+        if (skipCreator && commit.isCreator) continue;
         await sendOrSkip(planId, kind, () => sendWithPrerequisite(deps, kind, plan, commit, commits));
       }
     },

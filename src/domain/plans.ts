@@ -235,6 +235,9 @@ export type PublicPlan = {
   commitDeadlineAt: Temporal.Instant;
   minimum: number;
   names: string[];
+  calledOffReason: 'deadline' | 'creator' | null;
+  /** The creator's full name (the view shows the first name only). */
+  creatorName: string | null;
 };
 
 type PlanRows = {
@@ -246,6 +249,8 @@ type PlanRows = {
   commitDeadlineAt: Date;
   minimum: number;
   name: string | null;
+  calledOffReason: string | null;
+  isCreator: boolean | null;
 }[];
 
 /** Maps the plan-with-active-commits join rows (one per commit, oldest first) to a PublicPlan; the caller has checked there is a first row. */
@@ -260,6 +265,8 @@ function toPublicPlan(rows: PlanRows): PublicPlan {
     commitDeadlineAt: first.commitDeadlineAt.toTemporalInstant(),
     minimum: first.minimum,
     names: rows.flatMap((r) => (r.name === null ? [] : [r.name])),
+    calledOffReason: first.calledOffReason === 'creator' || first.calledOffReason === 'deadline' ? first.calledOffReason : null,
+    creatorName: rows.find((r) => r.isCreator === true)?.name ?? null,
   };
 }
 
@@ -274,6 +281,8 @@ export async function loadPublicPlan(db: Db, publicToken: string): Promise<Publi
       commitDeadlineAt: plans.commitDeadlineAt,
       minimum: plans.minimum,
       name: commits.name,
+      calledOffReason: plans.calledOffReason,
+      isCreator: commits.isCreator,
     })
     .from(plans)
     .leftJoin(commits, and(eq(commits.planId, plans.id), isNull(commits.withdrawnAt)))
@@ -299,6 +308,8 @@ export async function loadManagePlan(db: Db, manageToken: string): Promise<Manag
       publicToken: plans.publicToken,
       manageToken: plans.manageToken,
       name: commits.name,
+      calledOffReason: plans.calledOffReason,
+      isCreator: commits.isCreator,
     })
     .from(plans)
     .leftJoin(commits, and(eq(commits.planId, plans.id), isNull(commits.withdrawnAt)))

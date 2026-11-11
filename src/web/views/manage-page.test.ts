@@ -12,6 +12,8 @@ const plan = (overrides: Partial<ManagePlan> = {}): ManagePlan => ({
   commitDeadlineAt: Temporal.Instant.from('2026-11-12T06:00:00Z'),
   minimum: 3,
   names: ['Ana Ruiz', 'Mia Chen'],
+  calledOffReason: null,
+  creatorName: null,
   publicToken: 'PUB',
   manageToken: 'MAN',
   ...overrides,
@@ -127,7 +129,7 @@ describe('managePage', () => {
 
   it('opens to the confirm', () => {
     const body = render();
-    const confirm = `Call it off? Everyone who's in gets a short "not this time" email.`;
+    const confirm = `Call it off? Everyone who's in gets a short email saying you called it off.`;
     const escaped = confirm.replaceAll('"', '&quot;');
 
     expect(body.includes(confirm) || body.includes(escaped)).toBe(true);
@@ -143,6 +145,22 @@ describe('managePage', () => {
     const notice = `<p class="notice" role="status">It's already started, so it can't be called off.</p>`;
     expect(body).toContain(notice);
     expect(body.indexOf(notice)).toBeLessThan(body.indexOf('class="pill'));
+  });
+
+  it('shows the called-off notice above the pill', () => {
+    const body = render(plan({ names: ['Ana', 'Mia'] }), 'not_this_time', { notice: 'called-off' });
+    const notice = `<p class="notice" role="status">Called off. We've let the people who were in know.</p>`;
+    expect(body).toContain(notice);
+    expect(body.indexOf(notice)).toBeLessThan(body.indexOf('class="pill'));
+  });
+
+  it('says only "Called off." when the creator was alone', () => {
+    const body = render(plan({ names: ['Ana'] }), 'not_this_time', { notice: 'called-off' });
+    expect(body).toContain('<p class="notice" role="status">Called off.</p>');
+  });
+
+  it('shows no called-off notice on a plan that is not called off', () => {
+    expect(render(plan(), 'needs_more', { notice: 'called-off' })).not.toContain('class="notice"');
   });
 
   it('shows no notice without the option', () => {

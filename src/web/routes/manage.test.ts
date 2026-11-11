@@ -256,7 +256,7 @@ describe('POST /m/:token/call-off', () => {
     const res = await postCallOff(app, manageToken);
 
     expect(res.status).toBe(303);
-    expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+    expect(res.headers.get('location')).toBe(`/m/${manageToken}?notice=called-off`);
     const plan = (await loadPlan(deps.db, manageToken))!;
     expect(plan.state).toBe('called_off');
     const events = plan.events.filter((e) => e.type === 'plan.called_off');
@@ -274,12 +274,35 @@ describe('POST /m/:token/call-off', () => {
     const second = await postCallOff(app, manageToken);
 
     expect(first.status).toBe(303);
-    expect(first.headers.get('location')).toBe(`/m/${manageToken}`);
+    expect(first.headers.get('location')).toBe(`/m/${manageToken}?notice=called-off`);
     expect(second.status).toBe(303);
     expect(second.headers.get('location')).toBe(`/m/${manageToken}`);
     const plan = (await loadPlan(deps.db, manageToken))!;
     expect(plan.events.filter((e) => e.type === 'plan.called_off')).toHaveLength(1);
     expect(deps.fakes.planWorkflows.signalCalls).toHaveLength(1);
+  });
+
+  it('GET after the call-off shows the notice (AC7)', async () => {
+    const deps = testDeps();
+    const { publicToken, manageToken } = await publishPlan(deps, { ...creator, minimum: '3' });
+    await join(deps, publicToken, 'Mia Chen', 'mia@example.test');
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const location = (await postCallOff(app, manageToken)).headers.get('location') ?? '';
+    const body = (await (await app.request(location)).text()).replaceAll('&#39;', "'");
+
+    expect(body).toContain('<p class="notice" role="status">Called off. We\'ve let the people who were in know.</p>');
+  });
+
+  it('GET after the call-off with Ana alone says Called off. (AC7)', async () => {
+    const deps = testDeps();
+    const { manageToken } = await publishPlan(deps, { ...creator, minimum: '3' });
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+
+    const location = (await postCallOff(app, manageToken)).headers.get('location') ?? '';
+    const body = await (await app.request(location)).text();
+
+    expect(body).toContain('<p class="notice" role="status">Called off.</p>');
   });
 
   it('refuses once the gathering started (AC4)', async () => {
@@ -378,7 +401,7 @@ describe('POST /m/:token/call-off', () => {
 
       const plan = (await loadPlan(deps.db, manageToken))!;
       expect(res.status).toBe(303);
-      expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+      expect(res.headers.get('location')).toBe(`/m/${manageToken}?notice=called-off`);
       expect(received).toEqual([{ planId: plan.id, signal: 'calledOff' }]);
       expect(calls).toBe(3);
       expect(lines.filter((l) => l.level === 'error')).toEqual([]);
@@ -404,7 +427,7 @@ describe('POST /m/:token/call-off', () => {
       const plan = (await loadPlan(deps.db, manageToken))!;
       expect(calls).toBe(3);
       expect(res.status).toBe(303);
-      expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+      expect(res.headers.get('location')).toBe(`/m/${manageToken}?notice=called-off`);
       expect(plan.state).toBe('called_off');
       const errors = lines.filter((l) => l.level === 'error' && l.msg === 'plan signal failed');
       expect(errors).toHaveLength(1);
@@ -440,7 +463,7 @@ describe('POST /m/:token/call-off', () => {
       const res = await postCallOff(app, manageToken);
 
       expect(res.status).toBe(303);
-      expect(res.headers.get('location')).toBe(`/m/${manageToken}`);
+      expect(res.headers.get('location')).toBe(`/m/${manageToken}?notice=called-off`);
       const plan = (await loadPlan(deps.db, manageToken))!;
       expect(plan.state).toBe('called_off');
       const errorLine = lines.find((l) => l.level === 'error' && l.msg === 'plan signal failed');

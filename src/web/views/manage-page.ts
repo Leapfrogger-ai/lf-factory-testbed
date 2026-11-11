@@ -13,7 +13,7 @@ function name(fullName: string): HtmlEscapedString {
 function confirm(manage: string): HtmlEscapedString {
   return html`<details class="calloff"><summary class="quiet">Call it off</summary>
     <div class="confirm">
-      <p>Call it off? Everyone who's in gets a short "not this time" email.</p>
+      <p>Call it off? Everyone who's in gets a short email saying you called it off.</p>
       <div class="row">
         <a class="quiet" href="${manage}">Keep it</a>
         <form method="post" action="${manage}/call-off"><button class="btn btn-dim" type="submit">Call it off</button></form>
@@ -35,8 +35,11 @@ export function managePage({
   state: DisplayState;
   publicLink: string;
   now: Temporal.Instant;
-  notice?: 'too-late';
+  notice?: 'too-late' | 'called-off';
 }): HtmlEscapedString {
+  const calledOffNotice = html`<p class="notice" role="status">${
+    plan.names.length > 1 ? "Called off. We've let the people who were in know." : 'Called off.'
+  }</p>`;
   const calledOff = state === 'not_this_time' || state === 'was_on';
   const pill =
     state === 'needs_more'
@@ -70,6 +73,7 @@ export function managePage({
     <p class="private">Your plan. Only you can see this page.</p>
     ${brand}
     ${notice === 'too-late' ? tooLate : ''}
+    ${notice === 'called-off' && state === 'not_this_time' ? calledOffNotice : ''}
     <p class="pill ${pillClass(state)}">${pill}</p>
     <p class="kind">${capitalise(plan.format)}</p>
     <h1 class="${state === 'not_this_time' ? 'venue venue-off' : 'venue'}">${plan.venue}</h1>

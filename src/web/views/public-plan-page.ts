@@ -124,7 +124,7 @@ export function publicPlanPage({
   const replacesForm = notice?.code === 'in' || notice?.code === 'updated' || notice?.code === 'on';
   const body =
     state === 'not_this_time'
-      ? html`<p class="copy">This one isn't going ahead. No harm done. Maybe next time.</p>
+      ? html`<p class="copy">${plan.calledOffReason === 'creator' && plan.creatorName !== null ? html`${firstName(plan.creatorName)} called this one off. Nothing to do.` : html`This one isn't going ahead. No harm done. Maybe next time.`}</p>
           <p><a class="quiet" href="/">Suggest a plan</a></p>`
       : state === 'happening_now'
         ? filledSeats(plan, true, justOn)

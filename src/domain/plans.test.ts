@@ -169,6 +169,22 @@ describe('loadPublicPlan', () => {
     expect(JSON.stringify(plan)).not.toContain('example.test');
   });
 
+  it('says why it was called off and who by: creator, deadline, or neither', async () => {
+    const deps = testDeps();
+    const open = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    expect(await loadPublicPlan(db, open.publicToken)).toMatchObject({ calledOffReason: null, creatorName: 'Ana Ruiz' });
+
+    const byCreator = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await commit(deps, byCreator.publicToken, commitFormSchema.parse({ name: 'Mia Chen', email: 'mia@example.test' }));
+    await callOff(deps, byCreator.manageToken);
+    expect(await loadPublicPlan(db, byCreator.publicToken)).toMatchObject({ state: 'called_off', calledOffReason: 'creator', creatorName: 'Ana Ruiz' });
+    expect(await loadManagePlan(db, byCreator.manageToken)).toMatchObject({ calledOffReason: 'creator', creatorName: 'Ana Ruiz' });
+
+    const byDeadline = await publishPlan(deps, { name: 'Ana Ruiz', email: 'ana@example.test' });
+    await resolveDeadline(db, byDeadline.planId);
+    expect(await loadPublicPlan(db, byDeadline.publicToken)).toMatchObject({ state: 'called_off', calledOffReason: 'deadline' });
+  });
+
   it('returns null for an unknown token', async () => {
     await publishPlan(testDeps());
 

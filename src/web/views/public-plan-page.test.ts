@@ -17,6 +17,8 @@ const plan = (overrides: Partial<PublicPlan> = {}): PublicPlan => ({
   commitDeadlineAt: Temporal.Instant.from('2026-11-12T06:00:00Z'),
   minimum: 3,
   names: ['Ana Ruiz'],
+  calledOffReason: null,
+  creatorName: null,
   ...overrides,
 });
 
@@ -158,6 +160,31 @@ describe('publicPlanPage', () => {
     expect(body).not.toContain('<ul');
     expect(body).not.toContain('Ana');
     expect(body).not.toMatch(/\d of \d/);
+  });
+
+  it('a creator call-off says who called it off', () => {
+    const body = render(plan({ state: 'called_off', calledOffReason: 'creator', creatorName: 'Ana Smith' }), 'not_this_time');
+
+    expect(body).toContain('Ana called this one off. Nothing to do.');
+    expect(body).toContain('Not this time');
+    expect(body).not.toContain('No harm done');
+  });
+
+  it('a deadline call-off keeps the no-harm line', () => {
+    const body = decodeEntities(render(plan({ state: 'called_off', calledOffReason: 'deadline', creatorName: 'Ana Smith' }), 'not_this_time'));
+
+    expect(body).toContain("This one isn't going ahead. No harm done. Maybe next time.");
+    expect(body).not.toContain('called this one off');
+  });
+
+  it('escapes the creator name and cuts a long first name to 16 characters', () => {
+    const escaped = render(plan({ state: 'called_off', calledOffReason: 'creator', creatorName: '<b>Ana</b>' }), 'not_this_time');
+    expect(escaped).not.toContain('<b>Ana');
+    expect(escaped).toContain('&lt;b&gt;Ana&lt;/b&gt; called this one off.');
+
+    const long = render(plan({ state: 'called_off', calledOffReason: 'creator', creatorName: 'Abcdefghijklmnopqrst Smith' }), 'not_this_time');
+    expect(long).toContain('Abcdefghijklmnop called this one off.');
+    expect(long).not.toContain('Abcdefghijklmnopq');
   });
 
   it('a not_this_time page has a pill with class state-off, no form', () => {

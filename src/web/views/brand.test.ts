@@ -17,6 +17,8 @@ const plan: PublicPlan = {
   commitDeadlineAt: Temporal.Instant.from('2026-11-12T06:00:00Z'),
   minimum: 3,
   names: ['Ana Ruiz'],
+  calledOffReason: null,
+  creatorName: null,
 };
 
 const target = (overrides: Partial<WithdrawTarget> = {}): WithdrawTarget => ({
