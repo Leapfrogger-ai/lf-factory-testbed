@@ -1,0 +1,1174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Visual reference for Epic 5 (calvin-6), drawn before its stories are written. Static mockups at 360px; not production code. -->
+<title>calvin Epic 5 flows</title>
+<style>
+/* ===== The app's live public/app.css (testbed main), scoped to .app by the sheet's build script, unchanged otherwise ===== */
+:root {
+  --paper: #F5F3F8; --surface: #FFFFFF; --ink: #24202E; --ink-2: #4E4760; --muted: #645C75;
+  --line: #DDD8E5; --line-strong: #8A8199;
+  --berry: #8A2F6F; --berry-press: #6F2459; --berry-tint: #F6E3EF; --on-accent: #FFFFFF;
+  --on: #2B6A45; --on-tint: #E2F0E6; --off-tint: #E8E5ED; --error: #A8321E;
+  --strip: #24202E; --strip-text: #F5F3F8;
+  --serif: "Iowan Old Style", Charter, "Bitstream Charter", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --sans: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  color-scheme: light;
+  --desk: #E7E4EC; --desk-ink: #24202E; --desk-2: #4E4760; --mark: #8A2F6F; --mark-tint: #F6E3EF;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #1A1720; --surface: #24202B; --ink: #F2EFF6; --ink-2: #CBC4D8; --muted: #A79FB5;
+    --line: #3A3445; --line-strong: #7F7792;
+    --berry: #E59BCB; --berry-press: #F0B8DB; --berry-tint: #3B2434; --on-accent: #1A1720;
+    --on: #8FCBA5; --on-tint: #1F3329; --off-tint: #332E3C; --error: #F08B76;
+    --strip: #F2EFF6; --strip-text: #1A1720;
+  --desk: #110F15; --desk-ink: #F2EFF6; --desk-2: #CBC4D8; --mark: #E59BCB; --mark-tint: #3B2434;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --paper: #1A1720; --surface: #24202B; --ink: #F2EFF6; --ink-2: #CBC4D8; --muted: #A79FB5;
+    --line: #3A3445; --line-strong: #7F7792;
+    --berry: #E59BCB; --berry-press: #F0B8DB; --berry-tint: #3B2434; --on-accent: #1A1720;
+    --on: #8FCBA5; --on-tint: #1F3329; --off-tint: #332E3C; --error: #F08B76;
+    --strip: #F2EFF6; --strip-text: #1A1720;
+  --desk: #110F15; --desk-ink: #F2EFF6; --desk-2: #CBC4D8; --mark: #E59BCB; --mark-tint: #3B2434;
+  color-scheme: dark;
+}
+
+.app * { box-sizing: border-box; }
+.app [hidden] { display: none !important; }
+.app { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 var(--sans); }
+.app { max-width: 440px; margin: 0 auto; padding: 16px 16px 24px; }
+.app p, .app h1, .app h2, .app ul { margin: 0; }
+.app a { color: var(--berry); text-underline-offset: 3px; }
+.app :focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+
+.app .brand { font: italic 600 21px/1 var(--serif); color: var(--berry); margin-bottom: 20px; }
+.app .private { margin: -16px -16px 16px; padding: 10px 16px; background: var(--strip); color: var(--strip-text); font-size: 14px; line-height: 1.4; }
+
+.app .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; line-height: 1.3; margin-bottom: 16px; }
+.app .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.app .pill.state-open { background: var(--berry-tint); color: var(--berry); }
+.app .pill.state-on { background: var(--on-tint); color: var(--on); }
+.app .pill.state-off { background: var(--off-tint); color: var(--ink-2); }
+.app .pill.state-off::before { display: none; }
+.app .pill.state-now { background: transparent; color: var(--on); box-shadow: inset 0 0 0 1.5px var(--on); }
+
+.app .kind { font-size: 15px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px; }
+.app h1 { font: 600 24px/1.25 var(--serif); letter-spacing: -0.005em; margin-bottom: 16px; text-wrap: balance; }
+.app h1.venue { font-size: 36px; line-height: 1.08; letter-spacing: -0.015em; margin-bottom: 12px; }
+.app h1.venue-off { color: var(--ink-2); }
+.app h2 { font: 600 18px/1.3 var(--sans); margin: 24px 0 12px; }
+.app .when { font-size: 18px; font-weight: 600; line-height: 1.3; }
+.app .where { color: var(--muted); margin-bottom: 20px; }
+.app .meta { color: var(--muted); font-size: 14px; line-height: 1.45; margin-bottom: 20px; }
+.app .copy { margin-bottom: 16px; }
+.app .help { color: var(--muted); font-size: 14px; line-height: 1.4; margin-top: 4px; }
+
+/* Seat row: one token per person; the row joins up when it's on. */
+.app .seats { display: flex; flex-wrap: wrap; gap: 12px 8px; padding: 0; margin: 4px 0 14px; list-style: none; overflow: hidden; }
+.app .seat { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 52px; max-width: 96px; font-size: 13px; font-weight: 600; line-height: 1.2; }
+.app .seat > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app .token { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--berry); color: var(--on-accent); font: 600 18px/1 var(--serif); position: relative; z-index: 1; }
+.app .seat-empty .token { background: transparent; border: 2px dashed var(--line-strong); }
+.app .seat-you .token { background: var(--berry-tint); border: 2px dashed var(--berry); }
+.app .seats-on .token { background: var(--on); }
+.app .seats-on .seat:not(:last-child)::after { content: ""; position: absolute; top: 19px; left: 50%; width: calc(100% + 8px); height: 2px; background: var(--on); transform-origin: left; }
+@media (prefers-reduced-motion: no-preference) {
+  .app .seats-on.just-on .seat:not(:last-child)::after { animation: join 480ms cubic-bezier(.2, .7, .2, 1) both; }
+  .app .seats-on.just-on .seat:nth-child(2)::after { animation-delay: 120ms; }
+  .app .seats-on.just-on .seat:nth-child(3)::after { animation-delay: 240ms; }
+}
+@keyframes join { from { transform: scaleX(0); } to { transform: scaleX(1); } .app }
+
+/* Manage page: the same tokens, .app as a list with full names. */
+.count { font: 600 24px/1.2 var(--serif); margin: 4px 0 8px; }
+.app .names { list-style: none; padding: 0; margin: 0 0 20px; }
+.app .names li { display: flex; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.app .names .token { width: 32px; height: 32px; font-size: 15px; }
+.app .names .seat-empty .token { border-width: 1.5px; }
+.app .names-off .token { background: var(--off-tint); color: var(--ink-2); }
+.app .names-on .token { background: var(--on); }
+
+/* Controls */
+.app .field { margin-bottom: 16px; }
+.app .row { display: flex; gap: 12px; }
+.app .row .field { flex: 1; min-width: 0; }
+.app label { display: block; margin-bottom: 4px; color: var(--ink-2); font-size: 14px; font-weight: 600; line-height: 1.3; }
+.app input, .app select { width: 100%; min-height: 48px; padding: 8px 12px; border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: 16px var(--sans); }
+.app input[aria-invalid="true"] { border-color: var(--error); }
+.app .error { color: var(--error); font-size: 14px; line-height: 1.4; margin-top: 4px; }
+
+.app .btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; padding: 0 20px; border: 0; border-radius: 999px; font: 600 16px/1.2 var(--sans); text-decoration: none; cursor: pointer; }
+.app .btn-primary { background: var(--berry); color: var(--on-accent); }
+.app .btn-primary:hover { background: var(--berry-press); }
+.app .btn-secondary { background: transparent; color: var(--berry); box-shadow: inset 0 0 0 1.5px var(--berry); }
+.app .btn-dim { background: var(--ink-2); color: var(--on-accent); width: auto; }
+.app .quiet { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; background: none; border: 0; color: var(--ink-2); font: 600 16px var(--sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.app .stack > * + * { margin-top: 12px; }
+.app .again { margin-top: var(--s3); }
+
+.app .linkbox { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; border: 1.5px solid var(--line-strong); border-radius: 999px; background: var(--surface); margin-bottom: 12px; }
+.app .linkbox input { border: 0; min-height: 44px; padding: 0; background: transparent; text-overflow: ellipsis; color: var(--ink-2); }
+.app .linkbox .btn { width: auto; min-height: 44px; flex: none; }
+
+.app .notice { padding: 12px 16px; border-radius: 12px; background: var(--off-tint); color: var(--ink); line-height: 1.4; margin-bottom: 16px; }
+.app .notice-on { background: var(--on-tint); color: var(--on); font-weight: 600; }
+
+.app .calloff summary { list-style: none; }
+.app .calloff summary::-webkit-details-marker { display: none; }
+.app .calloff[open] summary { display: none; }
+.app .confirm { padding: 14px 16px; border-radius: 12px; background: var(--off-tint); }
+.app .confirm .row { align-items: center; justify-content: space-between; margin-top: 10px; }
+
+.app .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+.app .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 4px 16px; margin-bottom: 16px; }
+.app .card .kind { padding-top: 12px; }
+.app .card .field { margin-bottom: 12px; }
+
+/* Editable plan rows: a label, its value, and a quiet Change button. */
+.app .row-view { display: flex; align-items: center; gap: 8px; min-height: 52px; border-bottom: 1px solid var(--line); }
+.app .row-view .quiet { margin-left: auto; flex: none; }
+.app .row-label { color: var(--ink-2); font-size: 14px; font-weight: 600; min-width: 84px; }
+.app .row-summary { flex: 1; min-width: 0; }
+.app .row-edit { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.app .row-edit .quiet { margin-left: var(--s3); }
+
+/* ===== end of live app.css ===== */
+
+/* ===== Proposed additions (Epic 5), also scoped to .app ===== */
+/* Proposed additions to app.css for Epic 5 (each is named in a frame's "What changes"). */
+.app .btn[disabled] { opacity: .65; cursor: progress; }
+.app .btn[disabled]:hover { background: var(--berry); }
+.app .errors { list-style: none; padding: 0; margin: 0 0 12px; }
+.app input::placeholder { color: var(--muted); opacity: 1; }
+.app .lede { color: var(--ink-2); margin: -8px 0 20px; }
+.app .context { margin-bottom: 20px; }
+.app .context .when { font-size: 16px; }
+.app .context .kind { margin-bottom: 0; }
+.app .answers { display: flex; gap: 12px; }
+.app .answers .btn { flex: 1; }
+.app select[aria-invalid="true"] { border-color: var(--error); }
+
+/* ===== end of proposed additions ===== */
+
+/* ===== The sheet around the frames (not part of the app) ===== */
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--desk); color: var(--desk-ink); font: 16px/1.5 var(--sans); }
+.sheet { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+.sheet-head { max-width: 760px; margin-bottom: 32px; }
+.sheet-head h1 { font: 600 34px/1.1 var(--serif); margin: 0 0 12px; }
+.sheet-head p { margin: 0 0 12px; color: var(--desk-2); }
+.sheet code { font-size: 0.9em; }
+.sheet a { color: var(--mark); }
+.theme { display: inline-flex; gap: 4px; margin: 8px 0 0; padding: 4px; border-radius: 999px; background: var(--paper); }
+.theme button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--desk-ink); font: 600 14px var(--sans); cursor: pointer; }
+.theme button[aria-pressed="true"] { background: var(--berry); color: var(--on-accent); }
+.theme button:focus-visible, .sheet a:focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 16px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--desk-2); }
+.contents { columns: 2 260px; max-width: 760px; padding-left: 22px; margin: 0; }
+.contents li { margin-bottom: 4px; }
+.flow { margin-top: 56px; }
+.flow > h2 { font: 600 26px/1.2 var(--serif); margin: 0 0 6px; }
+.why { max-width: 760px; margin: 0 0 20px; color: var(--desk-2); }
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 32px 24px; align-items: start; }
+.frame { margin: 0; min-width: 0; }
+.frame-label { margin: 0 0 8px; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.route { display: block; font-weight: 400; color: var(--desk-2); }
+.tag { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.tag-new { background: var(--mark); color: var(--on-accent); }
+.tag-change { background: var(--mark-tint); color: var(--desk-ink); box-shadow: inset 0 0 0 1px var(--mark); }
+.tag-built { background: var(--paper); color: var(--desk-ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.phone { width: 100%; max-width: 360px; border-radius: 20px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.frame-note { max-width: 360px; margin: 10px 0 0; font-size: 14px; line-height: 1.45; color: var(--desk-2); }
+.changes { max-width: 360px; margin: 10px 0 0; padding: 10px 12px 10px 28px; border-radius: 12px; background: var(--mark-tint); font-size: 14px; line-height: 1.45; }
+.changes b:first-child { display: block; margin-left: -16px; }
+.mail { max-width: 360px; border-radius: 12px; overflow: hidden; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.mail-head { padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14px; display: grid; gap: 2px; }
+.mail-head b { display: inline-block; width: 40px; color: var(--muted); font-weight: 600; }
+.mail-subject { font-weight: 700; margin-top: 4px; }
+.mail-body { margin: 0; padding: 14px; white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/1.5 var(--sans); }
+.mail-body a { color: var(--berry); }
+.chat { max-width: 360px; padding: 16px; border-radius: 20px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 15px; }
+.chat-msg { max-width: 290px; padding: 8px 12px; border-radius: 16px 16px 16px 4px; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); margin-bottom: 8px; }
+.chat-msg.me { margin-left: auto; border-radius: 16px 16px 4px 16px; }
+.chat-who { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+.og { margin: 8px 0 4px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.og-img { display: grid; place-items: center; height: 120px; background: var(--berry-tint); color: var(--berry); font: italic 600 34px/1 var(--serif); }
+.og-text { padding: 8px 10px; font-size: 13px; line-height: 1.35; }
+.og-text b { display: block; font-size: 14px; }
+.og-text span { color: var(--muted); }
+.table { width: 100%; max-width: 1000px; border-collapse: collapse; font-size: 15px; }
+.table th, .table td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-top: 1px solid var(--line); }
+.table th { font-weight: 700; }
+.questions { max-width: 820px; padding-left: 22px; }
+.questions li { margin-bottom: 14px; }
+.lean { display: block; margin-top: 2px; color: var(--desk-2); }
+.frame:target .phone, .frame:target .mail { box-shadow: 0 0 0 3px var(--mark); }
+@media (max-width: 520px) { .table, .table tbody, .table tr, .table th, .table td { display: block; } .table th { padding-bottom: 0; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header class="sheet-head">
+  <h1>calvin, end to end: Epic 5 mockups</h1>
+  <p>Epic 5 is "Trial-ready polish": get calvin ready for the 3–5 Bay Area trials. This sheet walks through every flow in the order a person meets it: making a plan, sharing it, committing, the confirmation and both reminders, withdrawing, both kinds of call-off, starting a new plan from an old one, and the check-in. Every state is drawn at 360px, including errors and empty ones.</p>
+  <p>The frames use the app's live CSS. The build copies today's <code>public/app.css</code> from testbed main into this file and only scopes it, so a frame with no changes looks exactly like the app. The few new rules are listed separately as proposed additions, and every frame that needs one says so under it. The copy is the app's own unless the frame says otherwise.</p>
+  <p>Each frame is tagged. <b>Built</b> means it's shown as the app draws it today. <b>Changes</b> means it's built but Epic 5 would change it; the changes are listed under it. <b>New</b> means it isn't in the app yet. After your review, stories close the gaps between this sheet and the app. A restyle story goes first, so feature stories build on the new look.</p>
+  <p>The example plan throughout is Coffee at Blue Bottle, College Ave, in Oakland (Rockridge), on Sat 14 Nov at 10:00 AM. The minimum is 3 and the decide-by time is Thu 12 Nov, 10:00 AM. Ana Ruiz makes it, and Mia Chen and Raj Patel commit.</p>
+  <p>Made with the frontend-design skill (Anthropic's, followed from its SKILL.md), held to ux-spec.md and the look the operator approved on 2026-11-04 (testbed #191).</p>
+  <div class="theme" role="group" aria-label="Colour theme for the frames">
+    <button type="button" data-set-theme="auto" aria-pressed="true">Match device</button>
+    <button type="button" data-set-theme="light" aria-pressed="false">Light</button>
+    <button type="button" data-set-theme="dark" aria-pressed="false">Dark</button>
+  </div>
+  <ul class="legend">
+    <li><span class="tag tag-built">Built</span>as the app draws it today</li>
+    <li><span class="tag tag-change">Changes</span>built, and Epic 5 changes it</li>
+    <li><span class="tag tag-new">New</span>not in the app yet</li>
+  </ul>
+</header>
+
+<nav aria-labelledby="toc">
+  <h2 id="toc" class="frame-label" style="font-size:16px">The flows, in order</h2>
+  <ol class="contents">
+    <li><a href="#flow-create">Ana makes a plan</a></li>
+    <li><a href="#flow-share">She shares it</a></li>
+    <li><a href="#flow-commit">Mia and Raj commit</a></li>
+    <li><a href="#flow-on">It's on, and the reminders</a></li>
+    <li><a href="#flow-withdraw">Raj withdraws</a></li>
+    <li><a href="#flow-deadline">The deadline passes short of the minimum</a></li>
+    <li><a href="#flow-calloff">Ana calls it off</a></li>
+    <li><a href="#flow-again">Ana starts a new plan from this one</a></li>
+    <li><a href="#flow-checkin">Did it happen?</a></li>
+    <li><a href="#flow-broken">When a link goes wrong</a></li>
+    <li><a href="#gaps">What the stories would change</a></li>
+    <li><a href="#questions">For the operator to decide</a></li>
+  </ol>
+</nav>
+
+<!-- ======================================================= 1 -->
+<section class="flow" id="flow-create" aria-labelledby="h-create">
+  <h2 id="h-create">1. Ana makes a plan</h2>
+  <p class="why">Ana said "we should get coffee" in her neighbourhood chat. She opens calvin, gives a city, a rough area and a rough time, and gets one specific plan back. If the suggestion fails, she gets an empty card to fill in herself.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-c1">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>C1 · Create, first visit<span class="route">GET /</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <p class="lede">Say roughly where and when. We'll suggest one specific plan you can share in your chat.</p>
+        <div class="field"><label for="c1-city">City</label><select id="c1-city"><option></option></select></div>
+        <div class="field"><label for="c1-area">Rough area</label><input id="c1-area" placeholder="e.g. Rockridge, near the BART"></div>
+        <div class="field"><label for="c1-time">Rough time</label><input id="c1-time" placeholder="e.g. Saturday morning"></div>
+        <button class="btn btn-primary" type="button">Suggest a plan</button>
+      </main></div>
+      <div class="changes"><b>What changes</b>A one-line lede says what calvin does; a first-time creator has no other explanation. Example placeholders on the two free-text fields (ux-spec §8.3: placeholders are examples, never labels). New CSS: <code>.lede</code>, <code>input::placeholder</code>.</div>
+    </figure>
+
+    <figure class="frame" id="f-c2">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>C2 · Create, fields missing<span class="route">POST /suggest, nothing filled in</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <div class="field"><label for="c2-city">City</label><select id="c2-city" aria-invalid="true" aria-describedby="c2-city-e"><option></option></select><p class="error" id="c2-city-e">Pick a city.</p></div>
+        <div class="field"><label for="c2-area">Rough area</label><input id="c2-area" aria-invalid="true"><p class="error">Add a rough area.</p></div>
+        <div class="field"><label for="c2-time">Rough time</label><input id="c2-time" aria-invalid="true"><p class="error">Add a rough time.</p></div>
+        <button class="btn btn-primary" type="button">Suggest a plan</button>
+      </main></div>
+      <p class="frame-note">With C1's changes, the lede and placeholders show here too. The select's border doesn't turn red when it's invalid; inputs do. C1's restyle adds <code>select[aria-invalid="true"]</code>.</p>
+    </figure>
+
+    <figure class="frame" id="f-c3">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>C3 · Waiting for the suggestion<span class="route">after tapping Suggest a plan</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <div class="field"><label for="c3-city">City</label><select id="c3-city"><option>Oakland</option></select></div>
+        <div class="field"><label for="c3-area">Rough area</label><input id="c3-area" value="Rockridge"></div>
+        <div class="field"><label for="c3-time">Rough time</label><input id="c3-time" value="Saturday morning"></div>
+        <button class="btn btn-primary" type="button" disabled><span aria-live="polite">Finding something nearby…</span></button>
+      </main></div>
+      <div class="changes"><b>What changes</b>The text already cycles ("Finding something nearby…", "Picking a time…") and the button is disabled, but app.css has no disabled style, so it looks tappable. New CSS: <code>.btn[disabled]</code> dims it and shows a progress cursor.</div>
+    </figure>
+
+    <figure class="frame" id="f-c4">
+      <p class="frame-label"><span class="tag tag-built">Built</span>C4 · The suggestion<span class="route">POST /suggest → the card</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <p class="summary">Oakland · Rockridge · Saturday morning <a class="quiet" href="#f-c1">Change</a></p>
+        <div class="card">
+          <div class="field"><label for="c4-what">What</label><input id="c4-what" value="Coffee"></div>
+          <div class="row-view"><span class="row-label">Where</span><span class="row-summary">Blue Bottle, College Ave</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-view"><span class="row-label">When</span><span class="row-summary">Sat 14 Nov · 10:00 AM</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-view"><span class="row-label">Minimum</span><span class="row-summary">3 people, you included</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-view" style="border-bottom:0"><span class="row-label">Decide by</span><span class="row-summary">Thu 12 Nov, 10:00 AM</span><button class="quiet" type="button">Edit</button></div>
+        </div>
+        <h2>You're the first one in</h2>
+        <div class="field"><label for="c4-name">Your name</label><input id="c4-name" value="Ana Ruiz"></div>
+        <div class="field"><label for="c4-email">Your email</label><input id="c4-email" value="ana@example.com"></div>
+        <div class="stack">
+          <button class="btn btn-primary" type="button">Publish plan</button>
+          <button class="btn btn-secondary" type="button">Suggest another</button>
+        </div>
+      </main></div>
+      <p class="frame-note">"Suggest another" replaces the card with a new suggestion for the same inputs and shows C3's wait on its own button. The card's rows are the same whether Claude suggested them or Ana typed them.</p>
+    </figure>
+
+    <figure class="frame" id="f-c5">
+      <p class="frame-label"><span class="tag tag-built">Built</span>C5 · Changing the time<span class="route">Edit on When</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <p class="summary">Oakland · Rockridge · Saturday morning <a class="quiet" href="#f-c1">Change</a></p>
+        <div class="card">
+          <div class="field"><label for="c5-what">What</label><input id="c5-what" value="Coffee"></div>
+          <div class="row-view"><span class="row-label">Where</span><span class="row-summary">Blue Bottle, College Ave</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-edit"><div class="row"><div class="field"><label for="c5-d">Date</label><input id="c5-d" type="date" value="2026-11-14"></div><div class="field"><label for="c5-t">Time</label><input id="c5-t" type="time" value="11:00"></div></div><button class="btn btn-secondary" type="button">Done</button></div>
+          <div class="row-view"><span class="row-label">Minimum</span><span class="row-summary">3 people, you included</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-view" style="border-bottom:0"><span class="row-label">Decide by</span><span class="row-summary">Thu 12 Nov, 11:00 AM</span><button class="quiet" type="button">Edit</button></div>
+        </div>
+      </main></div>
+      <p class="frame-note">Changing When moves the default decide-by time with it, unless Ana set it herself. Escape or Done closes the row.</p>
+    </figure>
+
+    <figure class="frame" id="f-c6">
+      <p class="frame-label"><span class="tag tag-built">Built</span>C6 · Publish refused<span class="route">POST /plans, decide-by after the gathering</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <p class="summary">Oakland · Rockridge · Saturday morning <a class="quiet" href="#f-c1">Change</a></p>
+        <div class="card">
+          <div class="field"><label for="c6-what">What</label><input id="c6-what" value="Coffee"></div>
+          <div class="row-view"><span class="row-label">Where</span><span class="row-summary">Blue Bottle, College Ave</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-view"><span class="row-label">When</span><span class="row-summary">Sat 14 Nov · 10:00 AM</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-view"><span class="row-label">Minimum</span><span class="row-summary">3 people, you included</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-edit" style="border-bottom:0"><div class="row"><div class="field"><label for="c6-dd">Decide by</label><input id="c6-dd" type="date" value="2026-11-15" aria-invalid="true" aria-describedby="c6-e"></div><div class="field"><label for="c6-dt">Time</label><input id="c6-dt" type="time" value="09:00"></div></div><p class="error" id="c6-e">The decide-by time needs to be before the gathering.</p><button class="btn btn-secondary" type="button">Done</button></div>
+        </div>
+        <h2>You're the first one in</h2>
+        <div class="field"><label for="c6-name">Your name</label><input id="c6-name" value="Ana Ruiz"></div>
+        <div class="field"><label for="c6-email">Your email</label><input id="c6-email" value="ana@example" aria-invalid="true"><p class="error">That email doesn't look right.</p></div>
+        <button class="btn btn-primary" type="button">Publish plan</button>
+      </main></div>
+      <p class="frame-note">A row with an error opens on its own, and focus moves to the first invalid field. Other refusals use the same place: "The gathering needs to be in the future.", "The decide-by time needs to be in the future.", "The minimum is at least 2 people, you included."</p>
+    </figure>
+
+    <figure class="frame" id="f-c7">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>C7 · No suggestion this time<span class="route">POST /suggest fails or takes over 20s</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <p class="notice">We couldn't come up with a suggestion just now. Fill in your own below, or try again.</p>
+        <p class="summary">Oakland · Rockridge · Saturday morning <a class="quiet" href="#f-c1">Change</a></p>
+        <div class="card">
+          <div class="field"><label for="c7-what">What</label><input id="c7-what" placeholder="e.g. coffee, drinks, a walk"></div>
+          <div class="field"><label for="c7-where">Where</label><input id="c7-where" placeholder="e.g. Blue Bottle, College Ave"></div>
+          <div class="row"><div class="field"><label for="c7-d">Date</label><input id="c7-d" type="date"></div><div class="field"><label for="c7-t">Time</label><input id="c7-t" type="time"></div></div>
+          <div class="field"><label for="c7-min">Minimum, you included</label><input id="c7-min" type="number" value="3"></div>
+          <div class="row"><div class="field"><label for="c7-dd">Decide by</label><input id="c7-dd" type="date"></div><div class="field"><label for="c7-dt">Time</label><input id="c7-dt" type="time"></div></div>
+        </div>
+        <p class="help" style="margin:-8px 0 16px">Leave Decide by empty and we'll pick a sensible time.</p>
+        <h2>You're the first one in</h2>
+        <div class="field"><label for="c7-name">Your name</label><input id="c7-name"></div>
+        <div class="field"><label for="c7-email">Your email</label><input id="c7-email"></div>
+        <div class="stack">
+          <button class="btn btn-primary" type="button">Publish plan</button>
+          <button class="btn btn-secondary" type="button">Try suggesting again</button>
+        </div>
+      </main></div>
+      <div class="changes"><b>What changes</b>Example placeholders in the empty card, as in C1. A help line under the card says the decide-by time can be left empty; today nothing tells Ana that the default applies. New CSS: none beyond C1's.</div>
+    </figure>
+
+    <figure class="frame" id="f-c8">
+      <p class="frame-label"><span class="tag tag-built">Built</span>C8 · Too many suggestions just now<span class="route">POST /suggest, rate-limited</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Suggest a plan</h1>
+        <p class="notice">Lots of suggestions just now. Fill in your own below, or try again in a few minutes.</p>
+        <div class="field"><label for="c8-city">City</label><select id="c8-city"><option>Oakland</option></select></div>
+        <div class="field"><label for="c8-area">Rough area</label><input id="c8-area" value="Rockridge"></div>
+        <div class="field"><label for="c8-time">Rough time</label><input id="c8-time" value="Saturday morning"></div>
+        <button class="btn btn-primary" type="button">Suggest a plan</button>
+      </main></div>
+      <p class="frame-note">The notice says "fill in your own below", but below is the inputs form, not an empty card. Publishing too often shows a notice in the same place ("Lots of plans from here just now. Try again in a little while."). See question 4.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 2 -->
+<section class="flow" id="flow-share" aria-labelledby="h-share">
+  <h2 id="h-share">2. She shares it</h2>
+  <p class="why">Publishing makes Ana the first one in. She gets the link to paste into the chat, and her private manage link by email. In the chat, the link unfurls into a preview.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-s1">
+      <p class="frame-label"><span class="tag tag-built">Built</span>S1 · Ready to share<span class="route">POST /plans → the published page</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Your plan is ready to share</h1>
+        <label for="s1-link">Link to share</label>
+        <div class="linkbox"><input id="s1-link" readonly value="calvin.example/p/k7Qx2mVbT9aLw4Rz"><button class="btn btn-primary" type="button">Copy</button></div>
+        <button class="btn btn-secondary" type="button">Share…</button>
+        <p aria-live="polite" class="help" style="margin:8px 0 12px">Copied. Paste it in your chat.</p>
+        <p class="meta">We've emailed you a private link to manage the plan. Keep it to yourself.</p>
+        <p><a class="quiet" href="#f-m1">Manage your plan</a></p>
+      </main></div>
+      <p class="frame-note">Share… appears only where the phone supports it. The "Copied" line is what the page says after Copy.</p>
+    </figure>
+
+    <figure class="frame" id="f-s2">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>S2 · Ready, but the email didn't go<span class="route">POST /plans, the manage-link email failed</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Your plan is ready to share</h1>
+        <label for="s2-link">Link to share</label>
+        <div class="linkbox"><input id="s2-link" readonly value="calvin.example/p/k7Qx2mVbT9aLw4Rz"><button class="btn btn-primary" type="button">Copy</button></div>
+        <p class="notice">We couldn't email you your private link. Copy it now and keep it somewhere safe: it's the only way to manage the plan.</p>
+        <label for="s2-manage">Your private link</label>
+        <div class="linkbox"><input id="s2-manage" readonly value="calvin.example/m/Zp3hYq81cNfLs0Wd"><button class="btn btn-secondary" type="button">Copy</button></div>
+      </main></div>
+      <div class="changes"><b>What changes</b>Today the page says "Bookmark the link below" and shows only a "Manage your plan" link, so Ana could lose her only copy. Proposed: the notice explains why it matters, and the private link gets its own copy box. New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-e1">
+      <p class="frame-label"><span class="tag tag-built">Built</span>E1 · Email: Ana's private link<span class="route">to Ana, on publish</span></p>
+      <div class="mail">
+        <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Ana Ruiz</span><span class="mail-subject">Your plan: Coffee at Blue Bottle, College Ave, Sat 14 Nov</span></div>
+<pre class="mail-body">Coffee at Blue Bottle, College Ave, Sat 14 Nov
+
+Here's your private link to see who's in or call it off. Don't share it.
+
+<a href="#f-m1">calvin.example/m/Zp3hYq81cNfLs0Wd</a>
+
+Paste this one in your chat:
+<a href="#f-p1">calvin.example/p/k7Qx2mVbT9aLw4Rz</a>
+</pre>
+      </div>
+      <p class="frame-note">Every email stays plain text, as built: short, and nothing that looks like marketing to a spam filter.</p>
+    </figure>
+
+    <figure class="frame" id="f-n1">
+      <p class="frame-label"><span class="tag tag-built">Built</span>N1 · In the group chat<span class="route">the link preview (Open Graph tags)</span></p>
+      <div class="chat" role="img" aria-label="A group chat: Ana posts the calvin link and its preview shows the plan">
+        <div class="chat-msg"><span class="chat-who">Raj</span>we should get coffee sometime</div>
+        <div class="chat-msg me">ok here's a plan, it only happens if 3 of us are in
+          <div class="og"><div class="og-img">calvin</div><div class="og-text"><b>Coffee at Blue Bottle, College Ave</b><span>Sat 14 Nov · 10:00 AM · Oakland. Goes ahead if 3 are in.</span></div></div>
+          <a href="#f-p1">calvin.example/p/k7Qx2mVbT9aLw4Rz</a></div>
+      </div>
+      <p class="frame-note">The image is one generic calvin card for every plan (ux-spec §8.10). When the plan is on, the preview adds "It's on."; when it's called off, it says "Not this time".</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 3 -->
+<section class="flow" id="flow-commit" aria-labelledby="h-commit">
+  <h2 id="h-commit">3. Mia and Raj commit</h2>
+  <p class="why">Mia taps the link inside her chat app. She sees the plan, who's in so far against the minimum, and a two-field form. Raj's commit fills the last seat, and the plan is on.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-p1">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>P1 · The plan, needs 2 more<span class="route">GET /p/:token</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="pill state-open">Needs 2 more</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats" aria-label="1 of 3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat seat-you"><span class="token" aria-hidden="true"></span><span>you?</span></li>
+          <li class="seat seat-empty"><span class="token" aria-hidden="true"></span><span></span></li>
+        </ul>
+        <p class="meta">Goes ahead with a minimum of 3. Decide by Thu 12 Nov, 10:00 AM (in 2 days).</p>
+        <form>
+          <div class="field"><label for="p1-name">Your name</label><input id="p1-name"></div>
+          <div class="field"><label for="p1-email">Email</label><input id="p1-email" type="email"><p class="help">Only used to tell you if it's on. Never shown to anyone.</p></div>
+          <button class="btn btn-primary" type="button">I'm in</button>
+        </form>
+      </main></div>
+      <div class="changes"><b>What changes</b>The relative hint after the decide-by time, "(in 2 days)", "(tomorrow)" or "(in 5 hours)", which ux-spec §8.8 asks for and the app doesn't show. New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-p2">
+      <p class="frame-label"><span class="tag tag-built">Built</span>P2 · Commit refused<span class="route">POST /p/:token/commit, fields missing</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="pill state-open">Needs 2 more</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats" aria-label="1 of 3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat seat-you"><span class="token" aria-hidden="true"></span><span>you?</span></li>
+          <li class="seat seat-empty"><span class="token" aria-hidden="true"></span><span></span></li>
+        </ul>
+        <p class="meta">Goes ahead with a minimum of 3. Decide by Thu 12 Nov, 10:00 AM (in 2 days).</p>
+        <form>
+          <div class="field"><label for="p2-name">Your name</label><input id="p2-name" aria-invalid="true"><p class="error">Add your name.</p></div>
+          <div class="field"><label for="p2-email">Email</label><input id="p2-email" value="mia@" aria-invalid="true"><p class="error">That email doesn't look right.</p><p class="help">Only used to tell you if it's on. Never shown to anyone.</p></div>
+          <button class="btn btn-primary" type="button">I'm in</button>
+        </form>
+      </main></div>
+    </figure>
+
+    <figure class="frame" id="f-p3">
+      <p class="frame-label"><span class="tag tag-built">Built</span>P3 · Mia's in, needs 1 more<span class="route">after I'm in</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="notice" role="status">You're in, Mia. We'll email you if it's on.</p>
+        <p class="pill state-open">Needs 1 more</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats" aria-label="2 of 3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat seat-you"><span class="token" aria-hidden="true"></span><span>you?</span></li>
+        </ul>
+        <p class="meta">Goes ahead with a minimum of 3. Decide by Thu 12 Nov, 10:00 AM (in 2 days).</p>
+      </main></div>
+      <p class="frame-note">The form goes away once you're in. The empty seat still says "you?", which is now addressed to the next person who opens the link (see question 5).</p>
+    </figure>
+
+    <figure class="frame" id="f-p4">
+      <p class="frame-label"><span class="tag tag-built">Built</span>P4 · Committing again with the same email<span class="route">POST /p/:token/commit, email already in</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="notice" role="status">Updated: you're in as Mia.</p>
+        <p class="pill state-open">Needs 1 more</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats" aria-label="2 of 3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat seat-you"><span class="token" aria-hidden="true"></span><span>you?</span></li>
+        </ul>
+        <p class="meta">Goes ahead with a minimum of 3. Decide by Thu 12 Nov, 10:00 AM (in 2 days).</p>
+      </main></div>
+      <p class="frame-note">The name is updated and the count doesn't change (FR013).</p>
+    </figure>
+
+    <figure class="frame" id="f-p5">
+      <p class="frame-label"><span class="tag tag-built">Built</span>P5 · Raj fills the last seat: it's on<span class="route">after I'm in, minimum reached</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="notice notice-on" role="status">You're in, Raj. It's on! We've emailed you the details and we'll remind you the day before.</p>
+        <p class="pill state-on">It's on</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats seats-on just-on" aria-label="3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">R</span><span>Raj</span></li>
+        </ul>
+        <p class="meta">More people are welcome until it starts.</p>
+      </main></div>
+      <p class="frame-note">The app's one celebration: the seats turn green and a line joins them (only when reduced motion is off). Reload the sheet to see it again.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 4 -->
+<section class="flow" id="flow-on" aria-labelledby="h-on">
+  <h2 id="h-on">4. It's on, and the reminders</h2>
+  <p class="why">Everyone who's in gets the confirmation straight away, then a reminder the day before and one on the morning. Latecomers can still join until it starts. Once it starts, the page stops taking commits.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-e2">
+      <p class="frame-label"><span class="tag tag-built">Built</span>E2 · Email: it's on<span class="route">to everyone who's in, when the minimum is reached</span></p>
+      <div class="mail">
+        <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">It's on: Coffee at Blue Bottle, College Ave, Sat 14 Nov 10:00 AM</span></div>
+<pre class="mail-body">It's on. Ana, Mia, Raj are in.
+
+Coffee at Blue Bottle, College Ave
+Sat 14 Nov · 10:00 AM
+Map: <a href="#f-e2">https://maps.google.com/?q=Blue+Bottle…</a>
+
+We'll remind you the day before and that morning.
+
+Can't make it? Withdraw: <a href="#f-w1">calvin.example/w/Tq9…</a>
+</pre>
+      </div>
+      <p class="frame-note">Ana's copy has no withdraw line: the creator can't withdraw (FR017).</p>
+    </figure>
+
+    <figure class="frame" id="f-p6">
+      <p class="frame-label"><span class="tag tag-built">Built</span>P6 · It's on, for someone arriving late<span class="route">GET /p/:token, confirmed</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="pill state-on">It's on</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats seats-on" aria-label="3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">R</span><span>Raj</span></li>
+        </ul>
+        <p class="meta">More people are welcome until it starts.</p>
+        <form>
+          <div class="field"><label for="p6-name">Your name</label><input id="p6-name"></div>
+          <div class="field"><label for="p6-email">Email</label><input id="p6-email" type="email"><p class="help">Only used to tell you if it's on. Never shown to anyone.</p></div>
+          <button class="btn btn-primary" type="button">I'm in</button>
+        </form>
+      </main></div>
+      <div class="changes"><b>What changes</b>On a plan that's already on, the help line "Only used to tell you if it's on" reads oddly. Proposed for this state: "Only used to send you the details and reminders. Never shown to anyone." New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-e3">
+      <p class="frame-label"><span class="tag tag-built">Built</span>E3 · Email: tomorrow<span class="route">24h before, to everyone who's in</span></p>
+      <div class="mail">
+        <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Tomorrow: Coffee at Blue Bottle, College Ave, 10:00 AM</span></div>
+<pre class="mail-body">Tomorrow at 10:00 AM: Coffee at Blue Bottle, College Ave, Oakland.
+Map: <a href="#f-e3">https://maps.google.com/?q=Blue+Bottle…</a>
+Who's in: Ana, Mia, Raj.
+Can't make it? Withdraw: <a href="#f-w3">calvin.example/w/Tq9…</a>
+</pre>
+      </div>
+    </figure>
+
+    <figure class="frame" id="f-e4">
+      <p class="frame-label"><span class="tag tag-built">Built</span>E4 · Email: today<span class="route">08:00 on the day, to everyone who's in</span></p>
+      <div class="mail">
+        <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Today: Coffee at Blue Bottle, College Ave, 10:00 AM</span></div>
+<pre class="mail-body">Today at 10:00 AM: Coffee at Blue Bottle, College Ave, Oakland.
+Map: <a href="#f-e4">https://maps.google.com/?q=Blue+Bottle…</a>
+Who's in: Ana, Mia, Raj.
+Can't make it? Withdraw: <a href="#f-w3">calvin.example/w/Tq9…</a>
+</pre>
+      </div>
+      <p class="frame-note">Skipped if it starts before 10:00, or if "Tomorrow" went out less than 6h earlier (FR021).</p>
+    </figure>
+
+    <figure class="frame" id="f-p7">
+      <p class="frame-label"><span class="tag tag-built">Built</span>P7 · Happening now<span class="route">GET /p/:token, for 3h after the start</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="pill state-now">Happening now</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats seats-on" aria-label="3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">R</span><span>Raj</span></li>
+        </ul>
+      </main></div>
+    </figure>
+
+    <figure class="frame" id="f-p8">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>P8 · Afterwards<span class="route">GET /p/:token, after that</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="pill state-off">This was on Sat 14 Nov</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="seats" aria-label="3 people in">
+          <li class="seat"><span class="token" aria-hidden="true">A</span><span>Ana</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">M</span><span>Mia</span></li>
+          <li class="seat"><span class="token" aria-hidden="true">R</span><span>Raj</span></li>
+        </ul>
+        <p><a class="quiet" href="#f-c1">Suggest a plan</a></p>
+      </main></div>
+      <div class="changes"><b>What changes</b>A quiet "Suggest a plan" link, so someone who opens an old link has somewhere to go, as on the called-off page. New CSS: none.</div>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 5 -->
+<section class="flow" id="flow-withdraw" aria-labelledby="h-withdraw">
+  <h2 id="h-withdraw">5. Raj withdraws</h2>
+  <p class="why">Every email to someone who's in, other than Ana, carries a withdraw link. Withdrawing lowers the count, but never undoes a plan that's on.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-w1">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>W1 · Withdraw?<span class="route">GET /w/:token, plan still needs people</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Withdraw from Coffee at Blue Bottle, College Ave on Sat 14 Nov?</h1>
+        <p class="copy">You'll come off the list, and we won't email you about it again.</p>
+        <div class="stack">
+          <button class="btn btn-primary" type="button">Withdraw</button>
+          <a class="quiet" href="#f-p3">Stay in</a>
+        </div>
+      </main></div>
+      <div class="changes"><b>What changes</b>One line on what withdrawing does, and a quiet "Stay in" link back to the plan page; today the only way out is the browser's back button. New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-w3">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>W2 · Withdraw from a plan that's on<span class="route">GET /w/:token, confirmed</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Withdraw from Coffee at Blue Bottle, College Ave on Sat 14 Nov?</h1>
+        <p class="copy">It stays on for everyone else. You'll come off the list, and we won't email you about it again.</p>
+        <div class="stack">
+          <button class="btn btn-primary" type="button">Withdraw</button>
+          <a class="quiet" href="#f-p6">Stay in</a>
+        </div>
+      </main></div>
+      <div class="changes"><b>What changes</b>Says that the plan stays on (FR017), so nobody withdraws thinking they've let the group down. Same "Stay in" link as W1.</div>
+    </figure>
+
+    <figure class="frame" id="f-w2">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>W3 · You're out<span class="route">POST /w/:token</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>You're out</h1>
+        <p class="copy">You've withdrawn from Coffee on Sat 14 Nov. No more emails about it.</p>
+        <p><a class="quiet" href="#f-c1">Suggest a plan</a></p>
+      </main></div>
+      <div class="changes"><b>What changes</b>Today the whole confirmation is one long heading. Proposed: a short heading, then the sentence, then the same way onward as the other end pages. New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-w4">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>W4 · Nothing to withdraw from<span class="route">GET /w/:token, called off</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>This one isn't going ahead, so there's nothing to withdraw from.</h1>
+      </main></div>
+      <p class="frame-note">Reached from an older email's withdraw link. With W3's change, it gets the "Suggest a plan" link too.</p>
+    </figure>
+
+    <figure class="frame" id="f-w5">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>W5 · Too late to withdraw<span class="route">GET /w/:token, after the start</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>This one has already started.</h1>
+      </main></div>
+      <p class="frame-note">With W3's change, it gets the "Suggest a plan" link too.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 6 -->
+<section class="flow" id="flow-deadline" aria-labelledby="h-deadline">
+  <h2 id="h-deadline">6. The deadline passes short of the minimum</h2>
+  <p class="why">Only Ana and Mia are in by Thu 12 Nov, 10:00 AM, so calvin calls it off quietly. Everyone who was in, Ana included, gets "Not this time". This is the copy the operator kept for the deadline.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-e5">
+      <p class="frame-label"><span class="tag tag-built">Built</span>E5 · Email: not this time<span class="route">to everyone who was in, Ana included</span></p>
+      <div class="mail">
+        <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Not this time: Coffee on Sat 14 Nov</span></div>
+<pre class="mail-body">This one didn't come together, and that's fine. Nobody's going, so there's nothing to do.
+</pre>
+      </div>
+      <p class="frame-note">No names, no counts, no withdraw link.</p>
+    </figure>
+
+    <figure class="frame" id="f-p9">
+      <p class="frame-label"><span class="tag tag-built">Built</span>P9 · Not this time<span class="route">GET /p/:token, after the deadline</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="pill state-off">Not this time</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue venue-off">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="copy">This one isn't going ahead. No harm done. Maybe next time.</p>
+        <p><a class="quiet" href="#f-c1">Suggest a plan</a></p>
+      </main></div>
+      <p class="frame-note">Between the deadline and the call-off (a few seconds), the page already shows this, and a commit sent in that gap gets "This one isn't taking commits any more."</p>
+    </figure>
+
+    <figure class="frame" id="f-m6">
+      <p class="frame-label"><span class="tag tag-built">Built</span>M6 · Ana's page after the deadline<span class="route">GET /m/:token, called off by the deadline</span></p>
+      <div class="phone"><main class="app">
+        <p class="private">Your plan. Only you can see this page.</p>
+        <p class="brand">calvin</p>
+        <p class="pill state-off">Not this time</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue venue-off">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="names names-off" aria-label="Who was in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+        </ul>
+        <a class="btn btn-primary" href="#f-a1">Start a new plan from this</a>
+      </main></div>
+      <p class="frame-note">No count, by design: the page doesn't say how far short it fell. Starting again is the main action.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 7 -->
+<section class="flow" id="flow-calloff" aria-labelledby="h-calloff">
+  <h2 id="h-calloff">7. Ana calls it off</h2>
+  <p class="why">From her private page, Ana can call the plan off until it starts, whether or not it's on. The people who were in get their own wording, which says it was Ana's call, and Ana gets no email (the operator's change to FR024).</p>
+  <div class="board">
+
+    <figure class="frame" id="f-m1">
+      <p class="frame-label"><span class="tag tag-built">Built</span>M1 · Ana's page, needs 1 more<span class="route">GET /m/:token</span></p>
+      <div class="phone"><main class="app">
+        <p class="private">Your plan. Only you can see this page.</p>
+        <p class="brand">calvin</p>
+        <p class="pill state-open">Needs 1 more · decide by Thu 12 Nov, 10:00 AM</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="count">2 of 3</p>
+        <ul class="names" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li class="seat-empty" aria-hidden="true"><span class="token"></span></li>
+        </ul>
+        <label for="m1-link">Link to share</label>
+        <div class="linkbox"><input id="m1-link" readonly value="calvin.example/p/k7Qx2mVbT9aLw4Rz"><button class="btn btn-primary" type="button">Copy</button></div>
+        <div class="stack">
+          <a class="btn btn-secondary" href="#f-a1">Start a new plan from this</a>
+          <button class="quiet" type="button">Call it off</button>
+        </div>
+      </main></div>
+    </figure>
+
+    <figure class="frame" id="f-m2">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>M2 · Call it off?<span class="route">Call it off, opened in place</span></p>
+      <div class="phone"><main class="app">
+        <p class="private">Your plan. Only you can see this page.</p>
+        <p class="brand">calvin</p>
+        <p class="pill state-open">Needs 1 more · decide by Thu 12 Nov, 10:00 AM</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="count">2 of 3</p>
+        <ul class="names" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li class="seat-empty" aria-hidden="true"><span class="token"></span></li>
+        </ul>
+        <div class="stack">
+          <a class="btn btn-secondary" href="#f-a1">Start a new plan from this</a>
+          <div class="confirm">
+            <p>Call it off? Everyone who's in gets a short email saying you called it off.</p>
+            <div class="row"><a class="quiet" href="#f-m1">Keep it</a><button class="btn btn-dim" type="button">Call it off</button></div>
+          </div>
+        </div>
+      </main></div>
+      <div class="changes"><b>What changes</b>The confirm said everyone gets a "not this time" email. Now the people who are in get the creator's wording (E6), and Ana gets nothing. New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-m3">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>M3 · Called off<span class="route">POST /m/:token/call-off → GET /m/:token</span></p>
+      <div class="phone"><main class="app">
+        <p class="private">Your plan. Only you can see this page.</p>
+        <p class="brand">calvin</p>
+        <p class="notice" role="status">Called off. We've let the people who were in know.</p>
+        <p class="pill state-off">Not this time</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue venue-off">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <ul class="names names-off" aria-label="Who was in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+        </ul>
+        <a class="btn btn-primary" href="#f-a1">Start a new plan from this</a>
+      </main></div>
+      <div class="changes"><b>What changes</b>A one-line notice right after calling it off. Today the page just changes to M6, and nothing confirms that the emails went. New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-e6">
+      <p class="frame-label"><span class="tag tag-new">New</span>E6 · Email: Ana called it off<span class="route">to everyone who was in, except Ana</span></p>
+      <div class="mail">
+        <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Mia Chen</span><span class="mail-subject">Called off: Coffee on Sat 14 Nov</span></div>
+<pre class="mail-body">Ana called off Coffee at Blue Bottle, College Ave. Nothing to do.
+</pre>
+      </div>
+      <p class="frame-note">The body is the operator's wording. The subject is proposed, in the same shape as "Not this time: …" (question 1). Same rules as E5: no count and no withdraw link. It's sent whether or not the plan was on.</p>
+    </figure>
+
+    <figure class="frame" id="f-p10">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>P10 · The public page after Ana calls it off<span class="route">GET /p/:token, called off by the creator</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <p class="pill state-off">Not this time</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue venue-off">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="copy">Ana called this one off. Nothing to do.</p>
+        <p><a class="quiet" href="#f-c1">Suggest a plan</a></p>
+      </main></div>
+      <div class="changes"><b>What changes</b>The page matches the email and says it was Ana's call, instead of "This one isn't going ahead. No harm done." The pill stays "Not this time" (question 2). New CSS: none.</div>
+    </figure>
+
+    <figure class="frame" id="f-m4">
+      <p class="frame-label"><span class="tag tag-built">Built</span>M4 · Ana's page when it's on<span class="route">GET /m/:token, confirmed</span></p>
+      <div class="phone"><main class="app">
+        <p class="private">Your plan. Only you can see this page.</p>
+        <p class="brand">calvin</p>
+        <p class="pill state-on">It's on</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="count">3 of 3</p>
+        <ul class="names names-on" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li><span class="token" aria-hidden="true">R</span>Raj Patel</li>
+        </ul>
+        <label for="m4-link">Link to share</label>
+        <div class="linkbox"><input id="m4-link" readonly value="calvin.example/p/k7Qx2mVbT9aLw4Rz"><button class="btn btn-primary" type="button">Copy</button></div>
+        <div class="stack">
+          <a class="btn btn-secondary" href="#f-a1">Start a new plan from this</a>
+          <button class="quiet" type="button">Call it off</button>
+        </div>
+      </main></div>
+      <p class="frame-note">Calling off a plan that's on works the same way and sends the same E6.</p>
+    </figure>
+
+    <figure class="frame" id="f-m5">
+      <p class="frame-label"><span class="tag tag-built">Built</span>M5 · Too late to call it off<span class="route">POST /m/:token/call-off after the start</span></p>
+      <div class="phone"><main class="app">
+        <p class="private">Your plan. Only you can see this page.</p>
+        <p class="brand">calvin</p>
+        <p class="notice" role="status">It's already started, so it can't be called off.</p>
+        <p class="pill state-now">Happening now</p>
+        <p class="kind">Coffee</p>
+        <h1 class="venue">Blue Bottle, College Ave</h1>
+        <p class="when">Sat 14 Nov · 10:00 AM</p>
+        <p class="where">Oakland</p>
+        <p class="count">3 of 3</p>
+        <ul class="names names-on" aria-label="Who's in">
+          <li><span class="token" aria-hidden="true">A</span>Ana Ruiz</li>
+          <li><span class="token" aria-hidden="true">M</span>Mia Chen</li>
+          <li><span class="token" aria-hidden="true">R</span>Raj Patel</li>
+        </ul>
+        <label for="m5-link">Link to share</label>
+        <div class="linkbox"><input id="m5-link" readonly value="calvin.example/p/k7Qx2mVbT9aLw4Rz"><button class="btn btn-primary" type="button">Copy</button></div>
+        <div class="stack"><a class="btn btn-secondary" href="#f-a1">Start a new plan from this</a></div>
+      </main></div>
+      <p class="frame-note">Reached only if the page was left open past the start and Ana taps Call it off. Afterwards, the pill reads "This was on Sat 14 Nov".</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 8 -->
+<section class="flow" id="flow-again" aria-labelledby="h-again">
+  <h2 id="h-again">8. Ana starts a new plan from this one</h2>
+  <p class="why">From her page, Ana starts again with the same coffee and venue on a new date. The new plan gets new links and starts with only Ana in; the old group isn't emailed.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-a1">
+      <p class="frame-label"><span class="tag tag-built">Built</span>A1 · Same again, new date<span class="route">GET /m/:token/new</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Same again, new date</h1>
+        <p class="summary">Oakland · Rockridge · Saturday morning</p>
+        <div class="card">
+          <div class="field"><label for="a1-what">What</label><input id="a1-what" value="Coffee"></div>
+          <div class="row-view"><span class="row-label">Where</span><span class="row-summary">Blue Bottle, College Ave</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-edit"><div class="row"><div class="field"><label for="a1-d">Date</label><input id="a1-d" type="date"></div><div class="field"><label for="a1-t">Time</label><input id="a1-t" type="time"></div></div><button class="btn btn-secondary" type="button">Done</button></div>
+          <div class="row-view"><span class="row-label">Minimum</span><span class="row-summary">3 people, you included</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-edit" style="border-bottom:0"><div class="row"><div class="field"><label for="a1-dd">Decide by</label><input id="a1-dd" type="date"></div><div class="field"><label for="a1-dt">Time</label><input id="a1-dt" type="time"></div></div><button class="btn btn-secondary" type="button">Done</button></div>
+        </div>
+        <h2>You're the first one in</h2>
+        <div class="field"><label for="a1-name">Your name</label><input id="a1-name" value="Ana Ruiz"></div>
+        <div class="field"><label for="a1-email">Your email</label><input id="a1-email" value="ana@example.com"></div>
+        <button class="btn btn-primary" type="button">Publish plan</button>
+      </main></div>
+      <p class="frame-note">When and Decide by start empty and open. Publishing leads to S1 with the new plan's links.</p>
+    </figure>
+
+    <figure class="frame" id="f-a2">
+      <p class="frame-label"><span class="tag tag-built">Built</span>A2 · New date missing<span class="route">POST /plans without a date</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Same again, new date</h1>
+        <p class="summary">Oakland · Rockridge · Saturday morning</p>
+        <div class="card">
+          <div class="field"><label for="a2-what">What</label><input id="a2-what" value="Coffee"></div>
+          <div class="row-view"><span class="row-label">Where</span><span class="row-summary">Blue Bottle, College Ave</span><button class="quiet" type="button">Edit</button></div>
+          <div class="row-edit" style="border-bottom:0"><div class="row"><div class="field"><label for="a2-d">Date</label><input id="a2-d" type="date" aria-invalid="true"><p class="error">Pick a date.</p></div><div class="field"><label for="a2-t">Time</label><input id="a2-t" type="time" aria-invalid="true"><p class="error">Pick a time.</p></div></div><button class="btn btn-secondary" type="button">Done</button></div>
+        </div>
+        <button class="btn btn-primary" type="button">Publish plan</button>
+      </main></div>
+      <p class="frame-note">Shortened: the rows below and the name and email are as in A1.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 9 -->
+<section class="flow" id="flow-checkin" aria-labelledby="h-checkin">
+  <h2 id="h-checkin">9. Did it happen?</h2>
+  <p class="why">At 10:00 the day after a plan that was on, Ana gets two one-tap questions. Each tap records the answer and shows a thank-you; tapping again replaces the answer. This is how the trial is measured.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-e7">
+      <p class="frame-label"><span class="tag tag-built">Built</span>E7 · Email: did it happen?<span class="route">to Ana, 10:00 the next day</span></p>
+      <div class="mail">
+        <div class="mail-head"><span><b>From</b>calvin</span><span><b>To</b>Ana Ruiz</span><span class="mail-subject">Did it happen? Coffee on Sat 14 Nov</span></div>
+<pre class="mail-body">Hi Ana,
+Coffee at Blue Bottle, College Ave was yesterday. Two quick taps, please.
+Did it happen?
+Yes: <a href="#f-k1">calvin.example/c/Hn4…/happened/yes</a>
+No: <a href="#f-k3">calvin.example/c/Hn4…/happened/no</a>
+Were you there?
+Yes: <a href="#f-k2">calvin.example/c/Hn4…/attended/yes</a>
+No: <a href="#f-k2">calvin.example/c/Hn4…/attended/no</a>
+Thanks!
+</pre>
+      </div>
+      <p class="frame-note">The links are long in the email; that's the price of plain text. No called-off plan gets a check-in.</p>
+    </figure>
+
+    <figure class="frame" id="f-k1">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>K1 · It happened, so: were you there?<span class="route">GET /c/:token/happened/yes</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <div class="context"><p class="kind">Coffee at Blue Bottle, College Ave</p><p class="when">Sat 14 Nov · 10:00 AM</p></div>
+        <h1>Thanks! Got it: it happened.</h1>
+        <h2>Were you there?</h2>
+        <div class="answers">
+          <a class="btn btn-primary" href="#f-k2">Yes</a>
+          <a class="btn btn-secondary" href="#f-k2">No</a>
+        </div>
+      </main></div>
+      <div class="changes"><b>What changes</b>"No" is drawn with only <code>.btn</code> today, so it has no fill and no outline; it gets <code>btn-secondary</code>. Yes and No sit side by side. The plan is named at the top, since Ana may have more than one plan. New CSS: <code>.context</code>, <code>.answers</code>.</div>
+    </figure>
+
+    <figure class="frame" id="f-k2">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>K2 · All answered<span class="route">GET /c/:token/attended/yes</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <div class="context"><p class="kind">Coffee at Blue Bottle, College Ave</p><p class="when">Sat 14 Nov · 10:00 AM</p></div>
+        <h1>Thanks! Got it: you were there.</h1>
+        <p class="meta">Tapped the wrong one? Use the links in the email again; the last tap counts.</p>
+        <p><a class="quiet" href="#f-c1">Suggest another plan</a></p>
+      </main></div>
+      <div class="changes"><b>What changes</b>The plan named at the top, a line saying an answer can be changed (FR028), and a way onward, so the trial's last screen invites the next plan. New CSS: <code>.context</code>.</div>
+    </figure>
+
+    <figure class="frame" id="f-k3">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>K3 · It didn't happen<span class="route">GET /c/:token/happened/no</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <div class="context"><p class="kind">Coffee at Blue Bottle, College Ave</p><p class="when">Sat 14 Nov · 10:00 AM</p></div>
+        <h1>Thanks! Got it: it didn't happen.</h1>
+        <h2>Were you there?</h2>
+        <div class="answers">
+          <a class="btn btn-primary" href="#f-k2">Yes</a>
+          <a class="btn btn-secondary" href="#f-k2">No</a>
+        </div>
+      </main></div>
+      <p class="frame-note">As built, "it didn't happen" still asks "Were you there?". The changes are K1's (see question 3).</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= 10 -->
+<section class="flow" id="flow-broken" aria-labelledby="h-broken">
+  <h2 id="h-broken">10. When a link goes wrong</h2>
+  <p class="why">A link cut short in a chat, or a server failure. The not-found message is the same for every kind of link, so it doesn't reveal which ones exist.</p>
+  <div class="board">
+
+    <figure class="frame" id="f-x1">
+      <p class="frame-label"><span class="tag tag-built">Built</span>X1 · Plan not found<span class="route">any /p, /m, /w or /c link that doesn't match</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Plan not found</h1>
+        <p class="copy">We can't find that plan. The link may be incomplete. Check it in your chat or email.</p>
+        <p><a class="quiet" href="#f-c1">Suggest a plan</a></p>
+      </main></div>
+    </figure>
+
+    <figure class="frame" id="f-x2">
+      <p class="frame-label"><span class="tag tag-change">Changes</span>X2 · Something went wrong<span class="route">any server error</span></p>
+      <div class="phone"><main class="app">
+        <p class="brand">calvin</p>
+        <h1>Something went wrong</h1>
+        <p class="copy">That didn't go through on our side. Go back and try again in a minute.</p>
+        <p><a class="quiet" href="#f-c1">Start over</a></p>
+      </main></div>
+      <div class="changes"><b>What changes</b>Today the heading and the sentence say the same thing ("Something went wrong. Something went wrong."). Proposed: the sentence says whose side it was and what to do. New CSS: none.</div>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================================================= gaps -->
+<section class="flow" id="gaps" aria-labelledby="h-gaps">
+  <h2 id="h-gaps">What the stories would change</h2>
+  <p class="why">Every frame tagged Changes or New, grouped the way stories could take them. This is a draft for the operator's review; the stories are written after it, and their order puts the shared look first.</p>
+  <table class="table">
+    <tr><th scope="row">Shared look and end pages</th><td>The proposed CSS (<code>.btn[disabled]</code>, placeholders, <code>.lede</code>, <code>.context</code>, <code>.answers</code>, <code>.errors</code>, an invalid select's border). End pages get a way onward (P8, W3, W4, W5) and X2's clearer sentence. This goes first, so the feature stories build on it. Frames: C1, C2, C3, P8, W3–W5, X2.</td></tr>
+    <tr><th scope="row">Creating</th><td>Lede and placeholders (C1, C7), the decide-by help line in the fallback (C7), and the relative decide-by hint on the plan page (P1).</td></tr>
+    <tr><th scope="row">Sharing</th><td>When the manage-link email fails, the private link gets its own copy box (S2).</td></tr>
+    <tr><th scope="row">Committing</th><td>The help line on a plan that's already on (P6).</td></tr>
+    <tr><th scope="row">Withdrawing</th><td>What withdrawing does, "It stays on for everyone else", a "Stay in" link, and a shorter heading on "You're out" (W1, W2, W3).</td></tr>
+    <tr><th scope="row">The creator's call-off</th><td>The operator's wording to the people who were in, no email to the creator, the confirm copy, the notice after calling off, and the public page's line (M2, M3, E6, P10). This changes FR024, so the PRD records it as the operator's change.</td></tr>
+    <tr><th scope="row">Check-in</th><td>The plan named, a styled No, side-by-side answers, and the closing line and link (K1–K3).</td></tr>
+  </table>
+  <p class="why" style="margin-top:16px">Not in this sheet: recurrence and the calendar invite stay deferred (PRD Out of Scope), and the hosted deploy (NFR010) is the operator's work after this epic.</p>
+</section>
+
+<!-- ======================================================= questions -->
+<section class="flow" id="questions" aria-labelledby="h-q">
+  <h2 id="h-q">For the operator to decide</h2>
+  <ol class="questions">
+    <li><b>The creator call-off email's subject (E6).</b> Proposed: "Called off: Coffee on Sat 14 Nov", the same shape as "Not this time: Coffee on Sat 14 Nov". <span class="lean">Or name Ana in the subject too: "Ana called off Coffee on Sat 14 Nov".</span></li>
+    <li><b>The public page after a creator call-off (P10).</b> Proposed: the pill stays "Not this time" and the line under it says "Ana called this one off. Nothing to do." <span class="lean">Or keep today's "This one isn't going ahead. No harm done. Maybe next time." for both kinds of call-off, so only the email differs.</span></li>
+    <li><b>"Were you there?" after "it didn't happen" (K3).</b> As built, it's still asked. <span class="lean">Lean: keep it, since the answer is still data; but if a gathering didn't happen, "no" is implied, so it could be skipped.</span></li>
+    <li><b>"Fill in your own below" when suggestions are rate-limited (C8).</b> The notice promises an empty card, but the page shows the inputs form. <span class="lean">Lean: show the empty card (C7's layout) with this notice, so the promise holds.</span></li>
+    <li><b>The "you?" seat after you've committed (P3).</b> The first empty seat says "you?" even to Mia, who just committed. <span class="lean">Lean: leave it; it's addressed to whoever opens the link next, and Mia sees her own name in the row and the notice above.</span></li>
+    <li><b>Scope.</b> Is anything here more than the trials need, or missing from them? Each "Changes" frame can be dropped on its own.</li>
+  </ol>
+</section>
+
+<!-- ======================================================= a11y -->
+<section class="flow" aria-labelledby="h-a11y">
+  <h2 id="h-a11y">Accessibility of what's new</h2>
+  <table class="table">
+    <tr><th scope="row">Contrast</th><td>The new text uses existing pairs: <code>--muted</code> placeholders on the field surface (6.3:1 in both themes), the lede in <code>--ink-2</code> on paper (8.0:1 light, 10.5:1 dark). The disabled button is exempt, and its text still says what's happening.</td></tr>
+    <tr><th scope="row">Tap targets</th><td>Yes/No answers are 48px tall and at least 150px wide at 360px; "Stay in" and the end-page links are 44px.</td></tr>
+    <tr><th scope="row">Screen readers</th><td>The waiting text stays in an <code>aria-live</code> region; notices keep <code>role="status"</code>; one <code>&lt;h1&gt;</code> per screen. On the check-in pages, the plan's name comes before the heading.</td></tr>
+    <tr><th scope="row">360px</th><td>No frame scrolls sideways at 360px; long links wrap in emails and truncate in link boxes.</td></tr>
+  </table>
+</section>
+
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll('[data-set-theme]');
+  function apply(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.setTheme === t)); });
+  }
+  buttons.forEach(function (b) { b.addEventListener('click', function () { apply(b.dataset.setTheme); }); });
+  var q = new URLSearchParams(location.search).get('theme');
+  if (q === 'light' || q === 'dark') apply(q);
+})();
+</script>
+</body>
+</html>
