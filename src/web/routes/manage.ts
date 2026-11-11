@@ -39,12 +39,13 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
     const plan = isToken(token) ? await loadManagePlan(deps.db, token) : null;
     if (!plan) return notFound(c);
     const now = deps.now();
+    const notice = c.req.query('notice');
     const page = managePage({
       plan,
       state: displayState(plan, now),
       publicLink: `${config.baseUrl}/p/${plan.publicToken}`,
       now,
-      notice: c.req.query('notice') === 'too-late' ? 'too-late' : undefined,
+      notice: notice === 'too-late' || notice === 'called-off' ? notice : undefined,
     });
     const nonce = c.get('secureHeadersNonce') as string;
     return c.html(layout(`Your plan: ${plan.venue}`, page, { noindex: true, script: { src: '/static/create.js', nonce } }));
@@ -60,6 +61,7 @@ export function manageRoutes(deps: AppDeps, config: AppConfig): Hono {
       if (!outcome.signalled) {
         log.error('plan signal failed', { planId: result.planId, signal: 'calledOff', errorName: outcome.errorName });
       }
+      return c.redirect(`/m/${token}?notice=called-off`, 303);
     }
     return c.redirect(`/m/${token}`, 303);
   });
