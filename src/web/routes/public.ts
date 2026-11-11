@@ -15,11 +15,12 @@ export function publicRoutes(deps: AppDeps, config: AppConfig): Hono {
   const routes = new Hono();
 
   function renderPlan(c: Context, plan: PublicPlan, token: string, form?: CommitFormState, status?: 422) {
-    const state = displayState(plan, deps.now());
+    const now = deps.now();
+    const state = displayState(plan, now);
     const code = c.req.query('notice');
     const n = c.req.query('n');
     const notice = code === undefined ? undefined : { code, ...(n === undefined ? {} : { n }) };
-    const page = publicPlanPage({ plan, state, publicToken: token, ...(notice ? { notice } : {}), ...(form ? { form } : {}) });
+    const page = publicPlanPage({ plan, state, publicToken: token, now, ...(notice ? { notice } : {}), ...(form ? { form } : {}) });
     const og = publicPlanOg(plan, state, config.baseUrl);
     const format = plan.format.charAt(0).toUpperCase() + plan.format.slice(1);
     const html = layout(`${format} at ${plan.venue}`, page, { noindex: true, og });
