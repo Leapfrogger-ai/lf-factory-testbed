@@ -19,7 +19,8 @@ export function checkInRoutes(deps: AppDeps): Hono {
     const result = await recordCheckInAnswer(deps, token, question, answer === 'yes');
     if (result.outcome === 'not_found') return notFound(c);
     const next = result.otherAnswered ? null : result.other;
-    return c.html(layout('Thanks', checkInPage({ token, question, answer: answer === 'yes', next }), { noindex: true }));
+    const page = checkInPage({ token, question, answer: answer === 'yes', next, plan: result.plan });
+    return c.html(layout('Thanks', page, { noindex: true }));
   });
 
   return routes;

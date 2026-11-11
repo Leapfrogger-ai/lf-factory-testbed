@@ -48,8 +48,14 @@ describe('GET /c/:token/:question/:answer', () => {
     const body = decodeEntities(await res.text());
     expect(body).toContain('Thanks! Got it: it happened.');
     expect(body).toContain('Were you there?');
-    expect(body).toContain(`href="/c/${token}/attended/yes"`);
-    expect(body).toContain(`href="/c/${token}/attended/no"`);
+    expect(body).toContain('class="answers"');
+    expect(body).toContain(`class="btn btn-primary" href="/c/${token}/attended/yes"`);
+    expect(body).toContain(`class="btn btn-secondary" href="/c/${token}/attended/no"`);
+    const thanksAt = body.indexOf('Thanks! Got it: it happened.');
+    expect(body.indexOf('Coffee at Blue Bottle')).toBeGreaterThan(-1);
+    expect(body.indexOf('Coffee at Blue Bottle')).toBeLessThan(thanksAt);
+    expect(body.indexOf('Sat 14 Nov · 10:00 AM')).toBeGreaterThan(-1);
+    expect(body.indexOf('Sat 14 Nov · 10:00 AM')).toBeLessThan(thanksAt);
     const plan = await answered(published.manageToken);
     expect(plan.checkInAnswers).toEqual([{ question: 'happened', answer: true }]);
     expect(answeredEvents(plan)).toHaveLength(1);
@@ -67,16 +73,45 @@ describe('GET /c/:token/:question/:answer', () => {
     expect(answeredEvents(plan)).toHaveLength(2);
   });
 
-  it('shows no other question once both are answered (AC3)', async () => {
+  it('after happened/no still asks Were you there?', async () => {
+    const { app, token } = await confirmedPlan();
+
+    const res = await app.request(`/c/${token}/happened/no`);
+
+    const body = decodeEntities(await res.text());
+    expect(body).toContain("Thanks! Got it: it didn't happen.");
+    expect(body).toContain('Were you there?');
+    expect(body).toContain(`href="/c/${token}/attended/yes"`);
+    expect(body).toContain(`href="/c/${token}/attended/no"`);
+  });
+
+  it('shows the finished page once both are answered (AC3)', async () => {
     const { app, token } = await confirmedPlan();
 
     await app.request(`/c/${token}/happened/yes`);
-    const res = await app.request(`/c/${token}/attended/no`);
+    const res = await app.request(`/c/${token}/attended/yes`);
 
     const body = decodeEntities(await res.text());
-    expect(body).toContain("Thanks! Got it: you weren't there.");
+    expect(body).toContain('Coffee at Blue Bottle');
+    expect(body).toContain('Sat 14 Nov · 10:00 AM');
+    expect(body).toContain('Thanks! Got it: you were there.');
+    expect(body).toContain('Tapped the wrong one? Use the links in the email again; the last tap counts.');
+    expect(body).toContain('<a class="quiet" href="/">Suggest another plan</a>');
     expect(body).not.toContain('Did it happen?');
     expect(body).not.toContain('Were you there?');
+    expect(body).not.toContain('href="/c/');
+    expect(body).not.toContain('btn-primary');
+  });
+
+  it('re-answering after both are answered still shows the finished page', async () => {
+    const { app, token } = await confirmedPlan();
+
+    await app.request(`/c/${token}/happened/yes`);
+    await app.request(`/c/${token}/attended/yes`);
+    const res = await app.request(`/c/${token}/happened/no`);
+
+    const body = decodeEntities(await res.text());
+    expect(body).toContain("Thanks! Got it: it didn't happen.");
     expect(body).not.toContain('href="/c/');
   });
 
@@ -159,6 +194,7 @@ describe('GET /c/:token/:question/:answer', () => {
     const body = decodeEntities(await res.text());
     expect(body).toContain('<meta name="robots" content="noindex"');
     expect(body).toContain('<meta property="og:title" content="Calvin"');
-    for (const leak of ['@', 'example.test', 'Mia', 'Raj', 'Ann', 'Blue Bottle']) expect(body).not.toContain(leak);
+    for (const leak of ['@', 'example.test', 'Mia', 'Raj', 'Ann']) expect(body).not.toContain(leak);
+    expect(body).toContain('Coffee at Blue Bottle');
   });
 });
