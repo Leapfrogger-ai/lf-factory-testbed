@@ -117,6 +117,14 @@ describe('managePage', () => {
     expect(body).not.toContain('seat-empty');
   });
 
+  it('gives the Copy button a data-copy naming the input in its linkbox', () => {
+    const box = /<div class="linkbox">(.*?)<\/div>/s.exec(render())?.[1] ?? '';
+    const inputId = /<input[^>]*id="([^"]+)"/.exec(box)?.[1];
+
+    expect(inputId).toBe('public-link');
+    expect(/<button[^>]*data-copy="([^"]+)"/.exec(box)?.[1]).toBe(inputId);
+  });
+
   it('opens to the confirm', () => {
     const body = render();
     const confirm = `Call it off? Everyone who's in gets a short "not this time" email.`;
