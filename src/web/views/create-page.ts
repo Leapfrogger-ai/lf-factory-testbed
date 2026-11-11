@@ -31,7 +31,11 @@ export const PUBLISH_LIMIT_NOTICE = 'Lots of plans from here just now. Try again
 export const FALLBACK_NOTICE =
   "We couldn't come up with a suggestion just now. Fill in your own below, or try again.";
 
-type FieldOptions = { type?: string; autocomplete?: string };
+type FieldOptions = { type?: string; autocomplete?: string; placeholder?: string };
+
+export const LEDE = "Say roughly where and when. We'll suggest one specific plan you can share in your chat.";
+
+export const DECIDE_BY_HELP = "Leave Decide by empty and we'll pick a sensible time.";
 
 const CONTEXT_FIELDS = ['city', 'area', 'timeWindow'] as const;
 
@@ -55,6 +59,7 @@ export function createPage(
         type="${type}"
         name="${field}"
         value="${values[field] ?? fallback}"
+        ${options.placeholder ? html`placeholder="${options.placeholder}"` : ''}
         ${options.autocomplete ? html`autocomplete="${options.autocomplete}"` : ''}
         ${describe ? html`aria-describedby="${describe}" aria-invalid="true"` : ''}
       />
@@ -66,6 +71,7 @@ export function createPage(
     html`<main>
       ${brand}
       <h1>${state.kind === 'again' ? AGAIN_HEADING : 'Suggest a plan'}</h1>
+      ${state.kind === 'inputs' ? html`<p class="lede">${LEDE}</p>` : ''}
       ${state.kind === 'inputs' && state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
       ${body}
     </main>` as HtmlEscapedString;
@@ -84,7 +90,8 @@ export function createPage(
         </select>
         ${error('city')}
       </div>
-      ${input('area', 'Rough area')} ${input('timeWindow', 'Rough time')}
+      ${input('area', 'Rough area', '', { placeholder: 'e.g. Rockridge, near the BART' })}
+      ${input('timeWindow', 'Rough time', '', { placeholder: 'e.g. Saturday morning' })}
       <button type="submit" class="btn btn-primary">Suggest a plan</button>
     </form>`);
   }
@@ -133,6 +140,7 @@ export function createPage(
     </div>`;
   const changeId =
     state.kind === 'card' ? state.suggestion.id : state.kind === 'again' ? undefined : state.previousSuggestionId;
+  const empty = state.kind === 'fallback';
   const contextErrors = CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
@@ -153,8 +161,8 @@ export function createPage(
       ${state.kind === 'card' ? html`<input type="hidden" name="suggestionId" value="${state.suggestion.id}" />` : ''}
       ${state.kind === 'again' ? html`<input type="hidden" name="fromManageToken" value="${state.from.manageToken}" />` : ''}
       <div class="card">
-      ${input('format', 'What', prefill.format)}
-      ${row('where', input('venue', 'Where', prefill.venue))}
+      ${input('format', 'What', prefill.format, empty ? { placeholder: 'e.g. coffee, drinks, a walk' } : {})}
+      ${row('where', input('venue', 'Where', prefill.venue, empty ? { placeholder: 'e.g. Blue Bottle, College Ave' } : {}))}
       ${row(
         'when',
         html`<div class="row">
@@ -170,15 +178,14 @@ export function createPage(
         </div>`,
       )}
       </div>
+      ${empty ? html`<p class="help">${DECIDE_BY_HELP}</p>` : ''}
       <h2>You're the first one in</h2>
       ${input('name', 'Your name', person.name, { autocomplete: 'name' })}
       ${input('email', 'Your email', person.email, { type: 'email', autocomplete: 'email' })}
       <button type="submit" class="btn btn-primary">Publish plan</button>
     </form>
     ${state.kind === 'card' ? suggestAgain(context, state.suggestion.id, 'Suggest another') : ''}
-    ${state.kind === 'fallback' && state.previousSuggestionId !== undefined
-      ? suggestAgain(context, state.previousSuggestionId, 'Try suggesting again')
-      : ''}`);
+    ${state.kind === 'fallback' ? suggestAgain(context, state.previousSuggestionId, 'Try suggesting again') : ''}`);
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -196,10 +203,10 @@ function safely<T>(make: () => T): T | undefined {
 type Context = { city: string; area: string; timeWindow: string };
 
 /** A form beside the publish form that asks for another suggestion for the same city, area and time. */
-function suggestAgain(context: Context, previousId: string, label: string): HtmlEscapedString {
+function suggestAgain(context: Context, previousId: string | undefined, label: string): HtmlEscapedString {
   return html`<form method="post" action="/suggest" class="again" data-suggest-form>
     ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
-    <input type="hidden" name="previousSuggestionId" value="${previousId}" />
+    ${previousId === undefined ? '' : html`<input type="hidden" name="previousSuggestionId" value="${previousId}" />`}
     <button type="submit" class="btn btn-secondary">${label}</button>
   </form>` as HtmlEscapedString;
 }

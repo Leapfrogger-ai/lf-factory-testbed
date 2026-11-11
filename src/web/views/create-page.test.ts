@@ -36,6 +36,29 @@ const fallback = (
 });
 
 describe('createPage inputs state', () => {
+  it('renders the lede after the h1, with the area and time placeholders', () => {
+    const body = render({ kind: 'inputs', values: {} });
+
+    const lede =
+      '<p class="lede">Say roughly where and when. We&#39;ll suggest one specific plan you can share in your chat.</p>';
+    expect(body).toContain(lede);
+    expect(body.indexOf(lede)).toBeGreaterThan(body.indexOf('</h1>'));
+    expect(body.match(/<input[^>]*name="area"[^>]*>/)?.[0]).toContain('placeholder="e.g. Rockridge, near the BART"');
+    expect(body.match(/<input[^>]*name="timeWindow"[^>]*>/)?.[0]).toContain('placeholder="e.g. Saturday morning"');
+  });
+
+  it('keeps one lede when the inputs form has errors', () => {
+    const body = render({ kind: 'inputs', values: {} }, { area: 'Add a rough area.' });
+
+    expect(body.match(/class="lede"/g)).toHaveLength(1);
+  });
+
+  it('has no lede on the card, the fallback or the again page', () => {
+    for (const body of [render(card()), render(fallback()), render(again())]) {
+      expect(body).not.toContain('class="lede"');
+    }
+  });
+
   it('renders the cities in order after an unselected blank option', () => {
     const body = render({ kind: 'inputs', values: {} });
     const options = [...body.matchAll(/<option([^>]*)>([^<]*)<\/option>/g)];
@@ -204,13 +227,6 @@ describe('createPage card state suggest another and change', () => {
     expect(hidden(form, 'city')).toBe('Oakland');
     expect(hidden(form, 'area')).toBe('Rockridge');
     expect(hidden(form, 'timeWindow')).toBe('next weekend, morning');
-  });
-
-  it('shows no Try suggesting again on a fallback without a previous suggestion', () => {
-    const body = render(fallback({}, NOTICE));
-
-    expect(body).not.toContain('Try suggesting again');
-    expect(suggestAgainForm(body)).toBe('');
   });
 
   it('links Change on a fallback back to the inputs prefilled from the previous suggestion', () => {
@@ -413,5 +429,32 @@ describe('createPage again state', () => {
     const body = render(again({ name: '"><b>x' }));
 
     expect(body).not.toContain('<b>x');
+  });
+});
+
+describe('createPage empty-card help', () => {
+  it('shows Try suggesting again on a fallback without a previous suggestion', () => {
+    const body = render(fallback());
+
+    expect(body).toContain('Try suggesting again');
+    expect(body).not.toContain('name="previousSuggestionId"');
+  });
+
+  it('shows example placeholders and the decide-by help on the empty card', () => {
+    const body = render(fallback());
+
+    expect(body.match(/<input[^>]*name="format"[^>]*>/)?.[0]).toContain('placeholder="e.g. coffee, drinks, a walk"');
+    expect(body.match(/<input[^>]*name="venue"[^>]*>/)?.[0]).toContain('placeholder="e.g. Blue Bottle, College Ave"');
+    const help = '<p class="help">Leave Decide by empty and we&#39;ll pick a sensible time.</p>';
+    expect(body).toContain(help);
+    expect(body.indexOf(help)).toBeGreaterThan(body.indexOf('Decide by</label>'));
+    expect(body.indexOf(help)).toBeLessThan(body.indexOf('<h2>'));
+  });
+
+  it('keeps the card and the again page free of the help line', () => {
+    for (const body of [render(card()), render(again())]) {
+      expect(body).not.toContain('Leave Decide by empty');
+      expect(body).not.toContain('placeholder="e.g. coffee');
+    }
   });
 });

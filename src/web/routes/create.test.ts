@@ -395,6 +395,14 @@ describe('POST /suggest', () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  it('has no lede on the card for the example inputs (AC2)', async () => {
+    const deps = testDeps();
+    const res = await postSuggest(deps, {});
+
+    const page = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(res.headers.get('location') ?? '');
+    expect(await page.text()).not.toContain('class="lede"');
+  });
+
   it('keeps what was entered when it answers 422 (AC5)', async () => {
     const res = await postSuggest(testDeps(), { area: 'Rockridge', timeWindow: '' });
 
@@ -569,6 +577,15 @@ describe('POST /plans from a suggestion', () => {
 });
 
 describe('GET /', () => {
+  it('shows the lede and both placeholders on the first visit', async () => {
+    const res = await createApp(testDeps(), { baseUrl: TEST_BASE_URL }).request('/');
+
+    const body = await res.text();
+    expect(body).toContain('class="lede"');
+    expect(body).toContain('placeholder="e.g. Rockridge, near the BART"');
+    expect(body).toContain('placeholder="e.g. Saturday morning"');
+  });
+
   it('renders the inputs state linking the stylesheet', async () => {
     const app = createApp(testDeps(), { baseUrl: TEST_BASE_URL });
 
@@ -628,6 +645,21 @@ describe('GET /', () => {
       expect(body).toContain('Publish plan');
     },
   );
+
+  it('shows placeholders, help line and notice on the fallback card (AC3)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('refusal')).call });
+    const location = await suggestedLocation(deps);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+
+    const body = await res.text();
+    expect(inputTag(body, 'format')).toContain('placeholder="e.g. coffee, drinks, a walk"');
+    expect(inputTag(body, 'venue')).toContain('placeholder="e.g. Blue Bottle, College Ave"');
+    expect(body).toContain('Leave Decide by empty and we&#39;ll pick a sensible time.');
+    expect(body).toContain(
+      'We couldn&#39;t come up with a suggestion just now. Fill in your own below, or try again.',
+    );
+  });
 
   it('does not call Claude again when the page is requested twice (AC6)', async () => {
     const fake = fakeSuggest(loadFixture('good'));
@@ -733,7 +765,7 @@ describe('GET / suggest another, try again and change', () => {
     const body = await res.text();
     expect(body).toContain('action="/suggest"');
     expect(body).not.toContain('previousSuggestionId');
-    expect(inputTag(body, 'area')).not.toContain('Rockridge');
+    expect(inputTag(body, 'area')).toContain('value=""');
   });
 
   it('carries the failed suggestion id on the fallback (AC2)', async () => {
@@ -881,6 +913,59 @@ describe('POST /suggest rate limit', () => {
     expect(body).toContain('value="next weekend, morning"');
     expect(body).not.toContain('name="suggestionId"');
     expect(deps.fakes.suggest.calls).toHaveLength(10);
+    expect(await countSuggestions(db)).toBe(10);
+  });
+
+  it('shows the empty card, context line and Try suggesting again when rate limited (AC4)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) {
+      expect((await postSuggest(deps, {}, fromIp('203.0.113.7'), app)).status).toBe(303);
+    }
+
+    const res = await postSuggest(deps, { timeWindow: 'Saturday morning' }, fromIp('203.0.113.7'), app);
+
+    expect(res.status).toBe(429);
+    const body = await res.text();
+    expect(body).toContain('Oakland · Rockridge · Saturday morning');
+    expect(body).toContain(SUGGEST_LIMIT_NOTICE);
+    for (const label of ['What', 'Where', 'Date', 'Time', 'Decide by', 'Minimum, you included']) {
+      expect(body).toContain(label);
+    }
+    expect(inputTag(body, 'minimum')).toContain('value="3"');
+    expect(body).toContain('Try suggesting again');
+    expect(body).not.toContain('name="previousSuggestionId"');
+    expect(body).not.toContain('We couldn&#39;t come up with a suggestion');
+    expect(deps.fakes.suggest.calls).toHaveLength(10);
+    expect(await countSuggestions(db)).toBe(10);
+  });
+
+  it('publishes the rate-limited empty card as a fallback plan (AC5)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) {
+      expect((await postSuggest(deps, {}, fromIp('203.0.113.7'), app)).status).toBe(303);
+    }
+    const limited = await postSuggest(deps, {}, fromIp('203.0.113.7'), app);
+    expect(limited.status).toBe(429);
+    const body = await limited.text();
+    expect(body).toContain('action="/plans"');
+    expect(body).not.toContain('name="suggestionId"');
+
+    const res = await post(deps, {
+      timeWindow: 'Saturday morning',
+      format: 'coffee',
+      venue: 'Blue Bottle',
+      name: 'Ana',
+      email: 'ana@example.test',
+    });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toMatch(/^\/m\/[A-Za-z0-9_-]{43}\/published$/);
+    const plan = await publishedPlan(res);
+    expect(plan?.suggestionId).toBeNull();
+    expect(plan?.suggestionEdited).toBeNull();
+    expect(plan?.commitDeadlineAt).toBe('2026-11-12T06:00:00Z');
     expect(await countSuggestions(db)).toBe(10);
   });
 
