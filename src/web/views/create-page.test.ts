@@ -438,3 +438,23 @@ describe('createPage again state', () => {
     expect(body).not.toContain('<b>x');
   });
 });
+
+describe('createPage empty-card help', () => {
+  it('shows example placeholders and the decide-by help on the empty card', () => {
+    const body = render(fallback());
+
+    expect(body.match(/<input[^>]*name="format"[^>]*>/)?.[0]).toContain('placeholder="e.g. coffee, drinks, a walk"');
+    expect(body.match(/<input[^>]*name="venue"[^>]*>/)?.[0]).toContain('placeholder="e.g. Blue Bottle, College Ave"');
+    const help = '<p class="help">Leave Decide by empty and we&#39;ll pick a sensible time.</p>';
+    expect(body).toContain(help);
+    expect(body.indexOf(help)).toBeGreaterThan(body.indexOf('Decide by</label>'));
+    expect(body.indexOf(help)).toBeLessThan(body.indexOf('<h2>'));
+  });
+
+  it('keeps the card and the again page free of the help line', () => {
+    for (const body of [render(card()), render(again())]) {
+      expect(body).not.toContain('Leave Decide by empty');
+      expect(body).not.toContain('placeholder="e.g. coffee');
+    }
+  });
+});

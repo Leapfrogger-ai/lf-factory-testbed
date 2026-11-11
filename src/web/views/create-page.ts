@@ -35,7 +35,9 @@ type FieldOptions = { type?: string; autocomplete?: string; placeholder?: string
 
 export const LEDE = "Say roughly where and when. We'll suggest one specific plan you can share in your chat.";
 
-const CONTEXT_FIELDS = ['city', 'area', 'timeWindow'] as const;
+export const DECIDE_BY_HELP = "Leave Decide by empty and we'll pick a sensible time.";
+
+const CONTEXT_FIELDS =['city', 'area', 'timeWindow'] as const;
 
 export function createPage(
   state: CreateState,
@@ -138,7 +140,8 @@ export function createPage(
     </div>`;
   const changeId =
     state.kind === 'card' ? state.suggestion.id : state.kind === 'again' ? undefined : state.previousSuggestionId;
-  const contextErrors = CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
+  const empty = state.kind === 'fallback';
+  const contextErrors =CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
   return main(html`${state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
@@ -158,8 +161,8 @@ export function createPage(
       ${state.kind === 'card' ? html`<input type="hidden" name="suggestionId" value="${state.suggestion.id}" />` : ''}
       ${state.kind === 'again' ? html`<input type="hidden" name="fromManageToken" value="${state.from.manageToken}" />` : ''}
       <div class="card">
-      ${input('format', 'What', prefill.format)}
-      ${row('where', input('venue', 'Where', prefill.venue))}
+      ${input('format', 'What', prefill.format, empty ? { placeholder: 'e.g. coffee, drinks, a walk' } : {})}
+      ${row('where', input('venue', 'Where', prefill.venue, empty ? { placeholder: 'e.g. Blue Bottle, College Ave' } : {}))}
       ${row(
         'when',
         html`<div class="row">
@@ -175,6 +178,7 @@ export function createPage(
         </div>`,
       )}
       </div>
+      ${empty ? html`<p class="help">${DECIDE_BY_HELP}</p>` : ''}
       <h2>You're the first one in</h2>
       ${input('name', 'Your name', person.name, { autocomplete: 'name' })}
       ${input('email', 'Your email', person.email, { type: 'email', autocomplete: 'email' })}

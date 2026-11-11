@@ -646,6 +646,21 @@ describe('GET /', () => {
     },
   );
 
+  it('shows placeholders, help line and notice on the fallback card (AC3)', async () => {
+    const deps = testDeps({ suggestPlanCall: fakeSuggest(loadFixture('refusal')).call });
+    const location = await suggestedLocation(deps);
+
+    const res = await createApp(deps, { baseUrl: TEST_BASE_URL }).request(location);
+
+    const body = await res.text();
+    expect(inputTag(body, 'format')).toContain('placeholder="e.g. coffee, drinks, a walk"');
+    expect(inputTag(body, 'venue')).toContain('placeholder="e.g. Blue Bottle, College Ave"');
+    expect(body).toContain('Leave Decide by empty and we&#39;ll pick a sensible time.');
+    expect(body).toContain(
+      'We couldn&#39;t come up with a suggestion just now. Fill in your own below, or try again.',
+    );
+  });
+
   it('does not call Claude again when the page is requested twice (AC6)', async () => {
     const fake = fakeSuggest(loadFixture('good'));
     const deps = testDeps({ suggestPlanCall: fake.call });
