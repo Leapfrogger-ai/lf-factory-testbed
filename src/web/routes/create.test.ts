@@ -391,6 +391,7 @@ describe('POST /suggest', () => {
     expect(body).toContain('Pick a city.');
     expect(body).toContain('Add a rough area.');
     expect(body).toContain('Add a rough time.');
+    expect(body).toMatch(/<select[^>]*id="city"[^>]*aria-invalid="true"/);
     expect(fake.calls).toHaveLength(0);
   });
 
