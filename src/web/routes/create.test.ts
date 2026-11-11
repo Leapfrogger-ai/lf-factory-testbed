@@ -83,7 +83,7 @@ describe('POST /plans', () => {
 
     expect(res.status).toBe(500);
     const body = await res.text();
-    expect(body).toContain('Something went wrong. Go back and try again.');
+    expect(body).toContain("That didn't go through on our side. Go back and try again in a minute.");
     expect(body).not.toMatch(/\bat /);
     expect(body).not.toContain('temporal down');
     expect(await countPlans(db)).toBe(0);

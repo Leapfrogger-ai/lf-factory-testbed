@@ -123,7 +123,7 @@ describe('POST protection', () => {
   beforeEach(() => resetDb(db));
   afterAll(() => pool.end());
 
-  const COPY = 'Something went wrong. Go back and try again.';
+  const COPY = "That didn't go through on our side. Go back and try again in a minute.";
   const urlencoded = { 'Content-Type': 'application/x-www-form-urlencoded' };
 
   function setup() {
