@@ -940,6 +940,35 @@ describe('POST /suggest rate limit', () => {
     expect(await countSuggestions(db)).toBe(10);
   });
 
+  it('publishes the rate-limited empty card as a fallback plan (AC5)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) {
+      expect((await postSuggest(deps, {}, fromIp('203.0.113.7'), app)).status).toBe(303);
+    }
+    const limited = await postSuggest(deps, {}, fromIp('203.0.113.7'), app);
+    expect(limited.status).toBe(429);
+    const body = await limited.text();
+    expect(body).toContain('action="/plans"');
+    expect(body).not.toContain('name="suggestionId"');
+
+    const res = await post(deps, {
+      timeWindow: 'Saturday morning',
+      format: 'coffee',
+      venue: 'Blue Bottle',
+      name: 'Ana',
+      email: 'ana@example.test',
+    });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toMatch(/^\/m\/[A-Za-z0-9_-]{43}\/published$/);
+    const plan = await publishedPlan(res);
+    expect(plan?.suggestionId).toBeNull();
+    expect(plan?.suggestionEdited).toBeNull();
+    expect(plan?.commitDeadlineAt).toBe('2026-11-12T06:00:00Z');
+    expect(await countSuggestions(db)).toBe(10);
+  });
+
   it('answers 429 on the 201st suggestion of a Los Angeles day (AC2)', async () => {
     const deps = testDeps({ now: fixedClock('2026-11-09T18:00:00Z') });
     const app = createApp(deps, { baseUrl: TEST_BASE_URL });
