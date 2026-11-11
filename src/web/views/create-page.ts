@@ -185,9 +185,7 @@ export function createPage(
       <button type="submit" class="btn btn-primary">Publish plan</button>
     </form>
     ${state.kind === 'card' ? suggestAgain(context, state.suggestion.id, 'Suggest another') : ''}
-    ${state.kind === 'fallback' && state.previousSuggestionId !== undefined
-      ? suggestAgain(context, state.previousSuggestionId, 'Try suggesting again')
-      : ''}`);
+    ${state.kind === 'fallback' ? suggestAgain(context, state.previousSuggestionId, 'Try suggesting again') : ''}`);
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -205,10 +203,10 @@ function safely<T>(make: () => T): T | undefined {
 type Context = { city: string; area: string; timeWindow: string };
 
 /** A form beside the publish form that asks for another suggestion for the same city, area and time. */
-function suggestAgain(context: Context, previousId: string, label: string): HtmlEscapedString {
+function suggestAgain(context: Context, previousId: string | undefined, label: string): HtmlEscapedString {
   return html`<form method="post" action="/suggest" class="again" data-suggest-form>
     ${CONTEXT_FIELDS.map((field) => html`<input type="hidden" name="${field}" value="${context[field]}" />`)}
-    <input type="hidden" name="previousSuggestionId" value="${previousId}" />
+    ${previousId === undefined ? '' : html`<input type="hidden" name="previousSuggestionId" value="${previousId}" />`}
     <button type="submit" class="btn btn-secondary">${label}</button>
   </form>` as HtmlEscapedString;
 }

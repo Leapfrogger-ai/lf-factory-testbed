@@ -916,6 +916,30 @@ describe('POST /suggest rate limit', () => {
     expect(await countSuggestions(db)).toBe(10);
   });
 
+  it('shows the empty card, context line and Try suggesting again when rate limited (AC4)', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) {
+      expect((await postSuggest(deps, {}, fromIp('203.0.113.7'), app)).status).toBe(303);
+    }
+
+    const res = await postSuggest(deps, { timeWindow: 'Saturday morning' }, fromIp('203.0.113.7'), app);
+
+    expect(res.status).toBe(429);
+    const body = await res.text();
+    expect(body).toContain('Oakland · Rockridge · Saturday morning');
+    expect(body).toContain(SUGGEST_LIMIT_NOTICE);
+    for (const label of ['What', 'Where', 'Date', 'Time', 'Decide by', 'Minimum, you included']) {
+      expect(body).toContain(label);
+    }
+    expect(inputTag(body, 'minimum')).toContain('value="3"');
+    expect(body).toContain('Try suggesting again');
+    expect(body).not.toContain('name="previousSuggestionId"');
+    expect(body).not.toContain('We couldn&#39;t come up with a suggestion');
+    expect(deps.fakes.suggest.calls).toHaveLength(10);
+    expect(await countSuggestions(db)).toBe(10);
+  });
+
   it('answers 429 on the 201st suggestion of a Los Angeles day (AC2)', async () => {
     const deps = testDeps({ now: fixedClock('2026-11-09T18:00:00Z') });
     const app = createApp(deps, { baseUrl: TEST_BASE_URL });

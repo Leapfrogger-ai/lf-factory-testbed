@@ -229,13 +229,6 @@ describe('createPage card state suggest another and change', () => {
     expect(hidden(form, 'timeWindow')).toBe('next weekend, morning');
   });
 
-  it('shows no Try suggesting again on a fallback without a previous suggestion', () => {
-    const body = render(fallback({}, NOTICE));
-
-    expect(body).not.toContain('Try suggesting again');
-    expect(suggestAgainForm(body)).toBe('');
-  });
-
   it('links Change on a fallback back to the inputs prefilled from the previous suggestion', () => {
     const body = render({ ...fallback({}, NOTICE), previousSuggestionId: ID });
 
@@ -440,6 +433,13 @@ describe('createPage again state', () => {
 });
 
 describe('createPage empty-card help', () => {
+  it('shows Try suggesting again on a fallback without a previous suggestion', () => {
+    const body = render(fallback());
+
+    expect(body).toContain('Try suggesting again');
+    expect(body).not.toContain('name="previousSuggestionId"');
+  });
+
   it('shows example placeholders and the decide-by help on the empty card', () => {
     const body = render(fallback());
 
