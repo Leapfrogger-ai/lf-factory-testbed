@@ -104,6 +104,67 @@ describe('sendToCommitters not_this_time', () => {
     expect(deps.fakes.email.calls).toHaveLength(2);
   });
 
+  it('a creator call-off sends Called off to the others and nothing to the creator', async () => {
+    const { deps, published, activities } = await setup(
+      [
+        ['Mia', 'mia@example.test'],
+        ['Raj', 'raj@example.test'],
+      ],
+      '4',
+    );
+    await callOff(deps, published.manageToken);
+
+    await activities.sendToCommitters(published.planId, 'not_this_time');
+
+    expect(recipients(deps)).toEqual(['mia@example.test', 'raj@example.test']);
+    for (const p of deps.fakes.email.calls.map((c) => c.payload as { subject: string }))
+      expect(p.subject.startsWith('Called off: Coffee on Sat 14 Nov')).toBe(true);
+    const view = await loadPlan(db, published.manageToken);
+    expect(view!.events.filter((e) => e.type === 'email.sent')).toHaveLength(2);
+  });
+
+  it('a creator call-off with only the creator in sends nothing', async () => {
+    const { deps, published, activities } = await setup([]);
+    await callOff(deps, published.manageToken);
+
+    await activities.sendToCommitters(published.planId, 'not_this_time');
+
+    expect(deps.fakes.email.calls).toHaveLength(0);
+  });
+
+  it('a creator call-off sends nothing to a committer who withdrew', async () => {
+    const { deps, published, withdrawTokens, activities } = await setup(
+      [
+        ['Mia', 'mia@example.test'],
+        ['Raj', 'raj@example.test'],
+      ],
+      '4',
+    );
+    await withdraw(deps, withdrawTokens[1]!);
+    await callOff(deps, published.manageToken);
+
+    await activities.sendToCommitters(published.planId, 'not_this_time');
+
+    expect(recipients(deps)).toEqual(['mia@example.test']);
+  });
+
+  it('a retry after a failed first Called off send still sends one each', async () => {
+    const { deps, published, activities } = await setup(
+      [
+        ['Mia', 'mia@example.test'],
+        ['Raj', 'raj@example.test'],
+      ],
+      '4',
+    );
+    await callOff(deps, published.manageToken);
+    deps.fakes.email.failNext();
+
+    await expect(activities.sendToCommitters(published.planId, 'not_this_time')).rejects.toThrow('email send failed');
+    await activities.sendToCommitters(published.planId, 'not_this_time');
+
+    expect(recipients(deps).sort()).toEqual(['mia@example.test', 'raj@example.test']);
+  });
+
   it('throws for a kind the activity does not support', async () => {
     const { published, activities } = await setup([]);
 
