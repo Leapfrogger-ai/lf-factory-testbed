@@ -37,7 +37,7 @@ export const LEDE = "Say roughly where and when. We'll suggest one specific plan
 
 export const DECIDE_BY_HELP = "Leave Decide by empty and we'll pick a sensible time.";
 
-const CONTEXT_FIELDS =['city', 'area', 'timeWindow'] as const;
+const CONTEXT_FIELDS = ['city', 'area', 'timeWindow'] as const;
 
 export function createPage(
   state: CreateState,
@@ -141,7 +141,7 @@ export function createPage(
   const changeId =
     state.kind === 'card' ? state.suggestion.id : state.kind === 'again' ? undefined : state.previousSuggestionId;
   const empty = state.kind === 'fallback';
-  const contextErrors =CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
+  const contextErrors = CONTEXT_FIELDS.filter((field) => errors[field] !== undefined);
   const hasContext = CONTEXT_FIELDS.some((field) => context[field] !== '');
 
   return main(html`${state.notice ? html`<p class="notice">${state.notice}</p>` : ''}
