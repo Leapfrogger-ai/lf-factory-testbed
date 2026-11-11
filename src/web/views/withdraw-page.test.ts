@@ -87,6 +87,39 @@ describe('withdrawPage', () => {
     expect(body).not.toContain('<i>');
   });
 
+  it('an open plan says only that you will come off the list (AC1)', () => {
+    const body = render(target({ state: 'open' }));
+
+    expect(body).toContain("You'll come off the list, and we won't email you about it again.");
+    expect(body).not.toContain('It stays on for everyone else.');
+    expect(body).toMatch(/<h1>[^<]*<\/h1>\s*<p[^>]*>You'll come off/);
+    expect(body).toContain('<a class="quiet" href="/p/ptok123">Stay in</a>');
+    expect(body).toMatch(
+      /<div class="stack">[\s\S]*<form[\s\S]*Withdraw<\/button>[\s\S]*Stay in<\/a>[\s\S]*<\/div>/,
+    );
+  });
+
+  it('a confirmed plan adds "It stays on for everyone else." (AC2)', () => {
+    const body = render(target({ state: 'confirmed' }));
+
+    expect(body).toContain(
+      "It stays on for everyone else. You'll come off the list, and we won't email you about it again.",
+    );
+  });
+
+  it('the done, started and called-off views have no sentence and no Stay in link (AC1)', () => {
+    const bodies = [
+      render(target({ withdrawn: true })),
+      render(target(), atStart),
+      render(target({ state: 'called_off' })),
+    ];
+
+    for (const body of bodies) {
+      expect(body).not.toContain('Stay in');
+      expect(body).not.toContain('come off the list');
+    }
+  });
+
   it('the started view wins over withdrawn', () => {
     const body = render(target({ withdrawn: true }), atStart);
 

@@ -38,11 +38,17 @@ export function withdrawPage({
     ${onward}
   </main>` as HtmlEscapedString;
   }
+  const comeOff = "You'll come off the list, and we won't email you about it again.";
+  const sentence = target.state === 'confirmed' ? `It stays on for everyone else. ${comeOff}` : comeOff;
   return html`<main>
     ${brand}
     <h1>Withdraw from ${capitalise(target.format)} at ${target.venue} on ${formatDay(target.gatheringAt)}?</h1>
-    <form method="post" action="/w/${token}">
-      <button type="submit" class="btn btn-primary">Withdraw</button>
-    </form>
+    <p class="copy">${sentence}</p>
+    <div class="stack">
+      <form method="post" action="/w/${token}">
+        <button type="submit" class="btn btn-primary">Withdraw</button>
+      </form>
+      <a class="quiet" href="/p/${target.publicToken}">Stay in</a>
+    </div>
   </main>` as HtmlEscapedString;
 }
