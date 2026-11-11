@@ -861,11 +861,27 @@ describe('recordCheckInAnswer', () => {
 
     const result = await recordCheckInAnswer(deps, plan!.checkInToken, 'happened', true);
 
-    expect(result).toEqual({ outcome: 'recorded', other: 'attended', otherAnswered: false });
+    expect(result).toMatchObject({ outcome: 'recorded', other: 'attended', otherAnswered: false });
     expect((await loadPlan(db, manageToken))?.checkInAnswers).toEqual([{ question: 'happened', answer: true }]);
     expect(await answeredEvents(manageToken)).toEqual([
       { type: 'check_in.answered', data: { question: 'happened', answer: true } },
     ]);
+  });
+
+  it('returns the plan format, venue and gathering instant with a recorded answer', async () => {
+    const deps = testDeps();
+    const { manageToken } = await confirmedPlan(deps);
+    const plan = await loadPlan(db, manageToken);
+
+    const result = await recordCheckInAnswer(deps, plan!.checkInToken, 'happened', true);
+
+    expect(result.outcome).toBe('recorded');
+    if (result.outcome !== 'recorded') return;
+    expect({ ...result.plan, gatheringAt: result.plan.gatheringAt.toString() }).toEqual({
+      format: 'coffee',
+      venue: 'Blue Bottle',
+      gatheringAt: Temporal.Instant.from('2026-11-14T18:00:00Z').toString(),
+    });
   });
 
   it('replaces a repeated answer and records a second event', async () => {
@@ -888,7 +904,7 @@ describe('recordCheckInAnswer', () => {
     await recordCheckInAnswer(deps, checkInToken, 'happened', true);
     const result = await recordCheckInAnswer(deps, checkInToken, 'attended', false);
 
-    expect(result).toEqual({ outcome: 'recorded', other: 'happened', otherAnswered: true });
+    expect(result).toMatchObject({ outcome: 'recorded', other: 'happened', otherAnswered: true });
     expect((await loadPlan(db, manageToken))?.checkInAnswers).toEqual([
       { question: 'attended', answer: false },
       { question: 'happened', answer: true },

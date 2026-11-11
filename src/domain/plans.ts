@@ -503,7 +503,12 @@ export type CheckInQuestion = 'happened' | 'attended';
 
 export type CheckInResult =
   | { outcome: 'not_found' }
-  | { outcome: 'recorded'; other: CheckInQuestion; otherAnswered: boolean };
+  | {
+      outcome: 'recorded';
+      other: CheckInQuestion;
+      otherAnswered: boolean;
+      plan: { format: string; venue: string; gatheringAt: Temporal.Instant };
+    };
 
 /** Records (or replaces) an answer to a check-in question; only a confirmed plan takes answers. */
 export async function recordCheckInAnswer(
@@ -528,7 +533,12 @@ export async function recordCheckInAnswer(
       .select({ question: checkInAnswers.question })
       .from(checkInAnswers)
       .where(and(eq(checkInAnswers.planId, plan.id), eq(checkInAnswers.question, other)));
-    return { outcome: 'recorded', other, otherAnswered: otherRow !== undefined };
+    return {
+      outcome: 'recorded',
+      other,
+      otherAnswered: otherRow !== undefined,
+      plan: { format: plan.format, venue: plan.venue, gatheringAt: plan.gatheringAt.toTemporalInstant() },
+    };
   });
 }
 
