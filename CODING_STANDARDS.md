@@ -34,9 +34,9 @@ Use what the stack provides; each rule comes from a "Platform Capabilities" row 
 - Use Drizzle's `onConflictDoUpdate` (target `[planId, emailNormalized]`) for a repeat commit; don't select-then-insert — [finding](specs/calvin/research/node-hono-drizzle.md).
 - Use Drizzle's `db.transaction` and `.for('update')` for commit, confirm, call-off and deadline resolution; don't add application locks — [finding](specs/calvin/research/node-hono-drizzle.md).
 - Use drizzle-kit `generate` and `migrate(db, { migrationsFolder })` for schema migrations; don't write a SQL runner — [finding](specs/calvin/research/node-hono-drizzle.md).
-- Use Fly's `release_command` to run migrations before each deploy; don't migrate on boot — [finding](specs/calvin/research/fly-and-neon.md).
-- Use Fly secrets (`fly secrets set`) for every production secret; don't put `.env` files on the server — [finding](specs/calvin/research/fly-and-neon.md).
-- Use Fly's `[[http_service.checks]]`, `fly certs add` and `fly logs` for health, HTTPS and logs; don't manage TLS or ship logs yourself — [finding](specs/calvin/research/fly-and-neon.md).
+- Use Railway's pre-deploy command to run migrations before each deploy; don't migrate on boot — [ADR 0006](docs/adr/0006-single-railway-service.md).
+- Use Railway's sealed variables for every production secret, declared with `preserve()` in `.railway/railway.ts`; don't put `.env` files on the server or values in code — [ADR 0006](docs/adr/0006-single-railway-service.md).
+- Use Railway's health check, custom domain and deploy logs for health, HTTPS and logs; don't manage TLS or ship logs yourself — [ADR 0006](docs/adr/0006-single-railway-service.md).
 - Use a Neon branch when a throwaway database is wanted; don't seed a separate server — [finding](specs/calvin/research/fly-and-neon.md).
 
 ## Structure
@@ -59,7 +59,7 @@ Use what the stack provides; each rule comes from a "Platform Capabilities" row 
 
 ## Security
 
-- No secret is read, stored, logged or committed other than as the architecture's Secrets table says (env vars from Fly secrets or a gitignored `.env`; never in `fly.toml`, the Dockerfile, the repo, a log line or a CI command line; `.env.example` holds names only) — a leaked secret can't be taken back.
+- No secret is read, stored, logged or committed other than as the architecture's Secrets table says (env vars from Railway's sealed variables or a gitignored `.env`; never in `.railway/railway.ts`, the Dockerfile, the repo, a log line or a CI command line; `.env.example` holds names only) — a leaked secret can't be taken back.
 
 ## Tests
 

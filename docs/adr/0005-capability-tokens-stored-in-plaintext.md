@@ -14,6 +14,6 @@ calvin's public, manage, withdraw and check-in tokens are 256-bit random strings
 
 ## Consequences
 
-- Anyone who can read the database can act as any creator or committer. At PoC scale, the Neon credentials in `DATABASE_URL` (a Fly secret) are the protection.
+- Anyone who can read the database can act as any creator or committer. At PoC scale, the Neon credentials in `DATABASE_URL` (a sealed Railway variable, ADR 0006) are the protection.
 - Moving to hashed tokens later needs a migration and new links for every live plan, so it should happen between trials, not during one.
 - Logs must keep redacting tokens (architecture, Logging Strategy), since they're as good as the database's copy.

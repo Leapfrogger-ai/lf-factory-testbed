@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-calvin is one TypeScript process on one always-on Fly.io machine. It serves server-rendered HTML pages with Hono and runs a Temporal worker, connected to the operator's Temporal Cloud namespace. Postgres (Neon) owns every plan's state, commits and event log. Each plan has one Temporal workflow that only keeps time: commit deadline, reminders and check-in. Claude Sonnet 5.5 with web search suggests plans, and Resend sends every email exactly once, backed by a send ledger in Postgres. There are no accounts, no JSON API and no client framework. Pages are plain HTML forms that work without JavaScript.
+calvin is one TypeScript process in one always-on Railway service. It serves server-rendered HTML pages with Hono and runs a Temporal worker, connected to the operator's Temporal Cloud namespace. Postgres (Neon) owns every plan's state, commits and event log. Each plan has one Temporal workflow that only keeps time: commit deadline, reminders and check-in. Claude Sonnet 5.5 with web search suggests plans, and Resend sends every email exactly once, backed by a send ledger in Postgres. There are no accounts, no JSON API and no client framework. Pages are plain HTML forms that work without JavaScript.
 
 **Naming**: in this document **Temporal** means temporal.io, the workflow platform. The JavaScript date and time API is called **JS `Temporal`**.
 
@@ -23,7 +23,7 @@ calvin is one TypeScript process on one always-on Fly.io machine. It serves serv
 - **Each email exactly once** across retries and restarts (NFR008).
 - **Phone-first pages** opened in chat apps' in-app browsers: ≤2s first render over 4G (NFR002), working without JS (UX §10.2).
 - **Capability links instead of accounts**: public, manage, withdraw and check-in tokens with ≥128 bits of randomness (NFR005).
-- **Cost** under ~$20/month (NFR010). The estimate is about $5/month plus usage.
+- **Cost** under ~$20/month (NFR010). The estimate is Railway's Hobby plan plus usage (operator to confirm the figure; see Deployment Architecture).
 
 ---
 
@@ -57,13 +57,13 @@ npm install -D typescript @types/node @types/pg drizzle-kit@0.31.11 vitest@^5.0.
 | Runtime | Node.js, native TS type stripping | 26.x (Active LTS from 2026-10-28) | JS `Temporal` is built in for time zone math; no build step | All |
 | Web framework | Hono + `@hono/node-server`, HTML via `hono/html` | hono 4.13.x, node-server 2.1.x | Tiny, built-in CSRF, secure headers and form parsing; `hono/html` works in plain `.ts` (no `.tsx` under type stripping) | All |
 | Validation | Zod via `@hono/zod-validator` | zod 4.6.x, validator 0.9.x | Validates at the form boundary and re-renders with errors | 1, 2, 3 |
-| Database | Neon Postgres, Free plan, `aws-us-west-2` | Postgres (Neon default) | Relational, unique constraints and row locks for commit races; free; closest region to sjc | All |
+| Database | Neon Postgres, Free plan, `aws-us-west-2` | Postgres (Neon default) | Relational, unique constraints and row locks for commit races; free; close to Railway's US West region | All |
 | DB access | Drizzle ORM + `pg` (TCP, small `pg.Pool`, direct connection string) | drizzle-orm 0.45.4, drizzle-kit 0.31.11, pg 8.23.1 | Typed SQL, `onConflictDoUpdate`, generated migrations | All |
 | Workflow engine | Temporal Cloud (operator's account), TypeScript SDK | `@temporalio/*` 1.24.0 | Durable timers, retries and replay for the plan's time ([ADR 0001](../../docs/adr/0001-temporal-workflow-per-plan.md)) | 3, 4 |
 | State ownership | Postgres owns state; the workflow only keeps time | — | One source of truth, pages never wait on Temporal ([ADR 0002](../../docs/adr/0002-postgres-owns-state-temporal-owns-time.md)) | 2, 3, 4 |
 | LLM | Claude Sonnet 5.5 + web search tool + strict `propose_plan` tool | `claude-sonnet-5-5`, `web_search_20260318`, `@anthropic-ai/sdk` 1.3.x | Venues checked as real ([ADR 0004](../../docs/adr/0004-suggestions-sonnet-web-search.md)) | 1 |
 | Email | Resend, plain text-first emails, idempotency keys | `resend` 6.34.x | PRD constraint; idempotency keys | 1, 3, 4 |
-| Hosting | One Fly.io Machine, `shared-cpu-1x` 512MB, `sjc`, autostop off, web + worker in one process | flyctl current | The worker must stay up; about $4.40/month ([ADR 0003](../../docs/adr/0003-single-fly-machine.md)) | All |
+| Hosting | One Railway service, 1 replica in `us-west2` (US West), sleeping off, built from the `Dockerfile` (`node:26-bookworm-slim`), web + worker in one process; deploys only from the `production` branch | `railway` SDK 3.16.0 (`.railway/railway.ts`), Railway CLI ≥ 5.42.1 | The worker must stay up, and story merges to main must not reach users ([ADR 0006](../../docs/adr/0006-single-railway-service.md)) | All |
 | Testing | Vitest; `@temporalio/testing` time-skipping env; `app.request()` for routes | vitest 5.0.x | Fast, ESM-native, runs `.ts` directly | All |
 | Styling | One hand-written CSS file with tokens (UX §3–4) | — | The UX spec decided it; < 10 KB | All |
 
@@ -115,7 +115,7 @@ calvin/
 │   ├── db/
 │   │   ├── schema.ts               # Drizzle schema
 │   │   ├── client.ts               # pg.Pool + drizzle()
-│   │   └── migrate.ts              # Runs drizzle migrations (Fly release_command)
+│   │   └── migrate.ts              # Runs drizzle migrations (Railway pre-deploy command)
 │   └── log.ts                      # JSON-lines logger to stdout, redacts tokens
 ├── drizzle/                        # Generated SQL migrations (drizzle-kit generate)
 ├── public/
@@ -124,8 +124,8 @@ calvin/
 │   └── og.png                      # Static OG card
 ├── tests/                          # Cross-module tests (workflow, end-to-end lifecycle)
 ├── drizzle.config.ts
-├── fly.toml
-├── Dockerfile                      # node:26-slim, npm ci --omit=dev, CMD node src/main.ts
+├── .railway/railway.ts            # The Railway service, as code (applied by the operator)
+├── Dockerfile                      # node:26-bookworm-slim, npm ci --omit=dev, CMD node src/main.ts
 ├── .env.example                    # Every variable, no values
 ├── tsconfig.json
 └── vitest.config.ts
@@ -158,7 +158,7 @@ Unit tests sit next to their source as `*.test.ts`. `tests/` holds the workflow 
 
 #### Hono 4
 - **Purpose**: HTTP routing, middleware and HTML rendering through the `html` tagged template (auto-escaping).
-- **Configuration**: `hono/csrf` with `origin` set to `BASE_URL`, because Fly's proxy terminates TLS. `hono/secure-headers` with a CSP nonce for the create page's script. `c.redirect(url, 303)` after every POST. `app.onError` and `app.notFound` render the shared pages.
+- **Configuration**: `hono/csrf` with `origin` set to `BASE_URL`, because Railway's edge terminates TLS. `hono/secure-headers` with a CSP nonce for the create page's script. `c.redirect(url, 303)` after every POST. `app.onError` and `app.notFound` render the shared pages.
 
 #### Temporal Cloud + TypeScript SDK 1.24.0
 - **Purpose**: one `planWorkflow` per plan that keeps the plan's time, plus activities that touch Postgres and Resend.
@@ -168,7 +168,7 @@ Unit tests sit next to their source as `*.test.ts`. `tests/` holds the workflow 
 #### Neon Postgres + Drizzle 0.45.4 + pg 8.23.1
 - **Purpose**: the source of truth for plans, commits, emails sent, check-in answers and the event log.
 - **Configuration**: direct (non-pooler) connection string, `pg.Pool({ max: 5, connectionTimeoutMillis: 5000 })`. The Free plan scales to zero after 5 idle minutes, and waking takes a few hundred ms. That's acceptable, because nothing polls the database on a timer (don't add a keep-alive; it would use up the Free plan's compute hours).
-- **Resources**: [research/fly-and-neon.md](research/fly-and-neon.md), [research/node-hono-drizzle.md](research/node-hono-drizzle.md)
+- **Resources**: [research/fly-and-neon.md](research/fly-and-neon.md) (Neon parts), [research/node-hono-drizzle.md](research/node-hono-drizzle.md)
 
 #### Anthropic API, Sonnet 5.5
 - **Purpose**: one plan suggestion per request ([ADR 0004](../../docs/adr/0004-suggestions-sonnet-web-search.md)).
@@ -180,10 +180,10 @@ Unit tests sit next to their source as `*.test.ts`. `tests/` holds the workflow 
 - **Configuration**: sending-only API key restricted to calvin's sending domain. Emails are sent with `text` only (UX §8.9: plain, text-first), a `tags: [{ name: "kind", value: <kind> }]` entry and `idempotencyKey`. The SDK returns `{ data, error }` instead of throwing, so `email/send.ts` turns errors into thrown errors: retryable for `rate_limit_exceeded`, 409 `concurrent_idempotent_requests` and 5xx; `ApplicationFailure.nonRetryable` for validation, auth and quota errors.
 - **Resources**: [research/resend.md](research/resend.md)
 
-#### Fly.io
-- **Purpose**: hosting one Machine with HTTPS, secrets and logs.
-- **Configuration** (`fly.toml`): `primary_region = "sjc"`; `[http_service]` `internal_port = 8080`, `force_https = true`, `auto_stop_machines = "off"`, `auto_start_machines = false`, `min_machines_running = 1`; an `[[http_service.checks]]` GET `/healthz`; `[deploy] release_command = "node src/db/migrate.ts"`; VM `shared-cpu-1x`, 512MB. No `[processes]` groups.
-- **Resources**: [research/fly-and-neon.md](research/fly-and-neon.md)
+#### Railway
+- **Purpose**: hosting one always-on service with HTTPS, variables and logs ([ADR 0006](../../docs/adr/0006-single-railway-service.md)).
+- **Configuration** (`.railway/railway.ts`, Railway's Infrastructure as Code; `railway.json`/`railway.toml` stop working on 2026-12-01): service `calvin` from `Leapfrogger-ai/lf-factory-testbed` branch `production`; `DOCKERFILE` builder; pre-deploy `node src/db/migrate.ts`; health check `/healthz`; `us-west2` with 1 replica; `sleepApplication: false`; restart `ALWAYS`; `drainingSeconds: 30`; the custom domain from `CALVIN_DOMAIN` at apply time. `PORT` is set to `8080`, the port the custom domain routes to. `partial = "calvin"`, so an apply touches nothing else in the project.
+- **Deploys**: on purpose only. Pushing a commit from `main` to `production` deploys it; merges to `main` don't. Rollback is Railway's rollback to an earlier deployment. Steps: [docs/deploy-runbook.md](../../docs/deploy-runbook.md).
 
 ### Integration Points
 
@@ -228,9 +228,10 @@ The native features the build must use, so no story hand-rolls them. Every row l
 | Drizzle 0.45.4 | `onConflictDoUpdate` (target `[planId, emailNormalized]`) | "Same email updates the name" (FR013) | Select-then-insert | [node-hono-drizzle.md](research/node-hono-drizzle.md) |
 | Drizzle 0.45.4 | `db.transaction`, `.for('update')` | Atomic commit and confirm, call-off, deadline resolve | Application locks | [node-hono-drizzle.md](research/node-hono-drizzle.md) |
 | drizzle-kit 0.31.11 | `generate` + `migrate(db, { migrationsFolder })` | Schema migrations | Hand-written SQL runner | [node-hono-drizzle.md](research/node-hono-drizzle.md) |
-| Fly.io | `release_command` | Running migrations before each deploy; a failure stops the deploy | Migrating on boot | [fly-and-neon.md](research/fly-and-neon.md) |
-| Fly.io | Secrets (`fly secrets set`), exposed as env vars | All four secrets in production | `.env` files on the server | [fly-and-neon.md](research/fly-and-neon.md) |
-| Fly.io | `[[http_service.checks]]`, `fly certs add` (Let's Encrypt), `fly logs` | Health, HTTPS, logs | Self-managed TLS, log shipping | [fly-and-neon.md](research/fly-and-neon.md) |
+| Railway | Pre-deploy command | Running migrations before each deploy; a failure stops the deploy | Migrating on boot | [ADR 0006](../../docs/adr/0006-single-railway-service.md) |
+| Railway | Sealed service variables, exposed as env vars; `preserve()` in `.railway/railway.ts` | All four secrets in production | `.env` files on the server; secrets in code | [ADR 0006](../../docs/adr/0006-single-railway-service.md) |
+| Railway | Health check (gates the switch to a new deployment), custom domain (managed TLS), deploy logs | Health, HTTPS, logs | Self-managed TLS, log shipping | [ADR 0006](../../docs/adr/0006-single-railway-service.md) |
+| Railway | Rollback to an earlier deployment (image and variables) | Undoing a bad deploy | Rebuilding an old commit | [ADR 0006](../../docs/adr/0006-single-railway-service.md) |
 | Neon | Branching | A throwaway database per developer or test run, if wanted | Seeding a separate server | [fly-and-neon.md](research/fly-and-neon.md) |
 
 **Not used, and why**:
@@ -239,7 +240,8 @@ The native features the build must use, so no story hand-rolls them. Every row l
 - Resend **scheduled sending** (`scheduledAt`): Temporal timers keep the time, and calling a plan off would mean cancelling stored email ids ([ADR 0001](../../docs/adr/0001-temporal-workflow-per-plan.md)).
 - Anthropic **structured outputs** (`output_config.format`) and **forced `tool_choice`**: the first isn't documented as compatible with web search citations, and Sonnet 5.5 rejects the second ([ADR 0004](../../docs/adr/0004-suggestions-sonnet-web-search.md)).
 - **hono/jsx**: needs `.tsx`, which Node's type stripping can't run without a build step. `hono/html` covers it.
-- Fly **`[processes]` groups**: each group gets its own Machine, which would double the cost ([ADR 0003](../../docs/adr/0003-single-fly-machine.md)).
+- A **second Railway service for the worker**: two services to deploy and pay for at a 3–5-plan trial ([ADR 0006](../../docs/adr/0006-single-railway-service.md)).
+- Railway **autodeploy from `main`**: factory story merges would go straight to users during trials ([ADR 0006](../../docs/adr/0006-single-railway-service.md)).
 - Neon **pooled (`-pooler`) connection string**: one long-running process with a small `pg.Pool` doesn't need PgBouncer, and Neon advises against pooling on both sides.
 
 ---
@@ -332,7 +334,7 @@ called_off ──▶ sendToCommitters("not_this_time") ▶ end
 - **Activities** throw on failure so Temporal retries. Non-retryable cases (Resend validation, auth or quota errors) throw `ApplicationFailure.nonRetryable`.
 
 ### Logging Strategy
-- `src/log.ts` writes one JSON object per line to stdout: `{ level, msg, time, requestId?, planId?, ...context }`. Fly collects stdout (`fly logs`, 7 days).
+- `src/log.ts` writes one JSON object per line to stdout: `{ level, msg, time, requestId?, planId?, ...context }`. Railway collects stdout (the service's deploy logs; operator to confirm retention on their plan).
 - Levels: `error` for unexpected failures, `warn` for recoverable ones (suggestion fallback, signal failure), `info` for state changes and emails sent, `debug` off in production.
 - **Never log** email addresses, tokens or secrets. The request logger replaces every path segment after `/p/`, `/m/`, `/w/` and `/c/` with `:token`. Log plans by `planId` (an internal UUID, never shown in URLs).
 
@@ -415,7 +417,7 @@ events         (id, plan_id null, type, data jsonb, created_at)   # append-only,
 | GET | `/w/:token` | Withdraw confirmation | HTML (`noindex`) |
 | POST | `/w/:token` | Withdraw | 303 → `/w/:token?done=1` |
 | GET | `/c/:token/:question/:answer` | Record a check-in answer (`happened`/`attended`, `yes`/`no`) | HTML thank-you (`noindex`) |
-| GET | `/healthz` | Fly health check | 200 `ok` |
+| GET | `/healthz` | Railway health check (at deploy) | 200 `ok` |
 | GET | `/static/*` | `app.css`, `create.js`, `og.png` (cache headers) | Files |
 
 The post-commit notice in the query string carries no email address (NFR006).
@@ -430,13 +432,13 @@ PoC gate: **secrets hygiene**.
 
 | Secret | Where it lives | How it reaches the code |
 |--------|----------------|-------------------------|
-| `ANTHROPIC_API_KEY` | Production: Fly secrets. Local: `.env` (gitignored) | Environment variable, read by the Anthropic SDK |
-| `RESEND_API_KEY` (sending access only, restricted to calvin's domain) | Fly secrets / local `.env` | Environment variable, read by the Resend SDK |
-| `TEMPORAL_API_KEY` | Fly secrets / local `.env` (unset for the local dev server) | Environment variable, read by `@temporalio/envconfig` |
-| `DATABASE_URL` (contains the Neon password) | Fly secrets / local `.env` | Environment variable, read in `src/config.ts` |
+| `ANTHROPIC_API_KEY` (in its own capped Anthropic workspace) | Production: Railway sealed variables. Local: `.env` (gitignored) | Environment variable, read by the Anthropic SDK |
+| `RESEND_API_KEY` (sending access only, restricted to calvin's domain) | Railway sealed variables / local `.env` | Environment variable, read by the Resend SDK |
+| `TEMPORAL_API_KEY` (calvin's own namespace only) | Railway sealed variables / local `.env` (unset for the local dev server) | Environment variable, read by `@temporalio/envconfig` |
+| `DATABASE_URL` (contains the Neon password) | Railway sealed variables / local `.env` | Environment variable, read in `src/config.ts` |
 
 Rules:
-- Secrets are set with `fly secrets set` (interactive or from stdin), never written in `fly.toml`, the Dockerfile, the repo, a log line or a CI command line. `.env` is in `.gitignore`. `.env.example` lists names only.
+- Secrets are set as sealed variables in Railway's dashboard, never written in `.railway/railway.ts` (which declares them with `preserve()`), the Dockerfile, the repo, a log line or a CI command line. `.env` is in `.gitignore`. `.env.example` lists names only.
 - `src/config.ts` validates that each secret is present at startup and never prints values. Errors name the missing variable only.
 - Tokens in URLs are capabilities. The logger redacts them (Logging Strategy), and `Referrer-Policy: no-referrer` stops them leaking to venue or map links.
 
@@ -448,7 +450,7 @@ Rules:
 |---------|----------|
 | Public page ≤ 2s over 4G | Server-rendered HTML, one CSS file < 10 KB, no JS, no web fonts; one query for the plan plus its commits |
 | Neon cold start | Accept a few hundred ms after 5 idle minutes; `connectionTimeoutMillis: 5000` and one retry on connect |
-| Neon in Oregon, Fly in sjc | Keep each page to one or two round trips |
+| Neon in `aws-us-west-2`, Railway in US West | Keep each page to one or two round trips |
 | Suggestion ≤ 15s p95 | `max_uses: 2`, `effort: "low"`; measure in the first suggestion story and drop to `max_uses: 1` if needed |
 | Static assets | `Cache-Control: public, max-age=86400` on `/static/*` |
 
@@ -468,7 +470,7 @@ There's no staging at PoC maturity.
 ### Infrastructure
 
 ```
-Phone (chat in-app browser) ──HTTPS──▶ Fly proxy ──▶ Fly Machine sjc (Node 26, one process)
+Phone (chat in-app browser) ──HTTPS──▶ Railway edge ──▶ Railway service us-west2 (Node 26, one process)
                                                       ├─ Hono web ───────────────┐
                                                       ├─ Temporal worker ◀─poll──┼──▶ Temporal Cloud (operator's namespace)
                                                       │      └─ activities ──────┤
@@ -477,7 +479,7 @@ Phone (chat in-app browser) ──HTTPS──▶ Fly proxy ──▶ Fly Machine
                                                       └──▶ Resend (email) ──▶ inboxes
 ```
 
-Estimated cost: Fly about $4.40, Neon $0, Temporal Cloud negligible (about 100 actions per plan on the existing account), Resend Free (100/day, 3,000/month), Anthropic about $0.05–0.07 per suggestion. About $5/month.
+Estimated cost: Railway's Hobby plan for one always-on service (operator to confirm the price and the usage it includes on Railway's pricing page; nothing here was checked), Neon $0, Temporal Cloud negligible (about 100 actions per plan on the existing account), Resend Free (100/day, 3,000/month), Anthropic about $0.05–0.07 per suggestion. Target: under ~$20/month (NFR010).
 
 ---
 
@@ -487,7 +489,7 @@ Estimated cost: Fly about $4.40, Neon $0, Temporal Cloud negligible (about 100 a
 - Node.js 26
 - Temporal CLI (`temporal server start-dev`)
 - A Postgres database: a Neon dev branch, or local Postgres
-- `flyctl` (deploys only)
+- Railway CLI ≥ 5.42.1 (deploy configuration only; see [docs/deploy-runbook.md](../../docs/deploy-runbook.md))
 
 ### Setup Commands
 
@@ -528,8 +530,10 @@ npx vitest
 
 - [0001: One Temporal Cloud workflow per plan keeps the plan's time](../../docs/adr/0001-temporal-workflow-per-plan.md): durable timers instead of a cron sweep; Resend scheduled sending not used.
 - [0002: Postgres owns plan state; the workflow only keeps time](../../docs/adr/0002-postgres-owns-state-temporal-owns-time.md): signals as wake-ups, a send ledger for exactly-once email; Updates and Queries not used.
-- [0003: One always-on Fly.io machine runs web and worker in one process](../../docs/adr/0003-single-fly-machine.md): autostop off, no process groups.
+- [0003: One always-on Fly.io machine runs web and worker in one process](../../docs/adr/0003-single-fly-machine.md): superseded by 0006.
 - [0004: Plan suggestions use Sonnet 5.5 with web search and a strict `propose_plan` tool](../../docs/adr/0004-suggestions-sonnet-web-search.md): venues checked as real; latency to be measured.
+- [0005: Capability tokens are stored in plaintext](../../docs/adr/0005-capability-tokens-stored-in-plaintext.md): every email is rebuilt from stored data, so tokens can't be hashed.
+- [0006: One always-on Railway service runs web and worker in one process](../../docs/adr/0006-single-railway-service.md): sleeping off, US West, deploys only from `production` (the operator's decision of 2026-11-12).
 
 ---
 

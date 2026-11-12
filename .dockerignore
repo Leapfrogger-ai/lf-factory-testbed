@@ -1,0 +1,11 @@
+.env
+.env.*
+node_modules
+.git
+.github
+.factory
+.superpowers
+.railway
+docs
+specs
+tests
