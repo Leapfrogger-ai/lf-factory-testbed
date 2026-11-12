@@ -182,7 +182,7 @@ Unit tests sit next to their source as `*.test.ts`. `tests/` holds the workflow 
 
 #### Railway
 - **Purpose**: hosting one always-on service with HTTPS, variables and logs ([ADR 0006](../../docs/adr/0006-single-railway-service.md)).
-- **Configuration** (`.railway/railway.ts`, Railway's Infrastructure as Code; `railway.json`/`railway.toml` stop working on 2026-12-01): service `calvin` from `Leapfrogger-ai/lf-factory-testbed` branch `production`; `DOCKERFILE` builder; pre-deploy `node src/db/migrate.ts`; health check `/healthz`; `us-west2` with 1 replica; `sleepApplication: false`; restart `ALWAYS`; `drainingSeconds: 30`; the custom domain from `CALVIN_DOMAIN` at apply time. Railway injects `PORT`. `partial = "calvin"`, so an apply touches nothing else in the project.
+- **Configuration** (`.railway/railway.ts`, Railway's Infrastructure as Code; `railway.json`/`railway.toml` stop working on 2026-12-01): service `calvin` from `Leapfrogger-ai/lf-factory-testbed` branch `production`; `DOCKERFILE` builder; pre-deploy `node src/db/migrate.ts`; health check `/healthz`; `us-west2` with 1 replica; `sleepApplication: false`; restart `ALWAYS`; `drainingSeconds: 30`; the custom domain from `CALVIN_DOMAIN` at apply time. `PORT` is set to `8080`, the port the custom domain routes to. `partial = "calvin"`, so an apply touches nothing else in the project.
 - **Deploys**: on purpose only. Pushing a commit from `main` to `production` deploys it; merges to `main` don't. Rollback is Railway's rollback to an earlier deployment. Steps: [docs/deploy-runbook.md](../../docs/deploy-runbook.md).
 
 ### Integration Points
@@ -531,8 +531,9 @@ npx vitest
 - [0001: One Temporal Cloud workflow per plan keeps the plan's time](../../docs/adr/0001-temporal-workflow-per-plan.md): durable timers instead of a cron sweep; Resend scheduled sending not used.
 - [0002: Postgres owns plan state; the workflow only keeps time](../../docs/adr/0002-postgres-owns-state-temporal-owns-time.md): signals as wake-ups, a send ledger for exactly-once email; Updates and Queries not used.
 - [0003: One always-on Fly.io machine runs web and worker in one process](../../docs/adr/0003-single-fly-machine.md): superseded by 0006.
-- [0006: One always-on Railway service runs web and worker in one process](../../docs/adr/0006-single-railway-service.md): sleeping off, US West, deploys only from `production` (the operator's decision of 2026-11-12).
 - [0004: Plan suggestions use Sonnet 5.5 with web search and a strict `propose_plan` tool](../../docs/adr/0004-suggestions-sonnet-web-search.md): venues checked as real; latency to be measured.
+- [0005: Capability tokens are stored in plaintext](../../docs/adr/0005-capability-tokens-stored-in-plaintext.md): every email is rebuilt from stored data, so tokens can't be hashed.
+- [0006: One always-on Railway service runs web and worker in one process](../../docs/adr/0006-single-railway-service.md): sleeping off, US West, deploys only from `production` (the operator's decision of 2026-11-12).
 
 ---
 

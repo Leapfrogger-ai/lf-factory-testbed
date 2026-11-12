@@ -892,7 +892,7 @@ describe('GET /static/app.css', () => {
 });
 
 describe('POST /suggest rate limit', () => {
-  const fromIp = (ip: string) => ({ 'Fly-Client-IP': ip });
+  const fromIp = (ip: string) => ({ 'X-Real-IP': ip });
 
   it('answers 429 on the 11th suggestion from one IP (AC1)', async () => {
     const deps = testDeps();
@@ -1006,13 +1006,25 @@ describe('POST /suggest rate limit', () => {
     expect(deps.fakes.suggest.calls).toHaveLength(0);
   });
 
-  it('shares one key without Fly-Client-IP', async () => {
+  it('shares one key without X-Real-IP', async () => {
     const deps = testDeps();
     const app = createApp(deps, { baseUrl: TEST_BASE_URL });
     for (let i = 0; i < 5; i++) expect((await postSuggest(deps, {}, {}, app)).status).toBe(303);
-    for (let i = 0; i < 5; i++) expect((await postSuggest(deps, {}, { 'Fly-Client-IP': '' }, app)).status).toBe(303);
+    for (let i = 0; i < 5; i++) expect((await postSuggest(deps, {}, { 'X-Real-IP': '' }, app)).status).toBe(303);
 
     const res = await postSuggest(deps, {}, {}, app);
+
+    expect(res.status).toBe(429);
+  });
+
+  it('ignores Fly-Client-IP, which Railway passes through from the client', async () => {
+    const deps = testDeps();
+    const app = createApp(deps, { baseUrl: TEST_BASE_URL });
+    for (let i = 0; i < 10; i++) {
+      expect((await postSuggest(deps, {}, { 'Fly-Client-IP': `198.51.100.${i}` }, app)).status).toBe(303);
+    }
+
+    const res = await postSuggest(deps, {}, { 'Fly-Client-IP': '198.51.100.99' }, app);
 
     expect(res.status).toBe(429);
   });
@@ -1032,7 +1044,7 @@ describe('POST /suggest rate limit', () => {
 });
 
 describe('POST /plans rate limit', () => {
-  const fromIp = (ip: string) => ({ 'Fly-Client-IP': ip });
+  const fromIp = (ip: string) => ({ 'X-Real-IP': ip });
   let seq = 0;
   async function postPlan(app: ReturnType<typeof createApp>, ip: string, overrides: Record<string, string> = {}) {
     seq += 1;
@@ -1146,9 +1158,9 @@ describe('rate limited requests log', () => {
   it('logs a limited suggest request at warn without the IP (AC7)', async () => {
     const deps = testDeps();
     const app = createApp(deps, { baseUrl: TEST_BASE_URL });
-    for (let i = 0; i < 10; i++) await postSuggest(deps, {}, { 'Fly-Client-IP': IP }, app);
+    for (let i = 0; i < 10; i++) await postSuggest(deps, {}, { 'X-Real-IP': IP }, app);
 
-    const res = await postSuggest(deps, {}, { 'Fly-Client-IP': IP }, app);
+    const res = await postSuggest(deps, {}, { 'X-Real-IP': IP }, app);
 
     expect(res.status).toBe(429);
     expectOneWarnWithoutIp('suggest');
@@ -1159,7 +1171,7 @@ describe('rate limited requests log', () => {
     const post = (n: number) =>
       app.request('/plans', {
         method: 'POST',
-        headers: { ...sameOrigin, 'Fly-Client-IP': IP },
+        headers: { ...sameOrigin, 'X-Real-IP': IP },
         body: new URLSearchParams(planForm({ email: `log${n}@example.test` })),
       });
     for (let i = 0; i < 3; i++) await post(i);
@@ -1353,7 +1365,7 @@ describe('GET /m/:token/new', () => {
       const submit = (email: string) =>
         app.request('/plans', {
           method: 'POST',
-          headers: { ...sameOrigin, 'Fly-Client-IP': '203.0.113.9' },
+          headers: { ...sameOrigin, 'X-Real-IP': '203.0.113.9' },
           body: new URLSearchParams(
             planForm({ date: '2026-11-21', name: 'Ana Ruiz', email, fromManageToken: old.manageToken }),
           ),

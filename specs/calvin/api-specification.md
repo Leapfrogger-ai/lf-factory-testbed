@@ -28,7 +28,7 @@ calvin has **no JSON API** (architecture, Code Organization). Its whole HTTP sur
 | R10 | GET | `/w/:token` | Withdraw confirmation, or done | 200 HTML | — |
 | R11 | POST | `/w/:token` | Withdraw | 303 → `/w/:token?done=1` | — |
 | R12 | GET | `/c/:token/:question/:answer` | Record a check-in answer | 200 HTML | — |
-| R13 | GET | `/healthz` | Fly health check | 200 `ok` | — |
+| R13 | GET | `/healthz` | Railway health check (at deploy) | 200 `ok` | — |
 | R14 | GET | `/static/:file` | `app.css`, `create.js`, `og.png` | 200 file | — |
 
 Anything else gets the not-found page (§3.3). That includes a wrong method on a known path, such as `GET /plans`.
@@ -169,7 +169,7 @@ Operator decision: per-IP and global caps on the two routes that cost money or s
 | `POST /suggest` | 10 per 10 minutes | 200 per day |
 | `POST /plans` | 5 per hour | 50 per day |
 
-- **Key**: the `Fly-Client-IP` header. In development, where it's absent, use the socket's remote address.
+- **Key**: the `X-Real-IP` header that Railway's edge sets. In development, where it's absent, use the socket's remote address. Don't trust `Fly-Client-IP` or the leftmost `X-Forwarded-For`: on Railway a client can set them.
 - **Windows**: fixed windows. A "day" is the calendar day in `America/Los_Angeles`. The limits are constants in `src/config.ts` (`RATE_LIMITS`).
 - **Counting**: every request that passes CSRF counts, including ones that then fail validation. The check runs **before** validation and before any Claude call or database write.
 - **Response**: 429, `Retry-After: <seconds until the window resets>`, the same page re-rendered (R2 and R3 say how), logged at `warn` without the IP.
@@ -485,7 +485,7 @@ If the other question has no answer yet, the page shows it with **Yes** and **No
 
 ### R13. GET `/healthz`
 
-**200**, `text/plain`, body `ok`. It **doesn't query the database**: Fly's check runs every few seconds and would keep Neon's Free plan from scaling to zero (architecture, Neon). It's not logged at `info`.
+**200**, `text/plain`, body `ok`. It **doesn't query the database**: Railway checks it only at deploy, but an uptime monitor polling it would keep Neon's Free plan from scaling to zero (architecture, Neon). It's not logged at `info`.
 
 ### R14. GET `/static/:file`
 
@@ -509,7 +509,7 @@ All are sent after the database transaction commits, to workflow ID `plan-<planI
 
 ## 7. Logging per request
 
-The request logger (architecture, Logging Strategy) writes method, the path with tokens replaced by `:token` (every segment after `/p/`, `/m/`, `/w/`, `/c/`), status and duration. It never logs form bodies, query strings (they can hold `n`), emails, tokens or `Fly-Client-IP`.
+The request logger (architecture, Logging Strategy) writes method, the path with tokens replaced by `:token` (every segment after `/p/`, `/m/`, `/w/`, `/c/`), status and duration. It never logs form bodies, query strings (they can hold `n`), emails, tokens or the client IP (`X-Real-IP`).
 
 ---
 

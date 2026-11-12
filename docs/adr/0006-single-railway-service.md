@@ -17,7 +17,7 @@ calvin is one Railway service, `calvin`, built from the repo's `Dockerfile` (`no
   - the branch shows exactly which commit is live;
   - deploying is one `git push`, with no deploy token in GitHub and no CI change;
   - a testbed reset, which force-pushes `main`, can't deploy anything by accident.
-- **Rollback** is Railway's rollback to an earlier deployment, which restores its image and variables, with no rebuild. `production` isn't rewound. The fix (or a revert) goes through `main` as usual, and the next push to `production` deploys it. Until then, `production` names the rolled-back commit, not the live one.
+- **Rollback** is Railway's rollback to an earlier deployment, which (by Railway's docs) restores its image and variables, with no rebuild. `production` isn't rewound. The fix (or a revert) goes through `main` as usual, and the next push to `production` deploys it. Until then, `production` names the rolled-back commit, not the live one.
 - **The settings are code**, in `.railway/railway.ts` (Railway's Infrastructure as Code, `railway` SDK 3.16.0). The operator applies it with `railway config apply`, and CI never does. Railway's older `railway.json`/`railway.toml` (Config as Code) is deprecated, new services can't use it, and it stops working on 2026-12-01. `partial = "calvin"` limits an apply to this service. Secrets are declared with `preserve()` and set as sealed variables in Railway's dashboard, so no value is ever in the repo.
 
 ## Considered Options
@@ -31,7 +31,8 @@ calvin is one Railway service, `calvin`, built from the repo's `Dockerfile` (`no
 
 ## Consequences
 
-- No redundancy, as in ADR 0003: a crash pauses timers and pages briefly. Timers fire late rather than being lost. On a deploy, the old version keeps running until the new one passes its health check, then gets `drainingSeconds: 30` to finish in-flight activities after SIGTERM.
+- No redundancy, as in ADR 0003: a crash pauses timers and pages briefly. Timers fire late rather than being lost. On a deploy, the old version keeps running until the new one passes its health check, then gets `drainingSeconds: 30` between SIGTERM and SIGKILL to stop the worker cleanly. In-flight activities are cancelled at SIGTERM (the worker's `shutdownGraceTime` is 0), and Temporal retries them on the new worker. The send ledger keeps each email to one send.
 - Old and new versions overlap briefly, so a migration must not break the running version (add, then remove later). The pre-deploy command runs before the new version starts.
-- The `production` branch lives in the testbed. A testbed reset must keep it, or hosted calvin can't be redeployed until it is pushed again.
+- The `production` branch lives in the testbed. A testbed reset must keep it. After a reset, `production` is moved to new `main` commits with a merge commit, not a force-push (runbook, "After a testbed reset").
+- calvin's rate limits key on Railway's `X-Real-IP` header instead of Fly's `Fly-Client-IP`. Railway passes a client's own `Fly-Client-IP` through, so trusting it would let anyone reset their limit.
 - Cost: Railway's Hobby plan plus usage, under the ~$20/month target (NFR010). Nothing here was checked against Railway's pricing; the operator confirms it.

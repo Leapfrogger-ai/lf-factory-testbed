@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { createRailwayContext, project } from 'railway/iac';
 import type { ServiceNode } from 'railway/iac';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -82,6 +83,14 @@ describe('Railway service (.railway/railway.ts)', () => {
     expect(svc.variables?.BASE_URL).toMatchObject({ type: 'literal', value: 'https://calvin.example.org' });
   });
 
+  it('routes the domain to the port the app listens on', async () => {
+    const svc = await calvinService('calvin.example.org');
+    const port = svc.variables?.PORT;
+    expect(port).toMatchObject({ type: 'literal' });
+    const listening = Number((port as { value: string }).value);
+    expect(svc.networking?.customDomains?.['calvin.example.org']?.port).toBe(listening);
+  });
+
   it('refuses to plan without CALVIN_DOMAIN', async () => {
     delete process.env.CALVIN_DOMAIN;
     await expect(async () => railway(createRailwayContext({ environment: 'production' }), project)).rejects.toThrow(
@@ -89,11 +98,11 @@ describe('Railway service (.railway/railway.ts)', () => {
     );
   });
 
-  it('declares every .env.example name except PORT, keeping secrets out of the file', async () => {
+  it('declares every .env.example name, keeping secrets out of the file', async () => {
     const svc = await calvinService();
     const declared = Object.keys(svc.variables ?? {}).sort();
-    expect(declared).toEqual(envNames.filter((name) => name !== 'PORT').sort());
-    for (const name of declared.filter((n) => n !== 'BASE_URL')) {
+    expect(declared).toEqual([...envNames].sort());
+    for (const name of declared.filter((n) => n !== 'BASE_URL' && n !== 'PORT')) {
       expect(svc.variables?.[name], name).toEqual({ type: 'preserve' });
     }
   });
@@ -111,9 +120,24 @@ describe('Dockerfile', () => {
     expect(dockerfile).toContain('npm ci --omit=dev');
   });
 
-  it('copies what the app reads at runtime', () => {
+  it('copies what the app reads at runtime, relative to its working directory', () => {
+    // serveStatic reads ./public and migrate() reads ./drizzle, both relative to the cwd.
+    expect(dockerfile).toMatch(/^WORKDIR \/app$/m);
     for (const dir of ['src', 'public', 'drizzle']) {
       expect(dockerfile, dir).toMatch(new RegExp(`^COPY ${dir} \\./${dir}$`, 'm'));
+    }
+  });
+
+  it('has app code that imports nothing outside src/', () => {
+    const appFiles = readdirSync('src', { recursive: true, encoding: 'utf8' }).filter(
+      (file) => file.endsWith('.ts') && !file.endsWith('.test.ts') && !file.endsWith('.d.ts'),
+    );
+    expect(appFiles.length).toBeGreaterThan(0);
+    for (const file of appFiles) {
+      const from = join('src', file);
+      for (const [, spec] of read(from).matchAll(/from\s+'(\.[^']+)'/g)) {
+        expect(relative('src', resolve(dirname(from), spec)).startsWith('..'), `${from} imports ${spec}`).toBe(false);
+      }
     }
   });
 

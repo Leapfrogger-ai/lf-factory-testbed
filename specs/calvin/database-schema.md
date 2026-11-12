@@ -642,7 +642,7 @@ export const events = pgTable('events', {
 
 ## Migrations
 
-drizzle-kit owns the migration files: `npx drizzle-kit generate` writes `drizzle/0000_<name>.sql` from `schema.ts`, and `src/db/migrate.ts` (Fly `release_command`) applies them. drizzle-kit has no down migrations; at PoC maturity, a bad migration is fixed by a new forward migration (or, before the trial, by a fresh Neon branch).
+drizzle-kit owns the migration files: `npx drizzle-kit generate` writes `drizzle/0000_<name>.sql` from `schema.ts`, and `src/db/migrate.ts` (Railway's pre-deploy command) applies them. drizzle-kit has no down migrations; at PoC maturity, a bad migration is fixed by a new forward migration (or, before the trial, by a fresh Neon branch).
 
 ### Migration 0000: Initial schema
 

@@ -24,11 +24,14 @@ export default defineRailway((ctx) => {
       // The Temporal worker must stay up for reminders to fire on time (NFR007).
       sleepApplication: false,
       restartPolicyType: 'ALWAYS',
-      // SIGTERM to SIGKILL: time for worker.shutdown() to finish in-flight activities.
+      // SIGTERM to SIGKILL: time for worker.shutdown() to stop cleanly. In-flight activities are
+      // cancelled (shutdownGraceTime is 0) and Temporal retries them on the new worker; the send ledger keeps emails to one.
       drainingSeconds: 30,
     },
-    domains: [domain],
+    // The domain routes to PORT; set both, so Railway can't inject a different PORT than the domain targets.
+    domains: [{ domain, port: 8080 }],
     env: {
+      PORT: '8080',
       BASE_URL: `https://${domain}`,
       // Set in Railway's dashboard; preserve() keeps them on apply. A variable left out here is deleted on apply.
       DATABASE_URL: preserve(),
