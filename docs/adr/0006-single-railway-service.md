@@ -9,7 +9,7 @@ decided: the operator, 2026-11-12
 
 The operator decided this on 2026-11-12. It supersedes [ADR 0003](0003-single-fly-machine.md)'s Fly.io machine, because the operator prefers Railway. The shape doesn't change: one Node process serves the Hono web app and runs the Temporal worker.
 
-calvin is one Railway service, `calvin`, built from the repo's `Dockerfile` (`node:26-bookworm-slim`). It runs 1 replica in `us-west2` (US West), close to Neon's `aws-us-west-2`, with sleeping off and restart policy `ALWAYS`. The worker has to stay up for timers to fire on time (NFR007), so nothing may scale it to zero. Postgres stays on Neon's Free plan.
+calvin is one Railway service, `calvin`, built from the repo's `Dockerfile` (`node:26-bookworm-slim`). It runs 1 replica in `us-east4-eqdc4a` (US East, Virginia), close to calvin's Neon project in `aws-us-east-2` (Ohio), with sleeping off and restart policy `ALWAYS`. The worker has to stay up for timers to fire on time (NFR007), so nothing may scale it to zero. Postgres stays on Neon's Free plan.
 
 - **Migrations** run in Railway's pre-deploy command (`node src/db/migrate.ts`). It runs in the built image before the new version starts, and a failure stops the deploy.
 - **Health check**: Railway calls `/healthz` on the new deployment and switches traffic only once it answers 2xx. The app starts listening only after it has connected to Temporal and created the worker, so a deploy that can't reach Temporal never goes live. Railway checks only at deploy time; it doesn't monitor afterwards.
@@ -19,6 +19,8 @@ calvin is one Railway service, `calvin`, built from the repo's `Dockerfile` (`no
   - a testbed reset, which force-pushes `main`, can't deploy anything by accident.
 - **Rollback** is Railway's rollback to an earlier deployment, which (by Railway's docs) restores its image and variables, with no rebuild. `production` isn't rewound. The fix (or a revert) goes through `main` as usual, and the next push to `production` deploys it. Until then, `production` names the rolled-back commit, not the live one.
 - **The settings are code**, in `.railway/railway.ts` (Railway's Infrastructure as Code, `railway` SDK 3.16.0). The operator applies it with `railway config apply`, and CI never does. Railway's older `railway.json`/`railway.toml` (Config as Code) is deprecated, new services can't use it, and it stops working on 2026-12-01. `partial = "calvin"` limits an apply to this service. Secrets are declared with `preserve()` and set as sealed variables in Railway's dashboard, so no value is ever in the repo.
+
+**Region (amended 2026-11-13).** The service first ran in US West (`us-west2`), next to a Neon project in `aws-us-west-2`. The operator then chose an existing Neon project for calvin, which is in `aws-us-east-2`, and Neon can't move a project between regions. With the app in US West, every query would cross the country (about 60 ms each, several per page). In US East the database is about 10 ms away, and a Bay Area visitor pays one cross-country round trip per page instead. calvin's Temporal namespace is created in an AWS us-east region for the same reason.
 
 ## Considered Options
 

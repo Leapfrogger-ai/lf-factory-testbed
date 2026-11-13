@@ -57,13 +57,13 @@ npm install -D typescript @types/node @types/pg drizzle-kit@0.31.11 vitest@^5.0.
 | Runtime | Node.js, native TS type stripping | 26.x (Active LTS from 2026-10-28) | JS `Temporal` is built in for time zone math; no build step | All |
 | Web framework | Hono + `@hono/node-server`, HTML via `hono/html` | hono 4.13.x, node-server 2.1.x | Tiny, built-in CSRF, secure headers and form parsing; `hono/html` works in plain `.ts` (no `.tsx` under type stripping) | All |
 | Validation | Zod via `@hono/zod-validator` | zod 4.6.x, validator 0.9.x | Validates at the form boundary and re-renders with errors | 1, 2, 3 |
-| Database | Neon Postgres, Free plan, `aws-us-west-2` | Postgres (Neon default) | Relational, unique constraints and row locks for commit races; free; close to Railway's US West region | All |
+| Database | Neon Postgres, calvin's existing project, `aws-us-east-2` | Postgres (Neon default) | Relational, unique constraints and row locks for commit races; free; close to Railway's US East region (Neon can't move a project's region, so the app goes to the database) | All |
 | DB access | Drizzle ORM + `pg` (TCP, small `pg.Pool`, direct connection string) | drizzle-orm 0.45.4, drizzle-kit 0.31.11, pg 8.23.1 | Typed SQL, `onConflictDoUpdate`, generated migrations | All |
 | Workflow engine | Temporal Cloud (operator's account), TypeScript SDK | `@temporalio/*` 1.24.0 | Durable timers, retries and replay for the plan's time ([ADR 0001](../../docs/adr/0001-temporal-workflow-per-plan.md)) | 3, 4 |
 | State ownership | Postgres owns state; the workflow only keeps time | — | One source of truth, pages never wait on Temporal ([ADR 0002](../../docs/adr/0002-postgres-owns-state-temporal-owns-time.md)) | 2, 3, 4 |
 | LLM | Claude Sonnet 5.5 + web search tool + strict `propose_plan` tool | `claude-sonnet-5-5`, `web_search_20260318`, `@anthropic-ai/sdk` 1.3.x | Venues checked as real ([ADR 0004](../../docs/adr/0004-suggestions-sonnet-web-search.md)) | 1 |
 | Email | Resend, plain text-first emails, idempotency keys | `resend` 6.34.x | PRD constraint; idempotency keys | 1, 3, 4 |
-| Hosting | One Railway service, 1 replica in `us-west2` (US West), sleeping off, built from the `Dockerfile` (`node:26-bookworm-slim`), web + worker in one process; deploys only from the `production` branch | `railway` SDK 3.16.0 (`.railway/railway.ts`), Railway CLI ≥ 5.42.1 | The worker must stay up, and story merges to main must not reach users ([ADR 0006](../../docs/adr/0006-single-railway-service.md)) | All |
+| Hosting | One Railway service, 1 replica in `us-east4-eqdc4a` (US East), sleeping off, built from the `Dockerfile` (`node:26-bookworm-slim`), web + worker in one process; deploys only from the `production` branch | `railway` SDK 3.16.0 (`.railway/railway.ts`), Railway CLI ≥ 5.42.1 | The worker must stay up, and story merges to main must not reach users ([ADR 0006](../../docs/adr/0006-single-railway-service.md)) | All |
 | Testing | Vitest; `@temporalio/testing` time-skipping env; `app.request()` for routes | vitest 5.0.x | Fast, ESM-native, runs `.ts` directly | All |
 | Styling | One hand-written CSS file with tokens (UX §3–4) | — | The UX spec decided it; < 10 KB | All |
 
@@ -182,7 +182,7 @@ Unit tests sit next to their source as `*.test.ts`. `tests/` holds the workflow 
 
 #### Railway
 - **Purpose**: hosting one always-on service with HTTPS, variables and logs ([ADR 0006](../../docs/adr/0006-single-railway-service.md)).
-- **Configuration** (`.railway/railway.ts`, Railway's Infrastructure as Code; `railway.json`/`railway.toml` stop working on 2026-12-01): service `calvin` from `Leapfrogger-ai/lf-factory-testbed` branch `production`; `DOCKERFILE` builder; pre-deploy `node src/db/migrate.ts`; health check `/healthz`; `us-west2` with 1 replica; `sleepApplication: false`; restart `ALWAYS`; `drainingSeconds: 30`; the custom domain from `CALVIN_DOMAIN` at apply time. `PORT` is set to `8080`, the port the custom domain routes to. `partial = "calvin"`, so an apply touches nothing else in the project.
+- **Configuration** (`.railway/railway.ts`, Railway's Infrastructure as Code; `railway.json`/`railway.toml` stop working on 2026-12-01): service `calvin` from `Leapfrogger-ai/lf-factory-testbed` branch `production`; `DOCKERFILE` builder; pre-deploy `node src/db/migrate.ts`; health check `/healthz`; `us-east4-eqdc4a` with 1 replica; `sleepApplication: false`; restart `ALWAYS`; `drainingSeconds: 30`; the custom domain from `CALVIN_DOMAIN` at apply time. `PORT` is set to `8080`, the port the custom domain routes to. `partial = "calvin"`, so an apply touches nothing else in the project.
 - **Deploys**: on purpose only. Pushing a commit from `main` to `production` deploys it; merges to `main` don't. Rollback is Railway's rollback to an earlier deployment. Steps: [docs/deploy-runbook.md](../../docs/deploy-runbook.md).
 
 ### Integration Points
@@ -450,7 +450,7 @@ Rules:
 |---------|----------|
 | Public page ≤ 2s over 4G | Server-rendered HTML, one CSS file < 10 KB, no JS, no web fonts; one query for the plan plus its commits |
 | Neon cold start | Accept a few hundred ms after 5 idle minutes; `connectionTimeoutMillis: 5000` and one retry on connect |
-| Neon in `aws-us-west-2`, Railway in US West | Keep each page to one or two round trips |
+| Neon in `aws-us-east-2`, Railway in US East (about 10 ms apart); a Bay Area phone is one cross-country round trip away | Keep each page to one or two round trips |
 | Suggestion ≤ 15s p95 | `max_uses: 2`, `effort: "low"`; measure in the first suggestion story and drop to `max_uses: 1` if needed |
 | Static assets | `Cache-Control: public, max-age=86400` on `/static/*` |
 
@@ -470,11 +470,11 @@ There's no staging at PoC maturity.
 ### Infrastructure
 
 ```
-Phone (chat in-app browser) ──HTTPS──▶ Railway edge ──▶ Railway service us-west2 (Node 26, one process)
+Phone (chat in-app browser) ──HTTPS──▶ Railway edge ──▶ Railway service us-east4 (Node 26, one process)
                                                       ├─ Hono web ───────────────┐
                                                       ├─ Temporal worker ◀─poll──┼──▶ Temporal Cloud (operator's namespace)
                                                       │      └─ activities ──────┤
-                                                      ├──────────────────────────┴──▶ Neon Postgres (aws-us-west-2)
+                                                      ├──────────────────────────┴──▶ Neon Postgres (aws-us-east-2)
                                                       ├──▶ Anthropic API (suggestions)
                                                       └──▶ Resend (email) ──▶ inboxes
 ```
@@ -533,7 +533,7 @@ npx vitest
 - [0003: One always-on Fly.io machine runs web and worker in one process](../../docs/adr/0003-single-fly-machine.md): superseded by 0006.
 - [0004: Plan suggestions use Sonnet 5.5 with web search and a strict `propose_plan` tool](../../docs/adr/0004-suggestions-sonnet-web-search.md): venues checked as real; latency to be measured.
 - [0005: Capability tokens are stored in plaintext](../../docs/adr/0005-capability-tokens-stored-in-plaintext.md): every email is rebuilt from stored data, so tokens can't be hashed.
-- [0006: One always-on Railway service runs web and worker in one process](../../docs/adr/0006-single-railway-service.md): sleeping off, US West, deploys only from `production` (the operator's decision of 2026-11-12).
+- [0006: One always-on Railway service runs web and worker in one process](../../docs/adr/0006-single-railway-service.md): sleeping off, US East (amended 2026-11-13), deploys only from `production` (the operator's decision of 2026-11-12).
 
 ---
 

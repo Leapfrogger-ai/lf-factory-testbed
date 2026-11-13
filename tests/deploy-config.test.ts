@@ -50,9 +50,9 @@ describe('Railway service (.railway/railway.ts)', () => {
     expect(existsSync('Dockerfile')).toBe(true);
   });
 
-  it('runs one always-on replica in US West that restarts whenever it exits', async () => {
+  it('runs one always-on replica in US East, near the Neon database, that restarts whenever it exits', async () => {
     const svc = await calvinService();
-    expect(svc.deploy?.multiRegionConfig).toEqual({ 'us-west2': { numReplicas: 1 } });
+    expect(svc.deploy?.multiRegionConfig).toEqual({ 'us-east4-eqdc4a': { numReplicas: 1 } });
     expect(svc.deploy?.sleepApplication).toBe(false);
     expect(svc.deploy?.restartPolicyType).toBe('ALWAYS');
   });
