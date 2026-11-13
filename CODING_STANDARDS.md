@@ -49,6 +49,7 @@ Use what the stack provides; each rule comes from a "Platform Capabilities" row 
 - Every external boundary (`db`, `now`, `suggestPlanCall`, `sendEmail`, `planWorkflows`) reaches code as an argument through `createApp(deps)` or `createActivities(deps)`, only `src/main.ts` builds the real ones, and no code outside it calls `Date.now()` or `new Date()` for the current time — tests can replace only what's passed in. ([test-strategy](specs/calvin/test-strategy.md))
 - Times are stored as UTC `timestamptz`, and every local-time rule and display format goes through `src/domain/time.ts` with `PLAN_TIME_ZONE` — one place for DST and the UX §8.8 formats.
 - Code, copy and names use `GLOSSARY.md`'s terms (`commit`, `withdraw`, `minimum`, `commit deadline`, `called off`), never their _Avoid_ words — the code, the specs and the UI mean the same thing.
+- A view builds markup that appears on more than one page or branch (such as the "Suggest a plan" link) in one helper, and chooses between states with a `switch` or early returns, never a nested ternary — one copy to change, and a state branch a reviewer can read.
 
 ## Errors and configuration
 
