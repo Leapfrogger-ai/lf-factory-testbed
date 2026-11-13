@@ -1,7 +1,7 @@
 # Database Schema: calvin
 
 **Version**: 1.0
-**Database**: Postgres on Neon (Free plan, `aws-us-west-2`), Postgres 17 (Neon default)
+**Database**: Postgres on Neon (calvin's existing project, `aws-us-east-2`), Postgres 17 (Neon default)
 **ORM**: Drizzle ORM 0.45.4 + `pg` 8.23.1; migrations by drizzle-kit 0.31.11
 **Maturity**: poc
 **Last Updated**: 2026-10-27

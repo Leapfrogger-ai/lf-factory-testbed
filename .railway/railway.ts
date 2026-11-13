@@ -19,7 +19,8 @@ export default defineRailway((ctx) => {
     build: { builder: 'DOCKERFILE', dockerfilePath: 'Dockerfile' },
     preDeploy: 'node src/db/migrate.ts',
     healthcheck: '/healthz',
-    replicas: { 'us-west2': 1 },
+    // US East (Virginia), near calvin's Neon project in aws-us-east-2 (Ohio). Neon can't move a project's region.
+    replicas: { 'us-east4-eqdc4a': 1 },
     deploy: {
       // The Temporal worker must stay up for reminders to fire on time (NFR007).
       sleepApplication: false,

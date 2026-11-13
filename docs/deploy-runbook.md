@@ -9,12 +9,14 @@ Everything here is the operator's to do. No step needs a secret in the repo, a c
 | Service | What to set up | Gives you |
 |---|---|---|
 | Railway | An account on the Hobby plan; an empty project named `calvin`; Railway's GitHub app with access to `Leapfrogger-ai/lf-factory-testbed`. Confirm the plan's price and included usage keep calvin under ~$20/month (NFR010). | The service, logs, HTTPS |
-| Neon | A Free project in `aws-us-west-2`, with one database. Take the **direct** connection string (not `-pooler`), with `sslmode=require`. | `DATABASE_URL` |
-| Temporal Cloud | A namespace for calvin only. An API key (through a service account) that can reach that namespace and nothing else. | `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY` |
+| Neon | calvin's existing Neon project, with one database. Take the **direct** connection string (not `-pooler`), with `sslmode=require`. | `DATABASE_URL` |
+| Temporal Cloud | A namespace for calvin only, created in an AWS us-east region (near the app and the database). An API key (through a service account) that can reach that namespace and nothing else. | `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY` |
 | Anthropic | A workspace of its own for calvin, with a monthly spend limit. A key from that workspace. | `ANTHROPIC_API_KEY` |
 | Resend | Add and verify the `send.<domain>` subdomain (its DNS records). An API key with sending access only, restricted to that domain. | `RESEND_API_KEY`, `EMAIL_FROM` |
 | Domain | calvin's domain, such as `calvin.example.com`. Its DNS gets a CNAME to Railway in step 3. | `CALVIN_DOMAIN`, and `BASE_URL` from it |
 | GitHub | A ruleset on the testbed's `production` branch: only you may push, with no force-push and no deletion. Tell whoever resets the testbed to keep `production` (and see "After a testbed reset" below). | Deploys only on purpose |
+
+Everything runs in the US East: Railway's US East region (`us-east4-eqdc4a`, Virginia), Neon's `aws-us-east-2` (Ohio), where calvin's existing project already is, and the Temporal namespace in an AWS us-east region. Neon can't move a project between regions, so the app goes to the database. Each query then costs about 10 ms instead of about 60 ms across the country, and a Bay Area visitor pays one cross-country round trip per page instead of one per query.
 
 ### The variables
 
@@ -45,7 +47,7 @@ These are the names from `.env.example`. Set them in Railway (service `calvin` â
    - source branch `production`;
    - the `DOCKERFILE` builder;
    - pre-deploy `node src/db/migrate.ts` and health check `/healthz`;
-   - `us-west2` with 1 replica, and sleeping off;
+   - `us-east4-eqdc4a` with 1 replica, and sleeping off;
    - your domain;
    - `BASE_URL` set, and every other variable preserved.
 
@@ -90,7 +92,8 @@ That push is a fast-forward and deploys `<sha>`'s files.
 ## Still to confirm (not checked here)
 
 - Railway's Hobby price, what usage it includes, and log retention.
-- Whether `us-west2` is still Railway's US West region id.
+- Which Neon plan calvin's existing project is on. The architecture assumes Free's limits (scale to zero after 5 idle minutes) and $0 toward NFR010.
+- Whether `us-east4-eqdc4a` is still Railway's US East region id (Railway's regions page listed it on 2026-11-13; plain `us-east4` is not an id).
 - That `railway config plan` accepts `preserve()` for variables not set yet. If it doesn't, set the variables before step 3.
 - The exact Temporal Cloud endpoint for API-key connections, as the namespace page shows it.
 - That Railway's edge overwrites any `X-Real-IP` a client sends. calvin's rate limits key on it; Railway's docs say only that it carries the client's IP.
